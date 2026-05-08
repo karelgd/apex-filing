@@ -1,13 +1,18 @@
 :root {
-  --apex-ink: #172033;
+  --apex-ink: #162033;
   --apex-muted: #667085;
-  --apex-accent: #2563eb;
-  --apex-surface: #f6f8fb;
+  --apex-accent: #0f6fff;
+  --apex-teal: #00a99d;
+  --apex-gold: #f6b73c;
+  --apex-surface: #f5f8fc;
 }
 
 body {
-  background: var(--apex-surface);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(15, 111, 255, .18), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, var(--apex-surface) 48%, #eef5f8 100%);
   color: var(--apex-ink);
+  min-height: 100vh;
 }
 
 .navbar-brand {
@@ -20,27 +25,114 @@ body {
   border-radius: 8px;
 }
 
+.login-hero {
+  padding: 4.5rem 0 5rem;
+}
+
+.hero-kicker {
+  background: rgba(0, 169, 157, .12);
+  border: 1px solid rgba(0, 169, 157, .24);
+  border-radius: 999px;
+  color: #06756d;
+  display: inline-block;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  margin-bottom: 1rem;
+  padding: .45rem .75rem;
+  text-transform: uppercase;
+}
+
+.login-hero h1 {
+  color: #0e1c34;
+  font-size: clamp(3rem, 7vw, 5.75rem);
+  line-height: .92;
+  margin-bottom: 1rem;
+}
+
+.hero-copy {
+  color: #314056;
+  font-size: 1.35rem;
+  font-weight: 700;
+  max-width: 520px;
+}
+
+.hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  margin-top: 1.5rem;
+}
+
+.hero-points span {
+  background: #ffffff;
+  border: 1px solid #d8e3ef;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(22, 32, 51, .08);
+  color: #344154;
+  font-size: .9rem;
+  font-weight: 700;
+  padding: .55rem .8rem;
+}
+
+.login-panel {
+  background:
+    linear-gradient(135deg, rgba(15, 111, 255, .96), rgba(0, 169, 157, .92)),
+    #0f6fff;
+  border: 1px solid rgba(255, 255, 255, .34);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15, 50, 90, .24);
+  padding: 1.25rem;
+}
+
+.panel-heading {
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.panel-heading span {
+  font-size: .78rem;
+  font-weight: 800;
+  opacity: .78;
+  text-transform: uppercase;
+}
+
+.panel-heading strong {
+  font-size: .95rem;
+}
+
 .login-tile {
   align-items: center;
-  background: #fff;
-  border: 1px solid #d9e2ef;
-  box-shadow: 0 8px 24px rgba(23, 32, 51, 0.08);
+  background: rgba(255, 255, 255, .96);
+  border: 1px solid rgba(255, 255, 255, .7);
+  box-shadow: 0 14px 28px rgba(6, 31, 66, 0.18);
   color: var(--apex-ink);
   display: flex;
+  flex-direction: column;
   font-size: 1.1rem;
   font-weight: 700;
   justify-content: center;
-  min-height: 160px;
+  min-height: 174px;
   padding: 1rem;
   text-align: center;
   text-decoration: none;
-  transition: border-color .15s ease, transform .15s ease;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+
+.login-tile small {
+  color: var(--apex-teal);
+  font-size: .78rem;
+  font-weight: 800;
+  margin-bottom: .45rem;
+  text-transform: uppercase;
 }
 
 .login-tile:hover {
-  border-color: var(--apex-accent);
+  box-shadow: 0 18px 34px rgba(6, 31, 66, 0.24);
   color: var(--apex-accent);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
 }
 
 .metric {
