@@ -7,7 +7,7 @@
     <div class="hero-copy-wrap">
       <span class="hero-kicker">Built for form preparer teams</span>
       <h1 class="display-5 fw-bold">Apex Filing</h1>
-      <p class="hero-copy">The Ultimate Software for Form Preparer Agencies</p>
+      <p class="hero-copy">The Ultimate Software for<br>Form Preparer Agencies</p>
     </div>
     <div class="hero-product">
       <div class="product-window">
@@ -50,28 +50,10 @@
         <small>Generated PDF</small>
         <strong>I-485 Summary</strong>
       </div>
-      <div class="login-panel">
-        <div class="panel-heading">
-          <span>Secure Access</span>
-          <strong>Select your workspace</strong>
-        </div>
-        <div class="row g-3">
-        <div class="col-md-4">
-          <a class="login-tile" href="{{ url_for('login', role='agency') }}">
-            <span>Agency Login</span>
-          </a>
-        </div>
-        <div class="col-md-4">
-          <a class="login-tile" href="{{ url_for('login', role='client') }}">
-            <span>Client Login</span>
-          </a>
-        </div>
-        <div class="col-md-4">
-          <a class="login-tile" href="{{ url_for('login', role='apex') }}">
-            <span>Apex Login</span>
-          </a>
-        </div>
-        </div>
+      <div class="login-actions" aria-label="Login options">
+        <a class="login-pill agency-pill" href="{{ url_for('login', role='agency') }}">Agency Login</a>
+        <a class="login-pill client-pill" href="{{ url_for('login', role='client') }}">Client Login</a>
+        <a class="login-pill apex-pill" href="{{ url_for('login', role='apex') }}">Apex Login</a>
       </div>
     </div>
   </div>
