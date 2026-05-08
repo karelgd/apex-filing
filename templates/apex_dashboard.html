@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1">Apex Dashboard</h1>
+    <p class="text-secondary mb-0">Super admin access across all agencies, clients, and cases.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('agency_create') }}">Create agency</a>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="metric"><span>{{ agency_count }}</span><small>Agencies</small></div></div>
+  <div class="col-md-4"><div class="metric"><span>{{ client_count }}</span><small>Clients</small></div></div>
+  <div class="col-md-4"><div class="metric"><span>{{ case_count }}</span><small>Cases</small></div></div>
+</div>
+<div class="card">
+  <div class="card-header bg-white fw-semibold">Recent agencies</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Agency</th><th>Owner(s)</th><th>Tools</th><th></th></tr></thead>
+      <tbody>
+        {% for agency in agencies %}
+          <tr>
+            <td>{{ agency.agency_name }}</td>
+            <td>{{ agency.registered_owners }}</td>
+            <td>{{ agency.subscriptions|map(attribute='name')|join(', ') or 'None' }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('agency_edit', agency_id=agency.id) }}">Edit</a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="text-center text-secondary py-4">No agencies yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">Generated Documents</h1>
+<div class="card">
+  <div class="card-header bg-white fw-semibold">{{ case.case_type }} - {{ case.client.full_name }}</div>
+  <div class="list-group list-group-flush">
+    {% for form in case.generated_forms %}
+      <a class="list-group-item list-group-item-action" href="{{ url_for('uploaded_file', filename=form.filename) }}">
+        {{ form.filename.split('/')[-1] }}
+        <span class="text-secondary small">Generated {{ form.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+      </a>
+    {% else %}
+      <div class="list-group-item text-secondary">No generated documents yet.</div>
+    {% endfor %}
+  </div>
+</div>
+<a class="btn btn-outline-secondary mt-3" href="{{ url_for('case_review', case_id=case.id) }}">Back to review</a>
+{% endblock %}

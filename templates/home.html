@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Login - Apex Agency Platform{% endblock %}
+{% block content %}
+<section class="py-5">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-5">
+      <h1 class="display-6 fw-bold">Apex Agency Platform</h1>
+      <p class="lead text-secondary">Manage agencies, client immigration cases, questionnaires, documents, and generated case summaries.</p>
+    </div>
+    <div class="col-lg-7">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <a class="login-tile" href="{{ url_for('login', role='agency') }}">
+            <span>Agency Login</span>
+          </a>
+        </div>
+        <div class="col-md-4">
+          <a class="login-tile" href="{{ url_for('login', role='client') }}">
+            <span>Client Login</span>
+          </a>
+        </div>
+        <div class="col-md-4">
+          <a class="login-tile" href="{{ url_for('login', role='apex') }}">
+            <span>Apex Login</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

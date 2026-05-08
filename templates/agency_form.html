@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Edit' if agency else 'Create' }} Agency</h1>
+<form method="post" enctype="multipart/form-data" class="card card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label">Agency Name</label><input class="form-control" name="agency_name" value="{{ agency.agency_name if agency else '' }}" required></div>
+    <div class="col-md-6"><label class="form-label">EIN or SSN</label><input class="form-control" name="tax_id" value="{{ agency.tax_id if agency else '' }}" required></div>
+    <div class="col-md-8"><label class="form-label">Street address</label><input class="form-control" name="street_address" value="{{ agency.street_address if agency else '' }}" required></div>
+    <div class="col-md-4"><label class="form-label">Apartment/Suite</label><input class="form-control" name="apartment" value="{{ agency.apartment if agency else '' }}"></div>
+    <div class="col-md-5"><label class="form-label">City</label><input class="form-control" name="city" value="{{ agency.city if agency else '' }}" required></div>
+    <div class="col-md-3"><label class="form-label">State</label><select class="form-select" name="state" required>{% for state in states %}<option value="{{ state }}" {% if agency and agency.state == state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">ZIP Code</label><input class="form-control" name="zip_code" value="{{ agency.zip_code if agency else '' }}" required></div>
+    <div class="col-md-6"><label class="form-label">CEO email</label><input class="form-control" type="email" name="ceo_email" value="{{ agency.ceo_email if agency else '' }}" required></div>
+    <div class="col-md-6"><label class="form-label">Agency email, optional</label><input class="form-control" type="email" name="agency_email" value="{{ agency.agency_email if agency else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">CEO phone</label><input class="form-control" name="ceo_phone" value="{{ agency.ceo_phone if agency else '' }}" required></div>
+    <div class="col-md-6"><label class="form-label">Agency phone, optional</label><input class="form-control" name="agency_phone" value="{{ agency.agency_phone if agency else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Registered owner(s) name</label><input class="form-control" name="registered_owners" value="{{ agency.registered_owners if agency else '' }}" required></div>
+    <div class="col-md-6"><label class="form-label">Registered operator, optional</label><input class="form-control" name="registered_operator" value="{{ agency.registered_operator if agency else '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Membership Plan Cost</label><input class="form-control" type="number" step="0.01" name="membership_plan_cost" value="{{ agency.membership_plan_cost if agency else '0.00' }}"></div>
+    <div class="col-md-4"><label class="form-label">Total IPs allowed</label><input class="form-control" type="number" min="1" name="total_ips_allowed" value="{{ agency.total_ips_allowed if agency else 1 }}" required></div>
+    <div class="col-md-4"><label class="form-label">Related documents</label><input class="form-control" type="file" name="documents" multiple></div>
+    <div class="col-12">
+      <label class="form-label">Membership Subscriptions</label>
+      <div class="row g-2">
+        {% set selected = agency.subscriptions|map(attribute='name')|list if agency else [] %}
+        {% for tool in subscription_tools %}
+          <div class="col-md-4">
+            <label class="check-card"><input type="checkbox" name="subscriptions" value="{{ tool }}" {% if tool in selected %}checked{% endif %}> {{ tool }}</label>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-md-6"><label class="form-label">Agency Username</label><input class="form-control" name="username" value="{{ user.username if user else '' }}" required></div>
+    <div class="col-md-6"><label class="form-label">Agency Password</label><input class="form-control" type="password" name="password" {% if not agency %}required{% endif %} placeholder="{{ 'Leave blank to keep existing password' if agency else '' }}"></div>
+  </div>
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary">Save agency</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('agency_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

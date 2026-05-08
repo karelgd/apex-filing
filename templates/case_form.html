@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Edit' if case else 'Create' }} Case</h1>
+<form method="post" enctype="multipart/form-data" class="card card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-md-5">
+      <label class="form-label">Client</label>
+      <select class="form-select" name="client_id" required>
+        {% for client in clients %}
+          <option value="{{ client.id }}" {% if case and case.client_id == client.id %}selected{% endif %}>{{ client.full_name }} - {{ client.agency.agency_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Case type</label>
+      <select class="form-select" name="case_type">
+        {% for type in case_types %}
+          <option value="{{ type }}" {% if case and case.case_type == type %}selected{% endif %}>{{ type }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Case status</label>
+      <select class="form-select" name="status">
+        {% for status in case_statuses %}
+          <option value="{{ status }}" {% if case and case.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12"><label class="form-label">Notes</label><textarea class="form-control" name="notes" rows="4">{{ case.notes if case else '' }}</textarea></div>
+    <div class="col-12"><label class="form-label">Upload client/case documents</label><input class="form-control" type="file" name="documents" multiple></div>
+  </div>
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary">Save case</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('case_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

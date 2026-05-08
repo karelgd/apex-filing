@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Agencies</h1>
+  <a class="btn btn-primary" href="{{ url_for('agency_create') }}">Create agency</a>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Name</th><th>CEO Email</th><th>Location</th><th>IP Limit</th><th>Tools</th><th></th></tr></thead>
+      <tbody>
+        {% for agency in agencies %}
+          <tr>
+            <td>{{ agency.agency_name }}</td>
+            <td>{{ agency.ceo_email }}</td>
+            <td>{{ agency.city }}, {{ agency.state }}</td>
+            <td>{{ agency.total_ips_allowed }}</td>
+            <td>{{ agency.subscriptions|map(attribute='name')|join(', ') or 'None' }}</td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agency_edit', agency_id=agency.id) }}">Edit</a>
+              <form class="d-inline" method="post" action="{{ url_for('agency_delete', agency_id=agency.id) }}" onsubmit="return confirm('Delete this agency and its data?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="text-center text-secondary py-4">No agencies found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

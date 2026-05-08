@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="h3 mb-1">Review {{ case.case_type }}</h1>
+    <p class="text-secondary mb-0">{{ case.client.full_name }} - {{ case.agency.agency_name }}</p>
+  </div>
+  <form method="post" action="{{ url_for('generate_form', case_id=case.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-success" {% if not case.agency.has_tool('Form Filler') %}disabled{% endif %}>Generate Form</button>
+  </form>
+</div>
+{% if not case.agency.has_tool('Form Filler') %}
+  <div class="alert alert-warning">This feature is not included in your current membership.</div>
+{% endif %}
+<form method="post" class="card card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Status</label>
+      <select class="form-select" name="status">
+        {% for status in case_statuses %}
+          <option value="{{ status }}" {% if case.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-8">
+      <label class="form-label">Progress</label>
+      <div class="progress mt-2"><div class="progress-bar" style="width: {{ case.progress_percentage }}%">{{ case.progress_percentage }}%</div></div>
+    </div>
+    {% for question in questions %}
+      {% set answer = answers.get(question.id) %}
+      <div class="col-md-6">
+        <label class="form-label">{{ question.prompt }}</label>
+        {% if question.input_type == 'textarea' %}
+          <textarea class="form-control" name="question_{{ question.id }}" rows="4">{{ answer.answer_text if answer else '' }}</textarea>
+        {% else %}
+          <input class="form-control" type="{{ question.input_type }}" name="question_{{ question.id }}" value="{{ answer.answer_text if answer else '' }}">
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="col-12"><div class="alert alert-info mb-0">No questionnaire has been configured for this case type yet.</div></div>
+    {% endfor %}
+  </div>
+  <div class="mt-4">
+    <button class="btn btn-primary">Save review edits</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('case_list') }}">Back to cases</a>
+  </div>
+</form>
+<div class="card mt-4">
+  <div class="card-header bg-white fw-semibold">Case documents</div>
+  <div class="list-group list-group-flush">
+    {% for doc in case.documents %}
+      <a class="list-group-item list-group-item-action" href="{{ url_for('uploaded_file', filename=doc.stored_filename) }}">{{ doc.original_filename }} <span class="text-secondary small">({{ doc.document_type }})</span></a>
+    {% else %}
+      <div class="list-group-item text-secondary">No documents uploaded.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Edit' if client else 'Create' }} Client</h1>
+<form method="post" class="card card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-md-4"><label class="form-label">First Name</label><input class="form-control" name="first_name" value="{{ client.first_name if client else '' }}" required></div>
+    <div class="col-md-4"><label class="form-label">Middle Name</label><input class="form-control" name="middle_name" value="{{ client.middle_name if client else '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Last Name</label><input class="form-control" name="last_name" value="{{ client.last_name if client else '' }}" required></div>
+    <div class="col-md-4"><label class="form-label">A-Number</label><input class="form-control" name="a_number" value="{{ client.a_number if client else '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Phone</label><input class="form-control" name="phone" value="{{ client.phone if client else '' }}" required></div>
+    <div class="col-md-4"><label class="form-label">Email</label><input class="form-control" type="email" name="email" value="{{ client.email if client else '' }}" required></div>
+    <div class="col-md-8"><label class="form-label">Street address</label><input class="form-control" name="street_address" value="{{ client.street_address if client else '' }}" required></div>
+    <div class="col-md-4"><label class="form-label">Apartment/Suite</label><input class="form-control" name="apartment" value="{{ client.apartment if client else '' }}"></div>
+    <div class="col-md-5"><label class="form-label">City</label><input class="form-control" name="city" value="{{ client.city if client else '' }}" required></div>
+    <div class="col-md-3"><label class="form-label">State</label><select class="form-select" name="state" required>{% for state in states %}<option value="{{ state }}" {% if client and client.state == state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">ZIP Code</label><input class="form-control" name="zip_code" value="{{ client.zip_code if client else '' }}" required></div>
+    <div class="col-md-6">
+      <label class="form-label">Linked agency</label>
+      <select class="form-select" name="agency_id" required>
+        {% for agency in agencies %}
+          <option value="{{ agency.id }}" {% if client and client.agency_id == agency.id %}selected{% endif %}>{{ agency.agency_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3"><label class="form-label">Client username</label><input class="form-control" name="username" value="{{ client.username if client else '' }}" required></div>
+    <div class="col-md-3"><label class="form-label">Client password</label><input class="form-control" type="password" name="password" {% if not client %}required{% endif %} placeholder="{{ 'Leave blank to keep existing' if client else '' }}"></div>
+  </div>
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary">Save client</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('client_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

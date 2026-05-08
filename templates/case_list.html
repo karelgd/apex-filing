@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Cases</h1>
+  <a class="btn btn-primary" href="{{ url_for('case_create') }}">Create case</a>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Type</th><th>Client</th><th>Agency</th><th>Status</th><th>Progress</th><th></th></tr></thead>
+      <tbody>
+        {% for case in cases %}
+          <tr>
+            <td>{{ case.case_type }}</td>
+            <td>{{ case.client.full_name }}</td>
+            <td>{{ case.agency.agency_name }}</td>
+            <td><span class="badge text-bg-light border">{{ case.status }}</span></td>
+            <td style="min-width: 160px">
+              <div class="progress" role="progressbar">
+                <div class="progress-bar" style="width: {{ case.progress_percentage }}%">{{ case.progress_percentage }}%</div>
+              </div>
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('case_edit', case_id=case.id) }}">Edit</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('case_review', case_id=case.id) }}">Review</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="text-center text-secondary py-4">No cases found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

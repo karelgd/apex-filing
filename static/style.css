@@ -1,0 +1,74 @@
+:root {
+  --apex-ink: #172033;
+  --apex-muted: #667085;
+  --apex-accent: #2563eb;
+  --apex-surface: #f6f8fb;
+}
+
+body {
+  background: var(--apex-surface);
+  color: var(--apex-ink);
+}
+
+.navbar-brand {
+  letter-spacing: 0;
+}
+
+.card,
+.login-tile,
+.metric {
+  border-radius: 8px;
+}
+
+.login-tile {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d9e2ef;
+  box-shadow: 0 8px 24px rgba(23, 32, 51, 0.08);
+  color: var(--apex-ink);
+  display: flex;
+  font-size: 1.1rem;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 160px;
+  padding: 1rem;
+  text-align: center;
+  text-decoration: none;
+  transition: border-color .15s ease, transform .15s ease;
+}
+
+.login-tile:hover {
+  border-color: var(--apex-accent);
+  color: var(--apex-accent);
+  transform: translateY(-2px);
+}
+
+.metric {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
+}
+
+.metric span {
+  display: block;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.metric small {
+  color: var(--apex-muted);
+  text-transform: uppercase;
+}
+
+.check-card {
+  background: #fff;
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  cursor: pointer;
+  display: block;
+  padding: .75rem;
+}
+
+.table > :not(caption) > * > * {
+  padding: .85rem;
+}
