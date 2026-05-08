@@ -68,8 +68,8 @@ body {
 
 .login-hero h1 {
   color: #ffffff;
-  font-size: clamp(3rem, 7vw, 5.75rem);
-  line-height: .92;
+  font-size: clamp(3rem, 6.6vw, 5.35rem);
+  line-height: 1.03;
   margin-bottom: 1rem;
   text-shadow: 0 18px 38px rgba(7, 25, 58, .25);
 }
@@ -81,26 +81,8 @@ body {
   max-width: 520px;
 }
 
-.hero-points {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .65rem;
-  margin-top: 1.5rem;
-}
-
-.hero-points span {
-  background: rgba(255, 255, 255, .94);
-  border: 1px solid rgba(255, 255, 255, .62);
-  border-radius: 999px;
-  box-shadow: 0 16px 34px rgba(23, 54, 104, .18);
-  color: #18345e;
-  font-size: .9rem;
-  font-weight: 700;
-  padding: .55rem .8rem;
-}
-
 .hero-product {
-  min-height: 560px;
+  min-height: 620px;
   position: relative;
 }
 
@@ -110,8 +92,11 @@ body {
   border-radius: 22px;
   box-shadow: 0 36px 90px rgba(18, 44, 92, .28);
   margin-left: auto;
+  opacity: .78;
   overflow: hidden;
   position: relative;
+  transform: scale(.94);
+  transform-origin: top right;
   width: min(100%, 760px);
 }
 
@@ -284,6 +269,7 @@ body {
 }
 
 .floating-card {
+  opacity: .86;
   padding: .95rem;
   position: absolute;
   z-index: 3;
@@ -303,8 +289,8 @@ body {
 }
 
 .review-card {
-  bottom: 102px;
-  left: 12px;
+  bottom: 210px;
+  left: 6px;
   width: 168px;
 }
 
@@ -330,16 +316,16 @@ body {
 }
 
 .login-panel {
-  background: rgba(255, 255, 255, .94);
-  border: 1px solid rgba(255, 255, 255, .72);
+  background: rgba(255, 255, 255, .98);
+  border: 1px solid #d4e1f3;
   border-radius: 18px;
   bottom: 0;
-  box-shadow: 0 24px 70px rgba(15, 50, 90, .22);
-  left: 78px;
+  box-shadow: 0 24px 70px rgba(7, 27, 65, .28);
+  left: 116px;
   padding: 1.25rem;
   position: absolute;
-  right: 18px;
-  z-index: 4;
+  right: 0;
+  z-index: 6;
 }
 
 .panel-heading {
@@ -371,19 +357,11 @@ body {
   font-size: 1.1rem;
   font-weight: 700;
   justify-content: center;
-  min-height: 174px;
+  min-height: 150px;
   padding: 1rem;
   text-align: center;
   text-decoration: none;
   transition: box-shadow .15s ease, transform .15s ease;
-}
-
-.login-tile small {
-  color: var(--apex-teal);
-  font-size: .78rem;
-  font-weight: 800;
-  margin-bottom: .45rem;
-  text-transform: uppercase;
 }
 
 .login-tile:hover {
