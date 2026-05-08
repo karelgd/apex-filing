@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Login - Apex Filing{% endblock %}
+{% block body_class %}home-page{% endblock %}
 {% block content %}
 <section class="login-hero">
-  <div class="row align-items-center g-4">
-    <div class="col-lg-5">
+  <div class="hero-stage">
+    <div class="hero-copy-wrap">
       <span class="hero-kicker">Built for form preparer teams</span>
       <h1 class="display-5 fw-bold">Apex Filing</h1>
       <p class="hero-copy">The Ultimate Software for Form Preparer Agencies</p>
@@ -13,7 +14,47 @@
         <span>Document collection</span>
       </div>
     </div>
-    <div class="col-lg-7">
+    <div class="hero-product">
+      <div class="product-window">
+        <div class="window-bar">
+          <span></span>
+          <span></span>
+          <span></span>
+          <button>Generate Summary</button>
+        </div>
+        <div class="product-grid">
+          <aside class="product-sidebar">
+            <strong>Apex</strong>
+            <span class="active">Cases</span>
+            <span>Clients</span>
+            <span>Questionnaires</span>
+            <span>Documents</span>
+          </aside>
+          <div class="product-main">
+            <div class="table-card">
+              <div class="table-row head"><span>Client</span><span>Case</span><span>Status</span></div>
+              <div class="table-row"><span>R. Martinez</span><span>I-485</span><span class="pill green">Ready</span></div>
+              <div class="table-row"><span>A. Torres</span><span>I-765</span><span class="pill blue">Started</span></div>
+              <div class="table-row"><span>M. Rivera</span><span>Motion</span><span class="pill gold">Review</span></div>
+            </div>
+            <div class="flow-card">
+              <span>Questionnaire Workflow</span>
+              <div class="flow-lane">
+                <i></i><b></b><i></i><b></b><i></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="floating-card review-card">
+        <small>Case Progress</small>
+        <strong>82%</strong>
+        <div class="mini-progress"><span></span></div>
+      </div>
+      <div class="floating-card pdf-card">
+        <small>Generated PDF</small>
+        <strong>I-485 Summary</strong>
+      </div>
       <div class="login-panel">
         <div class="panel-heading">
           <span>Secure Access</span>
