@@ -1,4 +1,4 @@
-# Apex Agency Platform
+# Apex Filing
 
 A Flask MVP for a subscription-based agency platform. Apex super admins manage agencies; agencies manage clients and cases; clients complete case questionnaires and upload documents; agencies can review answers and generate a PDF answer summary when the agency has the Form Filler subscription.
 
@@ -61,14 +61,14 @@ Change this password immediately after first login in any real environment.
 
    ```bash
    cd ~
-   git clone <your-repo-url> apex-agency-platform
-   cd apex-agency-platform
+   git clone <your-repo-url> apex-filing
+   cd apex-filing
    ```
 
 2. Create a virtual environment:
 
    ```bash
-   mkvirtualenv --python=/usr/bin/python3.10 apex-agency-platform
+   mkvirtualenv --python=/usr/bin/python3.10 apex-filing
    pip install -r requirements.txt
    ```
 
@@ -83,8 +83,8 @@ Change this password immediately after first login in any real environment.
 
    - Choose Manual configuration.
    - Choose the same Python version used for the virtualenv.
-   - Set the virtualenv path, for example `/home/yourusername/.virtualenvs/apex-agency-platform`.
-   - Set the source code path to `/home/yourusername/apex-agency-platform`.
+   - Set the virtualenv path, for example `/home/yourusername/.virtualenvs/apex-filing`.
+   - Set the source code path to `/home/yourusername/apex-filing`.
 
 5. Edit the WSGI file and point it to this Flask app:
 
@@ -92,13 +92,13 @@ Change this password immediately after first login in any real environment.
    import os
    import sys
 
-   project_home = "/home/yourusername/apex-agency-platform"
+   project_home = "/home/yourusername/apex-filing"
    if project_home not in sys.path:
        sys.path.insert(0, project_home)
 
    os.environ["SECRET_KEY"] = "replace-with-a-random-secret"
-   os.environ["DATABASE_URL"] = "sqlite:////home/yourusername/apex-agency-platform/instance/app.db"
-   os.environ["UPLOAD_FOLDER"] = "/home/yourusername/apex-agency-platform/uploads"
+   os.environ["DATABASE_URL"] = "sqlite:////home/yourusername/apex-filing/instance/app.db"
+   os.environ["UPLOAD_FOLDER"] = "/home/yourusername/apex-filing/uploads"
 
    from app import app as application
    ```
@@ -106,7 +106,7 @@ Change this password immediately after first login in any real environment.
 6. In Static files, add:
 
    - URL: `/static/`
-   - Directory: `/home/yourusername/apex-agency-platform/static/`
+   - Directory: `/home/yourusername/apex-filing/static/`
 
 7. Reload the web app.
 
