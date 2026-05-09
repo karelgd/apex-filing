@@ -25,6 +25,8 @@ from models import (
     ActiveSession,
     Agency,
     AgencyDocument,
+    AgencyPreparer,
+    AgencyTranslator,
     AgencyUser,
     ApexUser,
     Case,
@@ -285,6 +287,22 @@ def populate_client_from_form(client):
     client.username = request.form["username"].strip()
 
 
+def populate_translator_from_form(translator):
+    translator.full_name = request.form["full_name"].strip()
+    translator.language = request.form["language"].strip()
+    translator.phone = request.form.get("phone", "").strip()
+    translator.email = request.form.get("email", "").strip()
+    translator.address = request.form.get("address", "").strip()
+
+
+def populate_preparer_from_form(preparer):
+    preparer.full_name = request.form["full_name"].strip()
+    preparer.title = request.form.get("title", "").strip()
+    preparer.phone = request.form.get("phone", "").strip()
+    preparer.email = request.form.get("email", "").strip()
+    preparer.address = request.form.get("address", "").strip()
+
+
 def query_case_for_role(case_id):
     case = db.session.get(Case, case_id) or abort(404)
     if current_user.role == "apex":
@@ -294,6 +312,17 @@ def query_case_for_role(case_id):
     if current_user.role == "client" and case.client_id == current_user.id:
         return case
     abort(403)
+
+
+def assign_case_people_from_form(case):
+    translator_id = request.form.get("translator_id")
+    preparer_id = request.form.get("preparer_id")
+    case.translator_id = int(translator_id) if translator_id else None
+    case.preparer_id = int(preparer_id) if preparer_id else None
+    if case.translator_id and not AgencyTranslator.query.filter_by(id=case.translator_id, agency_id=case.agency_id).first():
+        abort(403)
+    if case.preparer_id and not AgencyPreparer.query.filter_by(id=case.preparer_id, agency_id=case.agency_id).first():
+        abort(403)
 
 
 def update_case_progress(case):
@@ -580,6 +609,44 @@ def register_routes(app):
             cases=cases,
         )
 
+    @app.route("/agency/translators", methods=["GET", "POST"])
+    @role_required("agency")
+    def translator_list():
+        agency = current_user.agency
+        if request.method == "POST":
+            translator = AgencyTranslator(agency_id=agency.id)
+            populate_translator_from_form(translator)
+            db.session.add(translator)
+            db.session.commit()
+            flash("Translator saved.", "success")
+            return redirect(url_for("translator_list"))
+        return render_template(
+            "people_list.html",
+            agency=agency,
+            people=AgencyTranslator.query.filter_by(agency_id=agency.id).order_by(AgencyTranslator.full_name).all(),
+            person_type="translator",
+            title="Translators",
+        )
+
+    @app.route("/agency/preparers", methods=["GET", "POST"])
+    @role_required("agency")
+    def preparer_list():
+        agency = current_user.agency
+        if request.method == "POST":
+            preparer = AgencyPreparer(agency_id=agency.id)
+            populate_preparer_from_form(preparer)
+            db.session.add(preparer)
+            db.session.commit()
+            flash("Form preparer saved.", "success")
+            return redirect(url_for("preparer_list"))
+        return render_template(
+            "people_list.html",
+            agency=agency,
+            people=AgencyPreparer.query.filter_by(agency_id=agency.id).order_by(AgencyPreparer.full_name).all(),
+            person_type="preparer",
+            title="Form Preparers",
+        )
+
     @app.route("/clients")
     @role_required("apex", "agency")
     def client_list():
@@ -708,11 +775,19 @@ def register_routes(app):
                 answer.answer_text = request.form.get(f"question_{question.id}", "").strip()
                 db.session.add(answer)
             case.status = request.form.get("status", case.status)
+            assign_case_people_from_form(case)
             update_case_progress(case)
             db.session.commit()
             flash("Case answers updated.", "success")
             return redirect(url_for("case_review", case_id=case.id))
-        return render_template("case_review.html", case=case, questions=questions, answers=answers)
+        return render_template(
+            "case_review.html",
+            case=case,
+            questions=questions,
+            answers=answers,
+            translators=AgencyTranslator.query.filter_by(agency_id=case.agency_id).order_by(AgencyTranslator.full_name).all(),
+            preparers=AgencyPreparer.query.filter_by(agency_id=case.agency_id).order_by(AgencyPreparer.full_name).all(),
+        )
 
     @app.route("/cases/<int:case_id>/generate", methods=["POST"])
     @role_required("apex", "agency")
@@ -721,6 +796,15 @@ def register_routes(app):
         if not can_use_form_filler(case.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("case_review", case_id=case.id))
+        questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+        answers = {answer.question_id: answer for answer in case.answers}
+        for question in questions:
+            form_key = f"question_{question.id}"
+            if form_key in request.form:
+                answer = answers.get(question.id) or CaseAnswer(case_id=case.id, question_id=question.id)
+                answer.answer_text = request.form.get(form_key, "").strip()
+                db.session.add(answer)
+        assign_case_people_from_form(case)
         update_case_progress(case)
         if case.progress_percentage < 100:
             db.session.commit()
@@ -858,6 +942,31 @@ def visible_clients():
     return Client.query.filter_by(agency_id=current_user.agency_id).order_by(Client.last_name).all()
 
 
+def render_person_details(pdf, x, y, label, person):
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(x, y, label)
+    y -= 12
+    pdf.setFont("Helvetica", 9)
+    if not person:
+        pdf.drawString(x + 12, y, "None selected")
+        return y - 14
+    lines = [person.full_name]
+    if isinstance(person, AgencyTranslator):
+        lines.append(f"Language: {person.language}")
+    if isinstance(person, AgencyPreparer) and person.title:
+        lines.append(f"Title: {person.title}")
+    if person.phone:
+        lines.append(f"Phone: {person.phone}")
+    if person.email:
+        lines.append(f"Email: {person.email}")
+    if person.address:
+        lines.append(f"Address: {person.address}")
+    for line in lines:
+        pdf.drawString(x + 12, y, line[:100])
+        y -= 12
+    return y - 6
+
+
 def save_agency_documents(agency):
     for file_storage in request.files.getlist("documents"):
         try:
@@ -906,7 +1015,10 @@ def create_answer_summary_pdf(case):
     pdf.drawString(50, y, f"Client: {case.client.full_name}")
     y -= 16
     pdf.drawString(50, y, f"Agency: {case.agency.agency_name}")
-    y -= 24
+    y -= 22
+    y = render_person_details(pdf, 50, y, "Translator", case.translator)
+    y = render_person_details(pdf, 50, y, "Form Preparer", case.preparer)
+    y -= 8
     pdf.setFont("Helvetica", 9)
     questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
     answers = {answer.question_id: answer.answer_text or "" for answer in case.answers}
@@ -990,6 +1102,9 @@ def create_preserved_template_answer_packet(case, template):
     packet.drawString(50, height - 68, "The original USCIS PDF template is preserved. XFA/XML was not modified.")
     packet.drawString(50, height - 82, "Coordinate-based overlay mapping will place answers on exact fields once approved in Apex.")
     y = height - 112
+    y = render_person_details(packet, 50, y, "Translator", case.translator)
+    y = render_person_details(packet, 50, y, "Form Preparer", case.preparer)
+    y -= 8
     questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
     answers = {answer.question_id: answer.answer_text or "" for answer in case.answers}
     for question in questions:
@@ -1089,6 +1204,15 @@ def ensure_sqlite_schema():
         for column, ddl in question_additions.items():
             if column not in existing_question:
                 db.session.execute(text(f"ALTER TABLE case_question ADD COLUMN {column} {ddl}"))
+    if "case" in inspector.get_table_names():
+        existing_case = {column["name"] for column in inspector.get_columns("case")}
+        case_additions = {
+            "translator_id": "INTEGER",
+            "preparer_id": "INTEGER",
+        }
+        for column, ddl in case_additions.items():
+            if column not in existing_case:
+                db.session.execute(text(f"ALTER TABLE 'case' ADD COLUMN {column} {ddl}"))
     db.session.commit()
 
 

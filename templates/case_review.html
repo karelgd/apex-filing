@@ -5,10 +5,7 @@
     <h1 class="h3 mb-1">Review {{ case.case_type }}</h1>
     <p class="text-secondary mb-0">{{ case.client.full_name }} - {{ case.agency.agency_name }}</p>
   </div>
-  <form method="post" action="{{ url_for('generate_form', case_id=case.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-success" {% if not case.agency.has_tool('Form Filler') %}disabled{% endif %}>Generate Form</button>
-  </form>
+  <span></span>
 </div>
 {% if not case.agency.has_tool('Form Filler') %}
   <div class="alert alert-warning">This feature is not included in your current membership.</div>
@@ -28,6 +25,24 @@
       <label class="form-label">Progress</label>
       <div class="progress mt-2"><div class="progress-bar" style="width: {{ case.progress_percentage }}%">{{ case.progress_percentage }}%</div></div>
     </div>
+    <div class="col-md-6">
+      <label class="form-label">Translator</label>
+      <select class="form-select" name="translator_id">
+        <option value="">No translator</option>
+        {% for translator in translators %}
+          <option value="{{ translator.id }}" {% if case.translator_id == translator.id %}selected{% endif %}>{{ translator.full_name }} - {{ translator.language }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Form Preparer</label>
+      <select class="form-select" name="preparer_id">
+        <option value="">No preparer selected</option>
+        {% for preparer in preparers %}
+          <option value="{{ preparer.id }}" {% if case.preparer_id == preparer.id %}selected{% endif %}>{{ preparer.full_name }}{% if preparer.title %} - {{ preparer.title }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
     {% for question in questions %}
       {% set answer = answers.get(question.id) %}
       <div class="col-md-6">
@@ -44,6 +59,7 @@
   </div>
   <div class="mt-4">
     <button class="btn btn-primary">Save review edits</button>
+    <button class="btn btn-success" formaction="{{ url_for('generate_form', case_id=case.id) }}" {% if not case.agency.has_tool('Form Filler') %}disabled{% endif %}>Generate Form</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('case_list') }}">Back to cases</a>
   </div>
 </form>

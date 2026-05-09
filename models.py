@@ -130,6 +130,32 @@ class AgencyUser(UserMixin, PasswordMixin, db.Model):
         return f"agency:{self.id}"
 
 
+class AgencyTranslator(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    full_name = db.Column(db.String(160), nullable=False)
+    language = db.Column(db.String(80), nullable=False)
+    phone = db.Column(db.String(40))
+    email = db.Column(db.String(160))
+    address = db.Column(db.String(240))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("translators", cascade="all, delete-orphan"))
+
+
+class AgencyPreparer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    full_name = db.Column(db.String(160), nullable=False)
+    title = db.Column(db.String(100))
+    phone = db.Column(db.String(40))
+    email = db.Column(db.String(160))
+    address = db.Column(db.String(240))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("preparers", cascade="all, delete-orphan"))
+
+
 class Client(UserMixin, PasswordMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
@@ -176,6 +202,8 @@ class Case(db.Model):
     case_type = db.Column(db.String(40), nullable=False)
     status = db.Column(db.String(80), default="Created", nullable=False)
     progress_percentage = db.Column(db.Integer, default=0, nullable=False)
+    translator_id = db.Column(db.Integer, db.ForeignKey("agency_translator.id"))
+    preparer_id = db.Column(db.Integer, db.ForeignKey("agency_preparer.id"))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -185,6 +213,8 @@ class Case(db.Model):
     answers = db.relationship("CaseAnswer", back_populates="case", cascade="all, delete-orphan")
     documents = db.relationship("CaseDocument", back_populates="case", cascade="all, delete-orphan")
     generated_forms = db.relationship("GeneratedForm", back_populates="case", cascade="all, delete-orphan")
+    translator = db.relationship("AgencyTranslator")
+    preparer = db.relationship("AgencyPreparer")
 
 
 class CaseQuestion(db.Model):
