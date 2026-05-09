@@ -1228,6 +1228,36 @@ def register_routes(app):
         questions = visible_questions_for_answers(all_questions, answers_by_question)
         if not questions:
             return render_template("questionnaire.html", case=case, questions=questions, answers=answers)
+        step = request.args.get("q", "intro")
+        if step == "docs":
+            if request.method == "POST":
+                save_case_documents(case, "client")
+                db.session.commit()
+                flash("Documents uploaded.", "success")
+                if request.form.get("action") == "save":
+                    return redirect(url_for("client_dashboard"))
+                return redirect(url_for("questionnaire", case_id=case.id, q="docs"))
+            return render_template(
+                "questionnaire.html",
+                case=case,
+                questions=questions,
+                answers=answers,
+                current_question=None,
+                current_index=len(questions) + 1,
+                document_step=True,
+                first_unanswered_index=first_unanswered_question_index(case, questions),
+            )
+        if step == "intro":
+            return render_template(
+                "questionnaire.html",
+                case=case,
+                questions=questions,
+                answers=answers,
+                current_question=None,
+                current_index=0,
+                welcome_step=True,
+                first_unanswered_index=first_unanswered_question_index(case, questions),
+            )
         raw_index = request.args.get("q", 1, type=int)
         current_index = min(max(raw_index, 1), len(questions))
         current_question = questions[current_index - 1]
@@ -1237,17 +1267,22 @@ def register_routes(app):
             db.session.add(answer)
             update_case_progress(case)
             db.session.commit()
-            save_case_documents(case, "client")
             answers = {answer.question_id: answer for answer in case.answers}
             answers_by_question = {answer.question_id: answer.answer_text or "" for answer in case.answers}
             questions = visible_questions_for_answers(all_questions, answers_by_question)
             current_index = next((idx for idx, question in enumerate(questions, start=1) if question.id == current_question.id), current_index)
             action = request.form.get("action", "save")
+            if action == "back":
+                if current_index > 1:
+                    return redirect(url_for("questionnaire", case_id=case.id, q=current_index - 1))
+                return redirect(url_for("questionnaire", case_id=case.id, q="intro"))
             if action == "next" and current_index < len(questions):
                 return redirect(url_for("questionnaire", case_id=case.id, q=current_index + 1))
-            if action == "later" and current_index < len(questions):
+            if action == "next":
+                return redirect(url_for("questionnaire", case_id=case.id, q="docs"))
+            if action == "later":
                 unanswered = first_unanswered_question_index(case, questions, skip_question_id=current_question.id)
-                return redirect(url_for("questionnaire", case_id=case.id, q=unanswered or current_index + 1))
+                return redirect(url_for("questionnaire", case_id=case.id, q=unanswered or "docs"))
             flash("Progress saved.", "success")
             return redirect(url_for("client_dashboard"))
         return render_template(
@@ -1257,6 +1292,7 @@ def register_routes(app):
             answers=answers,
             current_question=current_question,
             current_index=current_index,
+            first_unanswered_index=first_unanswered_question_index(case, questions),
         )
 
     @app.route("/uploads/<path:filename>")

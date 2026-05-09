@@ -519,6 +519,67 @@ body {
   padding: 2rem;
 }
 
+.client-questionnaire-shell {
+  align-items: start;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.question-map {
+  align-self: start;
+  background: #17233d;
+  border-radius: 8px;
+  box-shadow: 0 18px 38px rgba(18, 35, 61, .18);
+  max-height: calc(100vh - 130px);
+  overflow: auto;
+  padding: 1rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.question-map-link {
+  border-radius: 6px;
+  color: rgba(255, 255, 255, .78);
+  display: grid;
+  font-size: .9rem;
+  gap: .55rem;
+  grid-template-columns: 28px minmax(0, 1fr);
+  margin-bottom: .35rem;
+  padding: .62rem .65rem;
+  text-decoration: none;
+}
+
+.question-map-link > span {
+  align-items: center;
+  background: rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  display: flex;
+  font-size: .78rem;
+  font-weight: 800;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.question-map-link b {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.question-map-link:hover,
+.question-map-link.active {
+  background: #3e68ff;
+  color: #ffffff;
+}
+
+.question-map-link.answered > span {
+  background: #23c7b7;
+  color: #10233a;
+}
+
 .question-meta {
   color: var(--apex-accent);
   font-size: .78rem;
@@ -655,11 +716,13 @@ body {
 
 @media (max-width: 767.98px) {
   .agency-shell,
-  .apex-shell {
+  .apex-shell,
+  .client-questionnaire-shell {
     grid-template-columns: 1fr;
   }
 
-  .apex-sidebar {
+  .apex-sidebar,
+  .question-map {
     position: static;
   }
 

@@ -14,28 +14,87 @@
 {% if not questions %}
   <div class="alert alert-warning">This questionnaire has not been configured yet.</div>
 {% else %}
-  {% set answer = answers.get(current_question.id) %}
-  <form method="post" enctype="multipart/form-data" class="question-card">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="question-meta">Question {{ current_index }} of {{ questions|length }}</div>
-    <label class="question-prompt">{{ current_question.prompt }}</label>
-    {% if current_question.input_type == 'textarea' %}
-      <textarea class="form-control form-control-lg" name="question_{{ current_question.id }}" rows="6" autofocus>{{ answer.answer_text if answer else '' }}</textarea>
-    {% else %}
-      <input class="form-control form-control-lg" type="{{ current_question.input_type }}" name="question_{{ current_question.id }}" value="{{ answer.answer_text if answer else '' }}" autofocus>
-    {% endif %}
+  <div class="client-questionnaire-shell">
+    <aside class="question-map">
+      <span class="sidebar-label">Questionnaire</span>
+      <a class="question-map-link {{ 'active' if welcome_step is defined else '' }}" href="{{ url_for('questionnaire', case_id=case.id, q='intro') }}">Welcome</a>
+      {% for question in questions %}
+        {% set existing = answers.get(question.id) %}
+        <a class="question-map-link {{ 'active' if current_question and current_question.id == question.id else '' }} {{ 'answered' if existing and existing.answer_text else '' }}" href="{{ url_for('questionnaire', case_id=case.id, q=loop.index) }}">
+          <span>{{ loop.index }}</span>
+          <b>{{ question.prompt }}</b>
+        </a>
+      {% endfor %}
+      <a class="question-map-link {{ 'active' if document_step is defined else '' }}" href="{{ url_for('questionnaire', case_id=case.id, q='docs') }}">Documents</a>
+    </aside>
 
-    <div class="mt-4">
-      <label class="form-label">Upload requested documents</label>
-      <input class="form-control" type="file" name="documents" multiple>
-    </div>
+    <section>
+      {% if welcome_step is defined %}
+        <div class="question-card">
+          <div class="question-meta">Before you begin</div>
+          <h2 class="question-prompt">Welcome to your {{ case.case_type }} questionnaire</h2>
+          <p class="text-secondary mb-3">
+            Answer each question as completely as you can. You may save and exit at any time, then return later to continue.
+          </p>
+          <p class="text-secondary mb-3">
+            If a question does not apply to you, write <strong>N/A</strong>. When you finish, your agency will review your answers before preparing the form.
+          </p>
+          <p class="text-secondary mb-4">
+            At the end of the questionnaire, you will be able to upload the documents your agency requested.
+          </p>
+          <div class="question-actions">
+            <a class="btn btn-primary" href="{{ url_for('questionnaire', case_id=case.id, q=first_unanswered_index or 1) }}">Start or Continue</a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('client_dashboard') }}">Exit</a>
+          </div>
+        </div>
+      {% elif document_step is defined %}
+        <form method="post" enctype="multipart/form-data" class="question-card">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="question-meta">Final step</div>
+          <h2 class="question-prompt">Upload requested documents</h2>
+          <p class="text-secondary">You can upload multiple files now, and you can return later to add more documents from this same place.</p>
+          <input class="form-control form-control-lg" type="file" name="documents" multiple>
 
-    <div class="question-actions">
-      <button class="btn btn-primary" name="action" value="next" type="submit">Next Question</button>
-      <button class="btn btn-outline-primary" name="action" value="later" type="submit">Answer Later</button>
-      <button class="btn btn-outline-secondary" name="action" value="save" type="submit">Save Progress and Exit</button>
-      <a class="btn btn-link" href="{{ url_for('client_dashboard') }}">Exit</a>
-    </div>
-  </form>
+          <div class="mt-4">
+            <h3 class="h6">Uploaded documents</h3>
+            <div class="list-group">
+              {% for doc in case.documents if doc.uploaded_by_role == 'client' %}
+                <a class="list-group-item list-group-item-action" href="{{ url_for('uploaded_file', filename=doc.stored_filename) }}">{{ doc.original_filename }}</a>
+              {% else %}
+                <div class="list-group-item text-secondary">No documents uploaded yet.</div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="question-actions">
+            <a class="btn btn-outline-secondary" href="{{ url_for('questionnaire', case_id=case.id, q=questions|length) }}">Back</a>
+            <button class="btn btn-primary" name="action" value="stay" type="submit">Upload Documents</button>
+            <button class="btn btn-outline-secondary" name="action" value="save" type="submit">Save and Exit</button>
+            <a class="btn btn-link" href="{{ url_for('client_dashboard') }}">Exit</a>
+          </div>
+        </form>
+      {% else %}
+        {% set answer = answers.get(current_question.id) %}
+        <form method="post" class="question-card">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="question-meta">Question {{ current_index }} of {{ questions|length }}</div>
+          <label class="question-prompt">{{ current_question.prompt }}</label>
+          {% if current_question.input_type == 'textarea' %}
+            <textarea class="form-control form-control-lg" name="question_{{ current_question.id }}" rows="6" autofocus>{{ answer.answer_text if answer else '' }}</textarea>
+          {% else %}
+            <input class="form-control form-control-lg" type="{{ current_question.input_type }}" name="question_{{ current_question.id }}" value="{{ answer.answer_text if answer else '' }}" autofocus>
+          {% endif %}
+
+          <div class="question-actions">
+            <button class="btn btn-outline-secondary" name="action" value="back" type="submit">Back</button>
+            <button class="btn btn-primary" name="action" value="next" type="submit">Next Question</button>
+            <button class="btn btn-outline-primary" name="action" value="later" type="submit">Answer Later</button>
+            <button class="btn btn-outline-secondary" name="action" value="save" type="submit">Save Progress and Exit</button>
+            <a class="btn btn-link" href="{{ url_for('client_dashboard') }}">Exit</a>
+          </div>
+        </form>
+      {% endif %}
+    </section>
+  </div>
 {% endif %}
 {% endblock %}
