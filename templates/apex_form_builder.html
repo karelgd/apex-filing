@@ -4,6 +4,11 @@
   <div>
     <h1 class="h3 mb-1">{{ template.label }} Builder</h1>
     <p class="text-secondary mb-0">Map questions to PDF fields and add simple conditional skip logic.</p>
+    <div class="small text-secondary mt-1">
+      PDF: {{ template.pdf_original_filename or 'Not uploaded' }} -
+      Type: {{ template.pdf_kind }} -
+      Strategy: {{ template.pdf_generation_strategy }}
+    </div>
   </div>
   <a class="btn btn-outline-secondary" href="{{ url_for('apex_form_filler_admin') }}">Back to Form Filler Admin</a>
 </div>
@@ -108,7 +113,13 @@
         {% for field in pdf_fields %}
           <code>{{ field.field_name }}</code>
         {% else %}
-          <p class="text-secondary mb-0">Upload an official USCIS PDF template to detect fields.</p>
+          {% if template.pdf_stored_filename %}
+            <p class="text-secondary mb-0">
+              No embedded editable PDF fields were detected. This template can still use the draft questions extracted from the visible PDF text, then later use coordinate overlay mapping for Adobe-visible output.
+            </p>
+          {% else %}
+            <p class="text-secondary mb-0">Upload an official USCIS PDF template to detect fields or extract draft questions.</p>
+          {% endif %}
         {% endfor %}
       </div>
     </div>

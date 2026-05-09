@@ -28,12 +28,12 @@
       <div class="mb-3">
         <label class="form-label">Questions</label>
         <textarea class="form-control" name="questions" rows="10" placeholder="One question per line, or PDF_FIELD_NAME | Question text"></textarea>
-        <div class="form-text">For AcroForm filling, use the exact detected PDF field name before a pipe character.</div>
+        <div class="form-text">Optional. Leave blank when uploading a PDF and Apex Filing will extract draft questions from visible form text if embedded fields are unavailable.</div>
       </div>
       <div class="mb-3">
         <label class="form-label">Official USCIS PDF template</label>
         <input class="form-control" type="file" name="pdf_template" accept="application/pdf">
-        <div class="form-text">The system detects AcroForm, XFA, or hybrid XFA/AcroForm and avoids modifying XFA XML directly.</div>
+        <div class="form-text">The system detects AcroForm, XFA, or hybrid XFA/AcroForm, avoids modifying XFA XML directly, and falls back to visible-text extraction.</div>
       </div>
       <label class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="is_active" checked>

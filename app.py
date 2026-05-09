@@ -1,4 +1,6 @@
 import os
+import json
+import re
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -180,11 +182,12 @@ def parse_question_line(line, code, index):
 def detect_pdf_template(template, uploaded_file):
     saved = save_upload(uploaded_file, f"form_templates/{template.code}")
     if not saved:
-        return
+        return None
     original, stored = saved
     template.pdf_original_filename = original
     template.pdf_stored_filename = stored
-    metadata = inspect_uscis_pdf(os.path.join(app.config["UPLOAD_FOLDER"], stored))
+    pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], stored)
+    metadata = inspect_uscis_pdf(pdf_path)
     template.pdf_kind = metadata["kind"]
     template.pdf_field_count = len(metadata["fields"])
     template.pdf_generation_strategy = metadata["strategy"]
@@ -199,20 +202,23 @@ def detect_pdf_template(template, uploaded_file):
                 rect_json=field.get("rect_json"),
             )
         )
+    return pdf_path
 
 
 def inspect_uscis_pdf(pdf_path):
     metadata = {"kind": "unknown", "strategy": "summary_pdf", "fields": []}
+    xfa = False
+    has_acroform = False
     try:
         from pypdf import PdfReader
     except ImportError:
         metadata["kind"] = "pypdf_missing"
-        return metadata
+        return inspect_pdf_widgets_with_pymupdf(pdf_path, metadata, has_acroform, xfa)
     try:
         reader = PdfReader(pdf_path)
         root = reader.trailer.get("/Root", {})
         acroform = root.get("/AcroForm")
-        xfa = False
+        has_acroform = bool(acroform)
         fields = []
         if acroform:
             try:
@@ -243,7 +249,174 @@ def inspect_uscis_pdf(pdf_path):
     except Exception:
         metadata["kind"] = "inspection_failed"
         metadata["strategy"] = "summary_pdf"
+    return inspect_pdf_widgets_with_pymupdf(pdf_path, metadata, has_acroform, xfa)
+
+
+def inspect_pdf_widgets_with_pymupdf(pdf_path, metadata, has_acroform=False, xfa=False):
+    if metadata.get("fields"):
+        return metadata
+    try:
+        import fitz
+    except ImportError:
+        return metadata
+    fields = []
+    seen = set()
+    try:
+        document = fitz.open(pdf_path)
+        for page_index in range(document.page_count):
+            page = document.load_page(page_index)
+            for widget in page.widgets() or []:
+                name = (widget.field_name or "").strip()
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                rect = widget.rect
+                fields.append(
+                    {
+                        "name": name,
+                        "type": str(widget.field_type_string or widget.field_type or ""),
+                        "page": page_index + 1,
+                        "rect_json": json.dumps([round(rect.x0, 2), round(rect.y0, 2), round(rect.x1, 2), round(rect.y1, 2)]),
+                    }
+                )
+        document.close()
+    except Exception:
+        return metadata
+    if not fields:
+        return metadata
+    metadata["fields"] = fields
+    if xfa and has_acroform:
+        metadata["kind"] = "hybrid_xfa_acroform"
+        metadata["strategy"] = "overlay_preserve_original"
+    elif xfa:
+        metadata["kind"] = "xfa"
+        metadata["strategy"] = "overlay_preserve_original"
+    else:
+        metadata["kind"] = "acroform_widgets"
+        metadata["strategy"] = "acroform_fill_need_appearances"
     return metadata
+
+
+QUESTION_KEYWORDS = (
+    "name",
+    "address",
+    "city",
+    "state",
+    "zip",
+    "date",
+    "number",
+    "phone",
+    "email",
+    "signature",
+    "applicant",
+    "petitioner",
+    "beneficiary",
+    "country",
+    "birth",
+    "alien",
+    "a-number",
+    "uscis",
+    "passport",
+    "account",
+    "card",
+    "expiration",
+    "security code",
+)
+
+
+QUESTION_NOISE = (
+    "department of homeland security",
+    "u.s. citizenship and immigration services",
+    "uscis form",
+    "page ",
+    "for uscis use only",
+    "do not write",
+    "instructions",
+    "privacy act",
+    "paperwork reduction",
+)
+
+
+def seed_questions_from_pdf_text(code, pdf_path):
+    if not pdf_path or CaseQuestion.query.filter_by(case_type=code).first():
+        return 0
+    draft_questions = extract_draft_questions_from_pdf(pdf_path, code)
+    for index, (field_key, prompt, input_type) in enumerate(draft_questions, start=1):
+        db.session.add(
+            CaseQuestion(
+                case_type=code,
+                field_key=field_key,
+                prompt=prompt[:255],
+                input_type=input_type,
+                sort_order=index,
+                required=True,
+            )
+        )
+    return len(draft_questions)
+
+
+def extract_draft_questions_from_pdf(pdf_path, code):
+    try:
+        import fitz
+    except ImportError:
+        return []
+    prompts = []
+    seen = set()
+    try:
+        document = fitz.open(pdf_path)
+        for page_index in range(document.page_count):
+            page_text = document.load_page(page_index).get_text("text")
+            for raw_line in page_text.splitlines():
+                prompt = normalize_pdf_prompt(raw_line)
+                if not prompt or not looks_like_form_prompt(prompt):
+                    continue
+                key = prompt.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                prompts.append(prompt)
+                if len(prompts) >= 80:
+                    break
+            if len(prompts) >= 80:
+                break
+        document.close()
+    except Exception:
+        return []
+    prefix = code.lower().replace("-", "")
+    return [(f"{prefix}_auto_{index}", prompt, guess_input_type(prompt)) for index, prompt in enumerate(prompts, start=1)]
+
+
+def normalize_pdf_prompt(raw_line):
+    prompt = re.sub(r"\s+", " ", raw_line or "").strip(" .:_")
+    prompt = re.sub(r"^\d+[.)]\s*", "", prompt)
+    prompt = re.sub(r"^Part\s+\d+[.)]?\s*", "", prompt, flags=re.IGNORECASE)
+    return prompt.strip()
+
+
+def looks_like_form_prompt(prompt):
+    if len(prompt) < 4 or len(prompt) > 180:
+        return False
+    lower = prompt.lower()
+    if any(noise in lower for noise in QUESTION_NOISE):
+        return False
+    if lower.isupper() and len(prompt.split()) > 7:
+        return False
+    if prompt.endswith("?"):
+        return True
+    if any(keyword in lower for keyword in QUESTION_KEYWORDS):
+        return True
+    return bool(re.match(r"^(family|given|middle|last|first)\b", lower))
+
+
+def guess_input_type(prompt):
+    lower = prompt.lower()
+    if "date" in lower or "expiration" in lower:
+        return "date"
+    if "describe" in lower or "explain" in lower or "history" in lower:
+        return "textarea"
+    if "number" in lower or "amount" in lower:
+        return "number"
+    return "text"
 
 
 def decimal_from_form(name):
@@ -473,10 +646,19 @@ def register_routes(app):
             template.is_active = bool(request.form.get("is_active"))
             db.session.add(template)
             db.session.flush()
-            replace_template_questions(code, request.form.get("questions", ""))
-            detect_pdf_template(template, request.files.get("pdf_template"))
+            question_lines = request.form.get("questions", "")
+            if question_lines.strip():
+                replace_template_questions(code, question_lines)
+            pdf_path = detect_pdf_template(template, request.files.get("pdf_template"))
+            if not pdf_path and template.pdf_stored_filename:
+                existing_pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
+                pdf_path = existing_pdf_path if os.path.exists(existing_pdf_path) else None
+            seeded_count = seed_questions_from_pdf_text(code, pdf_path) if pdf_path and not question_lines.strip() else 0
             db.session.commit()
-            flash("Form Filler questionnaire saved.", "success")
+            if seeded_count:
+                flash(f"Form Filler questionnaire saved with {seeded_count} draft questions extracted from the PDF.", "success")
+            else:
+                flash("Form Filler questionnaire saved.", "success")
             return redirect(url_for("apex_form_filler_admin"))
         templates = available_form_templates(active_only=False)
         questions_by_code = {
