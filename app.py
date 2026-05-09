@@ -1668,14 +1668,20 @@ def init_database():
     for name in SUBSCRIPTION_TOOLS:
         if not SubscriptionTool.query.filter_by(name=name).first():
             db.session.add(SubscriptionTool(name=name))
-    for code, name, description in FORM_TEMPLATES:
-        template = FormTemplate.query.filter_by(code=code).first()
-        if not template:
-            db.session.add(FormTemplate(code=code, name=name, description=description))
+    if os.environ.get("SEED_SAMPLE_FORMS") == "1" and FormTemplate.query.count() == 0:
+        seed_sample_form_templates()
     if not ApexUser.query.filter_by(username="apexadmin").first():
         apex = ApexUser(username="apexadmin")
         apex.set_password("ChangeMe123!")
         db.session.add(apex)
+    db.session.commit()
+
+
+def seed_sample_form_templates():
+    for code, name, description in FORM_TEMPLATES:
+        template = FormTemplate.query.filter_by(code=code).first()
+        if not template:
+            db.session.add(FormTemplate(code=code, name=name, description=description))
     for index, (field_key, prompt, input_type) in enumerate(I589_QUESTIONS, start=1):
         if not CaseQuestion.query.filter_by(case_type="I-589", field_key=field_key).first():
             db.session.add(
