@@ -186,9 +186,7 @@ def reorder_template_questions(code):
 
 
 def readable_pdf_field_name(field_name):
-    raw = (field_name or "").split(".")[-1]
-    raw = raw.replace("#", "")
-    raw = re.sub(r"\[\d+\]", "", raw)
+    raw = short_pdf_field_key(field_name)
     replacements = {
         "CCHolder": "Credit Card Holder ",
         "AptSteFlr": "Apartment/Suite/Floor",
@@ -205,6 +203,13 @@ def readable_pdf_field_name(field_name):
     label = label.replace("Family Name", "Family Name (Last Name)")
     label = label.replace("Middle Name", "Middle Name")
     return label or field_name
+
+
+def short_pdf_field_key(field_name):
+    raw = (field_name or "").split(".")[-1]
+    raw = raw.replace("#", "")
+    raw = re.sub(r"\[\d+\]", "", raw)
+    return raw
 
 
 def detect_pdf_template(template, uploaded_file):
@@ -1160,12 +1165,12 @@ def register_routes(app):
             uploaded_by_role=current_user.role,
             original_filename=os.path.basename(filename),
             stored_filename=filename,
-            document_type="Generated Form Summary",
+            document_type="Generated Form",
         )
         case.status = "Generated"
         db.session.add_all([generated, doc])
         db.session.commit()
-        flash("PDF answer summary generated.", "success")
+        flash("PDF form generated.", "success")
         return redirect(url_for("generated_documents", case_id=case.id))
 
     @app.route("/cases/<int:case_id>/generated")
@@ -1387,6 +1392,10 @@ def generate_case_pdf(case):
     template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
     if not template or not template.pdf_stored_filename:
         return create_answer_summary_pdf(case)
+    if template.pdf_generation_strategy in ("acroform_fill_need_appearances", "acroform_widgets"):
+        filled = fill_pdf_widgets_with_pymupdf(case, template)
+        if filled:
+            return filled
     if template.pdf_generation_strategy == "acroform_fill_need_appearances":
         filled = fill_acroform_pdf(case, template)
         if filled:
@@ -1421,6 +1430,45 @@ def fill_acroform_pdf(case, template):
             writer.write(output)
         return filename
     except Exception:
+        return None
+
+
+def fill_pdf_widgets_with_pymupdf(case, template):
+    try:
+        import fitz
+    except ImportError:
+        return None
+    source_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
+    folder = f"cases/{case.id}/generated"
+    os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
+    filename = f"{folder}/{case.case_type.lower()}_official_filled_{uuid.uuid4().hex[:8]}.pdf"
+    output_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    field_values = answer_values_by_pdf_field(case)
+    if not field_values:
+        return None
+    document = None
+    try:
+        document = fitz.open(source_path)
+        filled_count = 0
+        for page_index in range(document.page_count):
+            page = document.load_page(page_index)
+            for widget in page.widgets() or []:
+                field_name = (widget.field_name or "").strip()
+                field_value = field_values.get(field_name) or field_values.get(short_pdf_field_key(field_name))
+                if field_value is None:
+                    continue
+                widget.field_value = field_value
+                widget.update()
+                filled_count += 1
+        if not filled_count:
+            document.close()
+            return None
+        document.save(output_path, garbage=4, deflate=True, clean=True)
+        document.close()
+        return filename
+    except Exception:
+        if document:
+            document.close()
         return None
 
 
