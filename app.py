@@ -18,6 +18,7 @@ from flask_wtf import CSRFProtect
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from werkzeug.utils import secure_filename
+from sqlalchemy import inspect, text
 
 from forms import CASE_STATUSES, CASE_TYPES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
 from models import (
@@ -33,6 +34,7 @@ from models import (
     Client,
     FormTemplate,
     GeneratedForm,
+    PdfField,
     SubscriptionTool,
     db,
 )
@@ -149,20 +151,97 @@ def selected_tools_from_form():
 
 
 def replace_template_questions(code, question_lines):
-    prompts = [line.strip() for line in question_lines.splitlines() if line.strip()]
+    parsed_questions = [parse_question_line(line, code, index) for index, line in enumerate(question_lines.splitlines(), start=1) if line.strip()]
     existing = CaseQuestion.query.filter_by(case_type=code).order_by(CaseQuestion.sort_order).all()
-    for index, prompt in enumerate(prompts, start=1):
+    for index, (field_key, prompt) in enumerate(parsed_questions, start=1):
         input_type = "textarea" if len(prompt) > 80 or prompt.lower().startswith(("describe", "list", "why", "what")) else "text"
         question = existing[index - 1] if index <= len(existing) else CaseQuestion(case_type=code)
         question.prompt = prompt
-        question.field_key = question.field_key or f"{code.lower().replace('-', '')}_question_{index}"
+        question.field_key = field_key
         question.input_type = input_type
         question.sort_order = index
         question.required = True
         db.session.add(question)
-    for extra in existing[len(prompts):]:
+    for extra in existing[len(parsed_questions):]:
         if not CaseAnswer.query.filter_by(question_id=extra.id).first():
             db.session.delete(extra)
+
+
+def parse_question_line(line, code, index):
+    raw = line.strip()
+    if "|" in raw:
+        field_key, prompt = [part.strip() for part in raw.split("|", 1)]
+        return field_key or f"{code.lower().replace('-', '')}_question_{index}", prompt
+    return f"{code.lower().replace('-', '')}_question_{index}", raw
+
+
+def detect_pdf_template(template, uploaded_file):
+    saved = save_upload(uploaded_file, f"form_templates/{template.code}")
+    if not saved:
+        return
+    original, stored = saved
+    template.pdf_original_filename = original
+    template.pdf_stored_filename = stored
+    metadata = inspect_uscis_pdf(os.path.join(app.config["UPLOAD_FOLDER"], stored))
+    template.pdf_kind = metadata["kind"]
+    template.pdf_field_count = len(metadata["fields"])
+    template.pdf_generation_strategy = metadata["strategy"]
+    PdfField.query.filter_by(template_id=template.id).delete()
+    for field in metadata["fields"]:
+        db.session.add(
+            PdfField(
+                template_id=template.id,
+                field_name=field["name"][:255],
+                field_type=field.get("type"),
+                page_number=field.get("page"),
+                rect_json=field.get("rect_json"),
+            )
+        )
+
+
+def inspect_uscis_pdf(pdf_path):
+    metadata = {"kind": "unknown", "strategy": "summary_pdf", "fields": []}
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        metadata["kind"] = "pypdf_missing"
+        return metadata
+    try:
+        reader = PdfReader(pdf_path)
+        root = reader.trailer.get("/Root", {})
+        acroform = root.get("/AcroForm")
+        xfa = False
+        fields = []
+        if acroform:
+            try:
+                xfa = bool(acroform.get("/XFA"))
+            except AttributeError:
+                xfa = False
+            raw_fields = reader.get_fields() or {}
+            fields = [
+                {"name": name, "type": str(field.get("/FT", "")) if hasattr(field, "get") else "", "page": None, "rect_json": None}
+                for name, field in raw_fields.items()
+            ]
+        if acroform and xfa and fields:
+            metadata["kind"] = "hybrid_xfa_acroform"
+            metadata["strategy"] = "overlay_preserve_original"
+        elif xfa:
+            metadata["kind"] = "xfa"
+            metadata["strategy"] = "overlay_preserve_original"
+        elif acroform and fields:
+            metadata["kind"] = "acroform"
+            metadata["strategy"] = "acroform_fill_need_appearances"
+        elif acroform:
+            metadata["kind"] = "acroform_no_fields"
+            metadata["strategy"] = "overlay_preserve_original"
+        else:
+            metadata["kind"] = "flat_pdf"
+            metadata["strategy"] = "overlay_preserve_original"
+        metadata["fields"] = fields
+    except Exception:
+        metadata["kind"] = "inspection_failed"
+        metadata["strategy"] = "summary_pdf"
+    return metadata
 
 
 def decimal_from_form(name):
@@ -344,6 +423,7 @@ def register_routes(app):
             db.session.add(template)
             db.session.flush()
             replace_template_questions(code, request.form.get("questions", ""))
+            detect_pdf_template(template, request.files.get("pdf_template"))
             db.session.commit()
             flash("Form Filler questionnaire saved.", "success")
             return redirect(url_for("apex_form_filler_admin"))
@@ -595,7 +675,7 @@ def register_routes(app):
             db.session.commit()
             flash("The case is not ready yet. All questionnaire answers are required before generation.", "warning")
             return redirect(url_for("case_review", case_id=case.id))
-        filename = create_answer_summary_pdf(case)
+        filename = generate_case_pdf(case)
         generated = GeneratedForm(case_id=case.id, filename=filename)
         doc = CaseDocument(
             case_id=case.id,
@@ -791,6 +871,87 @@ def create_answer_summary_pdf(case):
     return filename
 
 
+def generate_case_pdf(case):
+    template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
+    if not template or not template.pdf_stored_filename:
+        return create_answer_summary_pdf(case)
+    if template.pdf_generation_strategy == "acroform_fill_need_appearances":
+        filled = fill_acroform_pdf(case, template)
+        if filled:
+            return filled
+    # USCIS XFA/hybrid fallback: preserve the original PDF; do not mutate XFA/XML.
+    return create_preserved_template_answer_packet(case, template)
+
+
+def fill_acroform_pdf(case, template):
+    try:
+        from pypdf import PdfReader, PdfWriter
+        from pypdf.generic import BooleanObject, NameObject
+    except ImportError:
+        return None
+    source_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
+    folder = f"cases/{case.id}/generated"
+    os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
+    filename = f"{folder}/{case.case_type.lower()}_filled_{uuid.uuid4().hex[:8]}.pdf"
+    output_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    try:
+        reader = PdfReader(source_path)
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        if "/AcroForm" in reader.trailer["/Root"]:
+            writer._root_object.update({NameObject("/AcroForm"): reader.trailer["/Root"]["/AcroForm"]})
+            writer._root_object["/AcroForm"].update({NameObject("/NeedAppearances"): BooleanObject(True)})
+        field_values = answer_values_by_pdf_field(case)
+        for page in writer.pages:
+            writer.update_page_form_field_values(page, field_values)
+        with open(output_path, "wb") as output:
+            writer.write(output)
+        return filename
+    except Exception:
+        return None
+
+
+def answer_values_by_pdf_field(case):
+    values = {}
+    for answer in case.answers:
+        if answer.question and answer.answer_text:
+            values[answer.question.field_key] = answer.answer_text
+    return values
+
+
+def create_preserved_template_answer_packet(case, template):
+    folder = f"cases/{case.id}/generated"
+    os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
+    filename = f"{folder}/{case.case_type.lower()}_preserved_packet_{uuid.uuid4().hex[:8]}.pdf"
+    output_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    packet = canvas.Canvas(output_path, pagesize=letter)
+    width, height = letter
+    packet.setFont("Helvetica-Bold", 13)
+    packet.drawString(50, height - 50, f"{case.case_type} Preserved USCIS PDF Packet")
+    packet.setFont("Helvetica", 9)
+    packet.drawString(50, height - 68, "The original USCIS PDF template is preserved. XFA/XML was not modified.")
+    packet.drawString(50, height - 82, "Coordinate-based overlay mapping will place answers on exact fields once approved in Apex.")
+    y = height - 112
+    questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+    answers = {answer.question_id: answer.answer_text or "" for answer in case.answers}
+    for question in questions:
+        if y < 80:
+            packet.showPage()
+            y = height - 50
+            packet.setFont("Helvetica", 9)
+        packet.setFont("Helvetica-Bold", 9)
+        packet.drawString(50, y, question.prompt[:95])
+        y -= 13
+        packet.setFont("Helvetica", 9)
+        for line in split_pdf_lines(answers.get(question.id, ""), 95):
+            packet.drawString(65, y, line)
+            y -= 11
+        y -= 7
+    packet.save()
+    return filename
+
+
 def split_pdf_lines(text, max_chars):
     text = text or "(No answer)"
     lines = []
@@ -809,6 +970,7 @@ def split_pdf_lines(text, max_chars):
 
 def init_database():
     db.create_all()
+    ensure_sqlite_schema()
     for name in SUBSCRIPTION_TOOLS:
         if not SubscriptionTool.query.filter_by(name=name).first():
             db.session.add(SubscriptionTool(name=name))
@@ -842,6 +1004,24 @@ def init_database():
                     sort_order=index,
                 )
             )
+    db.session.commit()
+
+
+def ensure_sqlite_schema():
+    inspector = inspect(db.engine)
+    if "form_template" not in inspector.get_table_names():
+        return
+    existing = {column["name"] for column in inspector.get_columns("form_template")}
+    additions = {
+        "pdf_original_filename": "VARCHAR(255)",
+        "pdf_stored_filename": "VARCHAR(255)",
+        "pdf_kind": "VARCHAR(40) DEFAULT 'not_uploaded' NOT NULL",
+        "pdf_field_count": "INTEGER DEFAULT 0 NOT NULL",
+        "pdf_generation_strategy": "VARCHAR(80) DEFAULT 'summary_pdf' NOT NULL",
+    }
+    for column, ddl in additions.items():
+        if column not in existing:
+            db.session.execute(text(f"ALTER TABLE form_template ADD COLUMN {column} {ddl}"))
     db.session.commit()
 
 

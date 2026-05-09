@@ -50,12 +50,33 @@ class FormTemplate(db.Model):
     description = db.Column(db.Text)
     subscription_tool = db.Column(db.String(80), default="Form Filler", nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    pdf_original_filename = db.Column(db.String(255))
+    pdf_stored_filename = db.Column(db.String(255))
+    pdf_kind = db.Column(db.String(40), default="not_uploaded", nullable=False)
+    pdf_field_count = db.Column(db.Integer, default=0, nullable=False)
+    pdf_generation_strategy = db.Column(db.String(80), default="summary_pdf", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     @property
     def label(self):
         return f"{self.code} - {self.name}"
+
+
+class PdfField(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey("form_template.id"), nullable=False)
+    field_name = db.Column(db.String(255), nullable=False)
+    field_type = db.Column(db.String(80))
+    page_number = db.Column(db.Integer)
+    rect_json = db.Column(db.Text)
+    mapped_question_id = db.Column(db.Integer, db.ForeignKey("case_question.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    template = db.relationship("FormTemplate", backref=db.backref("pdf_fields", cascade="all, delete-orphan"))
+    mapped_question = db.relationship("CaseQuestion")
+
+    __table_args__ = (db.UniqueConstraint("template_id", "field_name", name="uq_template_pdf_field"),)
 
 
 class Agency(db.Model):

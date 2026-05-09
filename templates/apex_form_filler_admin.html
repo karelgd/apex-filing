@@ -10,7 +10,7 @@
 
 <div class="row g-4">
   <div class="col-lg-5">
-    <form method="post" class="card card-body">
+    <form method="post" enctype="multipart/form-data" class="card card-body">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <h2 class="h5 mb-3">Create or update questionnaire</h2>
       <div class="mb-3">
@@ -27,7 +27,13 @@
       </div>
       <div class="mb-3">
         <label class="form-label">Questions</label>
-        <textarea class="form-control" name="questions" rows="10" placeholder="One question per line"></textarea>
+        <textarea class="form-control" name="questions" rows="10" placeholder="One question per line, or PDF_FIELD_NAME | Question text"></textarea>
+        <div class="form-text">For AcroForm filling, use the exact detected PDF field name before a pipe character.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Official USCIS PDF template</label>
+        <input class="form-control" type="file" name="pdf_template" accept="application/pdf">
+        <div class="form-text">The system detects AcroForm, XFA, or hybrid XFA/AcroForm and avoids modifying XFA XML directly.</div>
       </div>
       <label class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="is_active" checked>
@@ -44,9 +50,25 @@
             <div>
               <h2 class="h5 mb-1">{{ template.label }}</h2>
               <p class="text-secondary mb-2">{{ template.description or 'No description yet.' }}</p>
+              <div class="small text-secondary">
+                PDF: {{ template.pdf_original_filename or 'Not uploaded' }} ·
+                Type: {{ template.pdf_kind }} ·
+                Fields: {{ template.pdf_field_count }} ·
+                Strategy: {{ template.pdf_generation_strategy }}
+              </div>
             </div>
             <span class="badge {{ 'text-bg-success' if template.is_active else 'text-bg-secondary' }}">{{ 'Active' if template.is_active else 'Inactive' }}</span>
           </div>
+          {% if template.pdf_fields %}
+            <details class="mt-3">
+              <summary class="fw-semibold">Detected PDF field names</summary>
+              <div class="pdf-field-list mt-2">
+                {% for field in template.pdf_fields[:50] %}
+                  <code>{{ field.field_name }}</code>
+                {% endfor %}
+              </div>
+            </details>
+          {% endif %}
           <ol class="mb-0">
             {% for question in questions_by_code.get(template.code, []) %}
               <li>{{ question.prompt }}</li>
