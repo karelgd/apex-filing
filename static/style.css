@@ -446,6 +446,11 @@ body {
   padding: .75rem;
 }
 
+.password-group .password-toggle {
+  min-width: 70px;
+  font-weight: 700;
+}
+
 .table > :not(caption) > * > * {
   padding: .85rem;
 }

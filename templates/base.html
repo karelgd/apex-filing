@@ -58,6 +58,20 @@
     {% endif %}
   </main>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.querySelectorAll(".password-toggle").forEach((button) => {
+      button.addEventListener("click", () => {
+        const input = button.closest(".password-group")?.querySelector("input");
+        if (!input) {
+          return;
+        }
+        const showing = input.type === "text";
+        input.type = showing ? "password" : "text";
+        button.textContent = showing ? button.dataset.showLabel : button.dataset.hideLabel;
+        button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+      });
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
