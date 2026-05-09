@@ -4,6 +4,7 @@
   <aside class="tool-sidebar">
     <span class="sidebar-label">Agency tools</span>
     <a class="tool-link" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+    <a class="tool-link" href="{{ url_for('client_list') }}">Clients</a>
     <a class="tool-link" href="{{ url_for('translator_list') }}">Translators</a>
     <a class="tool-link" href="{{ url_for('preparer_list') }}">Form Preparers</a>
     <span class="sidebar-label mt-4">Subscriptions</span>
@@ -24,7 +25,6 @@
         <h1 class="h3 mb-1">Form Filler</h1>
         <p class="text-secondary mb-0">Assign Apex-managed form questionnaires and review completed answers.</p>
       </div>
-      <a class="btn btn-outline-secondary" href="{{ url_for('case_list') }}">All cases</a>
     </div>
 
     <div class="row g-4">
@@ -34,17 +34,19 @@
           <h2 class="h5 mb-3">Assign questionnaire</h2>
           <div class="mb-3">
             <label class="form-label">Client</label>
-            <select class="form-select" name="client_id" required>
+            <input class="form-control mb-2 live-select-filter" data-target="client-select" placeholder="Search client by name, email, or phone">
+            <select class="form-select" id="client-select" name="client_id" required>
               {% for client in clients %}
-                <option value="{{ client.id }}">{{ client.full_name }}</option>
+                <option value="{{ client.id }}" data-search="{{ (client.full_name ~ ' ' ~ client.email ~ ' ' ~ client.phone)|lower }}">{{ client.full_name }}</option>
               {% endfor %}
             </select>
           </div>
           <div class="mb-3">
             <label class="form-label">Form questionnaire</label>
-            <select class="form-select" name="form_code" required>
+            <input class="form-control mb-2 live-select-filter" data-target="form-select" placeholder="Search form by code or name">
+            <select class="form-select" id="form-select" name="form_code" required>
               {% for template in templates %}
-                <option value="{{ template.code }}">{{ template.label }}</option>
+                <option value="{{ template.code }}" data-search="{{ template.label|lower }}">{{ template.label }}</option>
               {% endfor %}
             </select>
           </div>
@@ -57,25 +59,73 @@
       </div>
       <div class="col-lg-7">
         <div class="card">
-          <div class="card-header bg-white fw-semibold">Form Filler cases</div>
-          <div class="list-group list-group-flush">
+          <div class="card-header bg-white">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <span class="fw-semibold">Assigned questionnaires</span>
+              <input class="form-control form-control-sm form-filler-case-search" placeholder="Search by client, form, or status">
+            </div>
+          </div>
+          <div class="list-group list-group-flush" id="form-filler-case-list">
             {% for case in cases %}
-              <a class="list-group-item list-group-item-action" href="{{ url_for('case_review', case_id=case.id) }}">
+              <a class="list-group-item list-group-item-action form-filler-case" data-search="{{ (case.case_type ~ ' ' ~ case.client.full_name ~ ' ' ~ case.status ~ ' ' ~ (case.notes or ''))|lower }}" href="{{ url_for('case_review', case_id=case.id) }}">
                 <div class="d-flex justify-content-between">
                   <div>
                     <strong>{{ case.case_type }}</strong>
                     <span class="text-secondary">for {{ case.client.full_name }}</span>
                   </div>
-                  <span class="badge text-bg-light border">{{ case.status }} · {{ case.progress_percentage }}%</span>
+                  <span class="badge text-bg-light border">{{ case.status }} - {{ case.progress_percentage }}%</span>
                 </div>
               </a>
             {% else %}
-              <div class="list-group-item text-secondary">No form filler cases yet.</div>
+              <div class="list-group-item text-secondary">No form filler questionnaires yet.</div>
             {% endfor %}
+            <div class="list-group-item text-secondary d-none" id="form-filler-case-empty">No matching questionnaires found.</div>
           </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".live-select-filter").forEach((input) => {
+    const select = document.getElementById(input.dataset.target);
+    if (!select) {
+      return;
+    }
+    input.addEventListener("input", () => {
+      const query = input.value.trim().toLowerCase();
+      let firstVisible = null;
+      Array.from(select.options).forEach((option) => {
+        const matches = !query || option.dataset.search.includes(query);
+        option.hidden = !matches;
+        option.disabled = !matches;
+        if (matches && !firstVisible) {
+          firstVisible = option;
+        }
+      });
+      if (firstVisible && select.selectedOptions[0]?.disabled) {
+        select.value = firstVisible.value;
+      }
+    });
+  });
+
+  const caseSearch = document.querySelector(".form-filler-case-search");
+  const caseRows = Array.from(document.querySelectorAll(".form-filler-case"));
+  const emptyMessage = document.getElementById("form-filler-case-empty");
+  caseSearch?.addEventListener("input", () => {
+    const query = caseSearch.value.trim().toLowerCase();
+    let visibleCount = 0;
+    caseRows.forEach((row) => {
+      const visible = !query || row.dataset.search.includes(query);
+      row.classList.toggle("d-none", !visible);
+      if (visible) {
+        visibleCount += 1;
+      }
+    });
+    emptyMessage?.classList.toggle("d-none", visibleCount !== 0);
+  });
+</script>
 {% endblock %}

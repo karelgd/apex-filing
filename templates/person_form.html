@@ -4,6 +4,7 @@
   <aside class="tool-sidebar">
     <span class="sidebar-label">Agency tools</span>
     <a class="tool-link" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+    <a class="tool-link" href="{{ url_for('client_list') }}">Clients</a>
     <a class="tool-link {{ 'active' if person_type == 'translator' else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
     <a class="tool-link {{ 'active' if person_type == 'preparer' else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
     <span class="sidebar-label mt-4">Subscriptions</span>

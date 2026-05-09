@@ -944,7 +944,7 @@ def register_routes(app):
         return render_template(
             "agency_form_filler.html",
             agency=agency,
-            clients=Client.query.filter_by(agency_id=agency.id).order_by(Client.last_name).all(),
+            clients=Client.query.filter_by(agency_id=agency.id).order_by(Client.last_name, Client.first_name).all(),
             templates=templates,
             cases=cases,
         )

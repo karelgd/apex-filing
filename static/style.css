@@ -451,6 +451,10 @@ body {
   font-weight: 700;
 }
 
+.form-filler-case-search {
+  max-width: 260px;
+}
+
 .table > :not(caption) > * > * {
   padding: .85rem;
 }

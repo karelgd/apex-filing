@@ -1,5 +1,30 @@
 {% extends "base.html" %}
 {% block content %}
+{% if current_user.role == 'agency' %}
+<div class="agency-shell">
+  <aside class="tool-sidebar">
+    <span class="sidebar-label">Agency tools</span>
+    <a class="tool-link" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+    <a class="tool-link active" href="{{ url_for('client_list') }}">Clients</a>
+    <a class="tool-link" href="{{ url_for('translator_list') }}">Translators</a>
+    <a class="tool-link" href="{{ url_for('preparer_list') }}">Form Preparers</a>
+    <span class="sidebar-label mt-4">Subscriptions</span>
+    {% if current_user.agency.has_tool('Form Filler') %}
+      <a class="tool-link" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
+    {% endif %}
+    {% if current_user.agency.has_tool('Motion Creation') %}
+      <span class="tool-link muted">Motion Creation</span>
+    {% endif %}
+    {% if current_user.agency.has_tool('Power of Attorney Creator') %}
+      <span class="tool-link muted">Power of Attorney</span>
+    {% endif %}
+    {% if current_user.agency.has_tool('Contract Generator') %}
+      <span class="tool-link muted">Contract Generator</span>
+    {% endif %}
+  </aside>
+  <div>
+{% endif %}
+
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h3 mb-0">Clients</h1>
   <a class="btn btn-primary" href="{{ url_for('client_create') }}">Create client</a>
@@ -7,7 +32,7 @@
 <div class="card">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
-      <thead><tr><th>Name</th><th>Email</th><th>Phone</th>{% if apex_view %}<th>Agency</th>{% endif %}<th>Cases</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th>{% if apex_view %}<th>Agency</th>{% endif %}<th>Questionnaires</th><th></th></tr></thead>
       <tbody>
         {% for client in clients %}
           <tr>
@@ -31,4 +56,9 @@
     </table>
   </div>
 </div>
+
+{% if current_user.role == 'agency' %}
+  </div>
+</div>
+{% endif %}
 {% endblock %}
