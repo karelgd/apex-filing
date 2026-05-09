@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <h1 class="h3 mb-1">Form Filler Admin</h1>
+    <p class="text-secondary mb-0">Create and maintain form questionnaires available to subscribed agencies.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('apex_dashboard') }}">Back to dashboard</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <form method="post" class="card card-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h2 class="h5 mb-3">Create or update questionnaire</h2>
+      <div class="mb-3">
+        <label class="form-label">Form code</label>
+        <input class="form-control" name="code" placeholder="I-589" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Form name</label>
+        <input class="form-control" name="name" placeholder="Application for Asylum and for Withholding of Removal" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Description</label>
+        <textarea class="form-control" name="description" rows="3"></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Questions</label>
+        <textarea class="form-control" name="questions" rows="10" placeholder="One question per line"></textarea>
+      </div>
+      <label class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="is_active" checked>
+        <span class="form-check-label">Active for subscribed agencies</span>
+      </label>
+      <button class="btn btn-primary">Save questionnaire</button>
+    </form>
+  </div>
+  <div class="col-lg-7">
+    {% for template in templates %}
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <div>
+              <h2 class="h5 mb-1">{{ template.label }}</h2>
+              <p class="text-secondary mb-2">{{ template.description or 'No description yet.' }}</p>
+            </div>
+            <span class="badge {{ 'text-bg-success' if template.is_active else 'text-bg-secondary' }}">{{ 'Active' if template.is_active else 'Inactive' }}</span>
+          </div>
+          <ol class="mb-0">
+            {% for question in questions_by_code.get(template.code, []) %}
+              <li>{{ question.prompt }}</li>
+            {% else %}
+              <li class="text-secondary">No questions configured yet.</li>
+            {% endfor %}
+          </ol>
+        </div>
+      </div>
+    {% else %}
+      <div class="card card-body text-secondary">No form templates exist yet.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

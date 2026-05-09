@@ -19,7 +19,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from werkzeug.utils import secure_filename
 
-from forms import CASE_STATUSES, CASE_TYPES, I485_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
+from forms import CASE_STATUSES, CASE_TYPES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
 from models import (
     ActiveSession,
     Agency,
@@ -31,6 +31,7 @@ from models import (
     CaseDocument,
     CaseQuestion,
     Client,
+    FormTemplate,
     GeneratedForm,
     SubscriptionTool,
     db,
@@ -91,7 +92,7 @@ def create_app():
     def inject_choices():
         return {
             "case_statuses": CASE_STATUSES,
-            "case_types": CASE_TYPES,
+            "case_types": available_case_types(),
             "subscription_tools": SUBSCRIPTION_TOOLS,
             "states": US_STATES,
         }
@@ -145,6 +146,23 @@ def save_upload(file_storage, subfolder):
 def selected_tools_from_form():
     names = request.form.getlist("subscriptions")
     return SubscriptionTool.query.filter(SubscriptionTool.name.in_(names)).all() if names else []
+
+
+def replace_template_questions(code, question_lines):
+    prompts = [line.strip() for line in question_lines.splitlines() if line.strip()]
+    existing = CaseQuestion.query.filter_by(case_type=code).order_by(CaseQuestion.sort_order).all()
+    for index, prompt in enumerate(prompts, start=1):
+        input_type = "textarea" if len(prompt) > 80 or prompt.lower().startswith(("describe", "list", "why", "what")) else "text"
+        question = existing[index - 1] if index <= len(existing) else CaseQuestion(case_type=code)
+        question.prompt = prompt
+        question.field_key = question.field_key or f"{code.lower().replace('-', '')}_question_{index}"
+        question.input_type = input_type
+        question.sort_order = index
+        question.required = True
+        db.session.add(question)
+    for extra in existing[len(prompts):]:
+        if not CaseAnswer.query.filter_by(question_id=extra.id).first():
+            db.session.delete(extra)
 
 
 def decimal_from_form(name):
@@ -216,12 +234,38 @@ def update_case_progress(case):
         case.status = "Ready for Review"
 
 
+def first_unanswered_question_index(case, questions, skip_question_id=None):
+    answered_ids = {
+        answer.question_id
+        for answer in case.answers
+        if answer.question_id != skip_question_id and answer.answer_text
+    }
+    for index, question in enumerate(questions, start=1):
+        if question.id not in answered_ids and question.id != skip_question_id:
+            return index
+    return None
+
+
 def can_use_form_filler(agency):
     return bool(agency and agency.has_tool("Form Filler"))
 
 
+def available_form_templates(active_only=True):
+    query = FormTemplate.query.order_by(FormTemplate.code)
+    if active_only:
+        query = query.filter_by(is_active=True)
+    return query.all()
+
+
+def available_case_types():
+    form_codes = [template.code for template in FormTemplate.query.filter_by(is_active=True).order_by(FormTemplate.code)]
+    existing = list(dict.fromkeys(form_codes + CASE_TYPES))
+    return existing
+
+
 def agency_can_create_case_type(agency, case_type):
-    if case_type in {"I-485", "I-765"}:
+    form_codes = {template.code for template in FormTemplate.query.filter_by(is_active=True)}
+    if case_type in form_codes or case_type in {"I-485", "I-765"}:
         return agency.has_tool("Form Filler")
     if case_type == "Motion":
         return agency.has_tool("Motion Creation")
@@ -288,6 +332,32 @@ def register_routes(app):
     def agency_list():
         return render_template("agency_list.html", agencies=Agency.query.order_by(Agency.agency_name).all())
 
+    @app.route("/apex/subscriptions/form-filler", methods=["GET", "POST"])
+    @role_required("apex")
+    def apex_form_filler_admin():
+        if request.method == "POST":
+            code = request.form["code"].strip().upper()
+            template = FormTemplate.query.filter_by(code=code).first() or FormTemplate(code=code)
+            template.name = request.form["name"].strip()
+            template.description = request.form.get("description", "").strip()
+            template.is_active = bool(request.form.get("is_active"))
+            db.session.add(template)
+            db.session.flush()
+            replace_template_questions(code, request.form.get("questions", ""))
+            db.session.commit()
+            flash("Form Filler questionnaire saved.", "success")
+            return redirect(url_for("apex_form_filler_admin"))
+        templates = available_form_templates(active_only=False)
+        questions_by_code = {
+            template.code: CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order).all()
+            for template in templates
+        }
+        return render_template(
+            "apex_form_filler_admin.html",
+            templates=templates,
+            questions_by_code=questions_by_code,
+        )
+
     @app.route("/apex/agencies/new", methods=["GET", "POST"])
     @role_required("apex")
     def agency_create():
@@ -338,6 +408,46 @@ def register_routes(app):
     def agency_dashboard():
         agency = current_user.agency
         return render_template("agency_dashboard.html", agency=agency)
+
+    @app.route("/agency/tools/form-filler", methods=["GET", "POST"])
+    @role_required("agency")
+    def agency_form_filler():
+        agency = current_user.agency
+        if not can_use_form_filler(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        if request.method == "POST":
+            client = db.session.get(Client, int(request.form["client_id"])) or abort(404)
+            if client.agency_id != agency.id:
+                abort(403)
+            template = FormTemplate.query.filter_by(code=request.form["form_code"], is_active=True).first() or abort(404)
+            case = Case(
+                agency_id=agency.id,
+                client_id=client.id,
+                case_type=template.code,
+                status="Waiting for Client",
+                notes=request.form.get("notes", "").strip(),
+            )
+            db.session.add(case)
+            db.session.commit()
+            flash(f"{template.code} questionnaire assigned to {client.full_name}.", "success")
+            return redirect(url_for("agency_form_filler"))
+        templates = available_form_templates()
+        template_codes = [template.code for template in templates]
+        cases = (
+            Case.query.filter(Case.agency_id == agency.id, Case.case_type.in_(template_codes))
+            .order_by(Case.updated_at.desc())
+            .all()
+            if template_codes
+            else []
+        )
+        return render_template(
+            "agency_form_filler.html",
+            agency=agency,
+            clients=Client.query.filter_by(agency_id=agency.id).order_by(Client.last_name).all(),
+            templates=templates,
+            cases=cases,
+        )
 
     @app.route("/clients")
     @role_required("apex", "agency")
@@ -517,17 +627,34 @@ def register_routes(app):
         case = query_case_for_role(case_id)
         questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
         answers = {answer.question_id: answer for answer in case.answers}
+        if not questions:
+            return render_template("questionnaire.html", case=case, questions=questions, answers=answers)
+        raw_index = request.args.get("q", 1, type=int)
+        current_index = min(max(raw_index, 1), len(questions))
+        current_question = questions[current_index - 1]
         if request.method == "POST":
-            for question in questions:
-                answer = answers.get(question.id) or CaseAnswer(case_id=case.id, question_id=question.id)
-                answer.answer_text = request.form.get(f"question_{question.id}", "").strip()
-                db.session.add(answer)
+            answer = answers.get(current_question.id) or CaseAnswer(case_id=case.id, question_id=current_question.id)
+            answer.answer_text = request.form.get(f"question_{current_question.id}", "").strip()
+            db.session.add(answer)
             update_case_progress(case)
             db.session.commit()
             save_case_documents(case, "client")
+            action = request.form.get("action", "save")
+            if action == "next" and current_index < len(questions):
+                return redirect(url_for("questionnaire", case_id=case.id, q=current_index + 1))
+            if action == "later" and current_index < len(questions):
+                unanswered = first_unanswered_question_index(case, questions, skip_question_id=current_question.id)
+                return redirect(url_for("questionnaire", case_id=case.id, q=unanswered or current_index + 1))
             flash("Progress saved.", "success")
-            return redirect(url_for("questionnaire", case_id=case.id))
-        return render_template("questionnaire.html", case=case, questions=questions, answers=answers)
+            return redirect(url_for("client_dashboard"))
+        return render_template(
+            "questionnaire.html",
+            case=case,
+            questions=questions,
+            answers=answers,
+            current_question=current_question,
+            current_index=current_index,
+        )
 
     @app.route("/uploads/<path:filename>")
     @login_required
@@ -685,10 +812,25 @@ def init_database():
     for name in SUBSCRIPTION_TOOLS:
         if not SubscriptionTool.query.filter_by(name=name).first():
             db.session.add(SubscriptionTool(name=name))
+    for code, name, description in FORM_TEMPLATES:
+        template = FormTemplate.query.filter_by(code=code).first()
+        if not template:
+            db.session.add(FormTemplate(code=code, name=name, description=description))
     if not ApexUser.query.filter_by(username="apexadmin").first():
         apex = ApexUser(username="apexadmin")
         apex.set_password("ChangeMe123!")
         db.session.add(apex)
+    for index, (field_key, prompt, input_type) in enumerate(I589_QUESTIONS, start=1):
+        if not CaseQuestion.query.filter_by(case_type="I-589", field_key=field_key).first():
+            db.session.add(
+                CaseQuestion(
+                    case_type="I-589",
+                    field_key=field_key,
+                    prompt=prompt,
+                    input_type=input_type,
+                    sort_order=index,
+                )
+            )
     for index, (field_key, prompt, input_type) in enumerate(I485_QUESTIONS, start=1):
         if not CaseQuestion.query.filter_by(case_type="I-485", field_key=field_key).first():
             db.session.add(

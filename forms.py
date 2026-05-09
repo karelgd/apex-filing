@@ -15,6 +15,11 @@ SUBSCRIPTION_TOOLS = [
 
 CASE_TYPES = ["I-485", "I-765", "Motion"]
 
+FORM_TEMPLATES = [
+    ("I-589", "Application for Asylum and for Withholding of Removal", "Asylum intake questionnaire foundation."),
+    ("I-485", "Application to Register Permanent Residence or Adjust Status", "Adjustment of status intake questionnaire foundation."),
+]
+
 CASE_STATUSES = [
     "Created",
     "Client Questionnaire Started",
@@ -42,4 +47,22 @@ I485_QUESTIONS = [
     ("parents_names", "Parents' names", "textarea"),
     ("employment_history", "Employment history", "textarea"),
     ("marital_status", "Marital status", "text"),
+]
+
+I589_QUESTIONS = [
+    ("full_legal_name", "Full legal name", "text"),
+    ("a_number", "A-Number if any", "text"),
+    ("date_of_birth", "Date of birth", "date"),
+    ("country_of_birth", "Country of birth", "text"),
+    ("nationality", "Nationality", "text"),
+    ("current_address", "Current U.S. address", "textarea"),
+    ("phone_email", "Current phone number and email", "textarea"),
+    ("last_arrival_date", "Date of last arrival in the United States", "date"),
+    ("last_arrival_place", "Place of last arrival in the United States", "text"),
+    ("current_status", "Current immigration status", "text"),
+    ("basis_of_claim", "Why are you seeking asylum or withholding of removal?", "textarea"),
+    ("harm_experienced", "Describe any harm, threats, or mistreatment you experienced.", "textarea"),
+    ("fear_if_return", "What do you fear would happen if you return to your country?", "textarea"),
+    ("family_in_application", "List spouse/children included in this application, if any.", "textarea"),
+    ("prior_applications", "Have you previously applied for asylum or related protection?", "textarea"),
 ]

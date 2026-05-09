@@ -1,28 +1,48 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-4">
+<div class="agency-shell">
+  <aside class="tool-sidebar">
+    <span class="sidebar-label">Agency tools</span>
+    <a class="tool-link active" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+    {% if agency.has_tool('Form Filler') %}
+      <a class="tool-link" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
+    {% endif %}
+    {% if agency.has_tool('Motion Creation') %}
+      <span class="tool-link muted">Motion Creation</span>
+    {% endif %}
+    {% if agency.has_tool('Power of Attorney Creator') %}
+      <span class="tool-link muted">Power of Attorney</span>
+    {% endif %}
+    {% if agency.has_tool('Contract Generator') %}
+      <span class="tool-link muted">Contract Generator</span>
+    {% endif %}
+  </aside>
   <div>
-    <h1 class="h3 mb-1">{{ agency.agency_name }}</h1>
-    <p class="text-secondary mb-0">{{ agency.display_address }}</p>
-  </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-primary" href="{{ url_for('client_create') }}">Create client</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('case_create') }}">Create case</a>
-  </div>
-</div>
-<div class="row g-3 mb-4">
-  <div class="col-md-4"><div class="metric"><span>{{ agency.clients|length }}</span><small>Clients</small></div></div>
-  <div class="col-md-4"><div class="metric"><span>{{ agency.cases|length }}</span><small>Cases</small></div></div>
-  <div class="col-md-4"><div class="metric"><span>{{ agency.total_ips_allowed }}</span><small>Allowed agency IPs</small></div></div>
-</div>
-<div class="card">
-  <div class="card-header bg-white fw-semibold">Membership tools</div>
-  <div class="card-body">
-    {% for tool in agency.subscriptions %}
-      <span class="badge text-bg-primary me-2 mb-2">{{ tool.name }}</span>
-    {% else %}
-      <p class="text-secondary mb-0">No tools are active for this membership.</p>
-    {% endfor %}
+    <div class="d-flex justify-content-between align-items-start mb-4">
+      <div>
+        <h1 class="h3 mb-1">{{ agency.agency_name }}</h1>
+        <p class="text-secondary mb-0">{{ agency.display_address }}</p>
+      </div>
+      <div class="d-flex gap-2">
+        <a class="btn btn-primary" href="{{ url_for('client_create') }}">Create client</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('case_create') }}">Create case</a>
+      </div>
+    </div>
+    <div class="row g-3 mb-4">
+      <div class="col-md-4"><div class="metric"><span>{{ agency.clients|length }}</span><small>Clients</small></div></div>
+      <div class="col-md-4"><div class="metric"><span>{{ agency.cases|length }}</span><small>Cases</small></div></div>
+      <div class="col-md-4"><div class="metric"><span>{{ agency.total_ips_allowed }}</span><small>Allowed agency IPs</small></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Membership tools</div>
+      <div class="card-body">
+        {% for tool in agency.subscriptions %}
+          <span class="badge text-bg-primary me-2 mb-2">{{ tool.name }}</span>
+        {% else %}
+          <p class="text-secondary mb-0">No tools are active for this membership.</p>
+        {% endfor %}
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

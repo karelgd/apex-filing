@@ -15,7 +15,7 @@
     </div>
   </div>
   <div class="col-lg-8">
-    <h2 class="h4 mb-3">Your cases</h2>
+    <h2 class="h4 mb-3">Your questionnaires</h2>
     <div class="list-group">
       {% for case in client.cases %}
         <a class="list-group-item list-group-item-action" href="{{ url_for('questionnaire', case_id=case.id) }}">
@@ -26,7 +26,7 @@
             </div>
             <div class="text-end" style="width: 160px">
               <div class="progress mb-1"><div class="progress-bar" style="width: {{ case.progress_percentage }}%"></div></div>
-              <small>{{ case.progress_percentage }}% complete</small>
+              <small>{{ 'Continue' if case.progress_percentage else 'Start Questionnaire' }} · {{ case.progress_percentage }}%</small>
             </div>
           </div>
         </a>

@@ -43,6 +43,21 @@ class SubscriptionTool(db.Model):
     name = db.Column(db.String(80), unique=True, nullable=False)
 
 
+class FormTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(40), unique=True, nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text)
+    subscription_tool = db.Column(db.String(80), default="Form Filler", nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    @property
+    def label(self):
+        return f"{self.code} - {self.name}"
+
+
 class Agency(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_name = db.Column(db.String(160), nullable=False)

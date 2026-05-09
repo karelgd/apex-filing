@@ -10,31 +10,31 @@
     <small>{{ case.progress_percentage }}% complete</small>
   </div>
 </div>
+
 {% if not questions %}
-  <div class="alert alert-warning">This feature is not included in your current membership or questionnaire questions have not been configured yet.</div>
+  <div class="alert alert-warning">This questionnaire has not been configured yet.</div>
 {% else %}
-  <form method="post" enctype="multipart/form-data" class="card card-body">
+  {% set answer = answers.get(current_question.id) %}
+  <form method="post" enctype="multipart/form-data" class="question-card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="row g-3">
-      {% for question in questions %}
-        {% set answer = answers.get(question.id) %}
-        <div class="col-md-6">
-          <label class="form-label">{{ question.prompt }}</label>
-          {% if question.input_type == 'textarea' %}
-            <textarea class="form-control" name="question_{{ question.id }}" rows="4">{{ answer.answer_text if answer else '' }}</textarea>
-          {% else %}
-            <input class="form-control" type="{{ question.input_type }}" name="question_{{ question.id }}" value="{{ answer.answer_text if answer else '' }}">
-          {% endif %}
-        </div>
-      {% endfor %}
-      <div class="col-12">
-        <label class="form-label">Upload requested documents</label>
-        <input class="form-control" type="file" name="documents" multiple>
-      </div>
-    </div>
+    <div class="question-meta">Question {{ current_index }} of {{ questions|length }}</div>
+    <label class="question-prompt">{{ current_question.prompt }}</label>
+    {% if current_question.input_type == 'textarea' %}
+      <textarea class="form-control form-control-lg" name="question_{{ current_question.id }}" rows="6" autofocus>{{ answer.answer_text if answer else '' }}</textarea>
+    {% else %}
+      <input class="form-control form-control-lg" type="{{ current_question.input_type }}" name="question_{{ current_question.id }}" value="{{ answer.answer_text if answer else '' }}" autofocus>
+    {% endif %}
+
     <div class="mt-4">
-      <button class="btn btn-primary">Save progress</button>
-      <a class="btn btn-outline-secondary" href="{{ url_for('client_dashboard') }}">Back to dashboard</a>
+      <label class="form-label">Upload requested documents</label>
+      <input class="form-control" type="file" name="documents" multiple>
+    </div>
+
+    <div class="question-actions">
+      <button class="btn btn-primary" name="action" value="next" type="submit">Next Question</button>
+      <button class="btn btn-outline-primary" name="action" value="later" type="submit">Answer Later</button>
+      <button class="btn btn-outline-secondary" name="action" value="save" type="submit">Save Progress and Exit</button>
+      <a class="btn btn-link" href="{{ url_for('client_dashboard') }}">Exit</a>
     </div>
   </form>
 {% endif %}
