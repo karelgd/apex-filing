@@ -518,6 +518,33 @@ def register_routes(app):
             pdf_fields=pdf_fields,
         )
 
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/delete", methods=["POST"])
+    @role_required("apex")
+    def apex_form_template_delete(template_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        existing_cases = Case.query.filter_by(case_type=template.code).count()
+        if existing_cases:
+            template.is_active = False
+            db.session.commit()
+            flash(
+                f"{template.code} has existing cases, so it was deactivated instead of deleted to preserve historical records.",
+                "warning",
+            )
+            return redirect(url_for("apex_form_filler_admin"))
+        questions = CaseQuestion.query.filter_by(case_type=template.code).all()
+        for question in questions:
+            if CaseAnswer.query.filter_by(question_id=question.id).first():
+                template.is_active = False
+                db.session.commit()
+                flash(f"{template.code} has answer history, so it was deactivated instead of deleted.", "warning")
+                return redirect(url_for("apex_form_filler_admin"))
+            db.session.delete(question)
+        PdfField.query.filter_by(template_id=template.id).delete()
+        db.session.delete(template)
+        db.session.commit()
+        flash("Questionnaire deleted.", "info")
+        return redirect(url_for("apex_form_filler_admin"))
+
     @app.route("/apex/agencies/new", methods=["GET", "POST"])
     @role_required("apex")
     def agency_create():

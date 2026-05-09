@@ -46,20 +46,24 @@
     {% for template in templates %}
       <div class="card mb-3">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
+          <div class="d-flex justify-content-between gap-3">
             <div>
               <h2 class="h5 mb-1">{{ template.label }}</h2>
               <p class="text-secondary mb-2">{{ template.description or 'No description yet.' }}</p>
               <div class="small text-secondary">
-                PDF: {{ template.pdf_original_filename or 'Not uploaded' }} ·
-                Type: {{ template.pdf_kind }} ·
-                Fields: {{ template.pdf_field_count }} ·
+                PDF: {{ template.pdf_original_filename or 'Not uploaded' }} -
+                Type: {{ template.pdf_kind }} -
+                Fields: {{ template.pdf_field_count }} -
                 Strategy: {{ template.pdf_generation_strategy }}
               </div>
             </div>
             <div class="text-end">
               <span class="badge {{ 'text-bg-success' if template.is_active else 'text-bg-secondary' }}">{{ 'Active' if template.is_active else 'Inactive' }}</span>
               <div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('apex_form_builder', template_id=template.id) }}">Open Builder</a></div>
+              <form class="mt-2" method="post" action="{{ url_for('apex_form_template_delete', template_id=template.id) }}" onsubmit="return confirm('Delete this questionnaire? If it has existing cases it will be deactivated instead.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
             </div>
           </div>
           {% if template.pdf_fields %}
@@ -72,7 +76,7 @@
               </div>
             </details>
           {% endif %}
-          <ol class="mb-0">
+          <ol class="mb-0 mt-3">
             {% for question in questions_by_code.get(template.code, []) %}
               <li>{{ question.prompt }}</li>
             {% else %}
