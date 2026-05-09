@@ -179,6 +179,12 @@ def parse_question_line(line, code, index):
     return f"{code.lower().replace('-', '')}_question_{index}", raw
 
 
+def reorder_template_questions(code):
+    questions = CaseQuestion.query.filter_by(case_type=code).order_by(CaseQuestion.sort_order, CaseQuestion.id).all()
+    for index, question in enumerate(questions, start=1):
+        question.sort_order = index
+
+
 def detect_pdf_template(template, uploaded_file):
     saved = save_upload(uploaded_file, f"form_templates/{template.code}")
     if not saved:
@@ -699,6 +705,29 @@ def register_routes(app):
             questions=questions,
             pdf_fields=pdf_fields,
         )
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/<int:question_id>/delete", methods=["POST"])
+    @role_required("apex")
+    def apex_form_question_delete(template_id, question_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        question = db.session.get(CaseQuestion, question_id) or abort(404)
+        if question.case_type != template.code:
+            abort(404)
+        CaseQuestion.query.filter_by(show_if_question_id=question.id).update(
+            {"show_if_question_id": None, "show_if_value": ""},
+            synchronize_session=False,
+        )
+        PdfField.query.filter_by(mapped_question_id=question.id).update(
+            {"mapped_question_id": None},
+            synchronize_session=False,
+        )
+        CaseAnswer.query.filter_by(question_id=question.id).delete(synchronize_session=False)
+        db.session.delete(question)
+        db.session.flush()
+        reorder_template_questions(template.code)
+        db.session.commit()
+        flash("Question deleted from the questionnaire.", "info")
+        return redirect(url_for("apex_form_builder", template_id=template.id))
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/delete", methods=["POST"])
     @role_required("apex")

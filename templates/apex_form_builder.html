@@ -94,12 +94,18 @@
             <div class="d-flex justify-content-between gap-3">
               <div>
                 <strong>{{ question.sort_order }}. {{ question.prompt }}</strong>
-                <div class="small text-secondary">Field: <code>{{ question.field_key }}</code> · Type: {{ question.input_type }}</div>
+                <div class="small text-secondary">Field: <code>{{ question.field_key }}</code> - Type: {{ question.input_type }}</div>
                 {% if question.show_if_question %}
                   <div class="small text-primary">Shows if "{{ question.show_if_question.prompt }}" {{ question.show_if_operator }} "{{ question.show_if_value }}"</div>
                 {% endif %}
               </div>
-              <span class="badge text-bg-light border">{{ 'Required' if question.required else 'Optional' }}</span>
+              <div class="d-flex align-items-start gap-2">
+                <span class="badge text-bg-light border">{{ 'Required' if question.required else 'Optional' }}</span>
+                <form method="post" action="{{ url_for('apex_form_question_delete', template_id=template.id, question_id=question.id) }}" onsubmit="return confirm('Delete this question? It will not be shown to clients or included in generated PDFs.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+              </div>
             </div>
           </div>
         {% else %}
