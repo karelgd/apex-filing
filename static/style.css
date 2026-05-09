@@ -566,6 +566,93 @@ body {
   padding: .9rem;
 }
 
+.questionnaire-admin-card {
+  border: 1px solid #dce6f3;
+  box-shadow: 0 18px 44px rgba(22, 32, 51, .06);
+}
+
+.questionnaire-tabs {
+  gap: .45rem;
+}
+
+.questionnaire-tabs .nav-link {
+  align-items: center;
+  border-radius: 999px;
+  color: #3d4b63;
+  display: flex;
+  font-weight: 800;
+  gap: .45rem;
+  padding: .48rem .8rem;
+}
+
+.questionnaire-tabs .nav-link span {
+  background: rgba(22, 32, 51, .08);
+  border-radius: 999px;
+  font-size: .75rem;
+  padding: .08rem .45rem;
+}
+
+.questionnaire-tabs .nav-link.active {
+  background: #246bfe;
+  color: #ffffff;
+}
+
+.questionnaire-tabs .nav-link.active span {
+  background: rgba(255, 255, 255, .22);
+}
+
+.questionnaire-search {
+  display: flex;
+  gap: .5rem;
+  min-width: min(100%, 420px);
+}
+
+.questionnaire-search .form-control {
+  min-width: 220px;
+}
+
+.questionnaire-row {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 110px minmax(0, 1fr) 92px 180px;
+  padding: 1rem 1.15rem;
+}
+
+.questionnaire-code {
+  background: #eef4ff;
+  border: 1px solid #d7e4fb;
+  border-radius: 999px;
+  color: #18345e;
+  font-weight: 900;
+  justify-self: start;
+  padding: .42rem .7rem;
+}
+
+.questionnaire-title strong,
+.questionnaire-title span {
+  display: block;
+}
+
+.questionnaire-title span {
+  color: var(--apex-muted);
+  font-size: .86rem;
+  margin-top: .15rem;
+}
+
+.questionnaire-actions {
+  display: flex;
+  gap: .5rem;
+  justify-content: flex-end;
+}
+
+.questionnaire-form {
+  border: 1px solid #dce6f3;
+  box-shadow: 0 18px 44px rgba(22, 32, 51, .06);
+  margin: 0 auto;
+  max-width: 920px;
+}
+
 @media (max-width: 767.98px) {
   .agency-shell,
   .apex-shell {
@@ -574,5 +661,20 @@ body {
 
   .apex-sidebar {
     position: static;
+  }
+
+  .questionnaire-row {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .questionnaire-actions,
+  .questionnaire-search {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .questionnaire-search {
+    flex-wrap: wrap;
   }
 }

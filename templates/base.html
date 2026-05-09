@@ -47,7 +47,7 @@
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('case_list') }}">Cases</a>
           <span class="sidebar-label mt-4">Subscriptions</span>
-          <a class="tool-link {{ 'active' if request.endpoint in ['apex_form_filler_admin', 'apex_form_builder'] else '' }}" href="{{ url_for('apex_form_filler_admin') }}">Form Filler Admin</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['apex_form_filler_admin', 'apex_form_template_new', 'apex_form_builder'] else '' }}" href="{{ url_for('apex_form_filler_admin') }}">Form Filler Admin</a>
         </aside>
         <section class="apex-main">
     {% endif %}

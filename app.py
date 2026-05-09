@@ -630,6 +630,44 @@ def available_case_types():
     return existing
 
 
+def template_matches_search(template, lowered_search):
+    haystack = " ".join(
+        [
+            template.code or "",
+            template.name or "",
+            template.description or "",
+            template.pdf_original_filename or "",
+            template.pdf_kind or "",
+            template.pdf_generation_strategy or "",
+        ]
+    ).lower()
+    return lowered_search in haystack
+
+
+def save_form_template_from_request():
+    code = request.form["code"].strip().upper()
+    template = FormTemplate.query.filter_by(code=code).first() or FormTemplate(code=code)
+    template.name = request.form["name"].strip()
+    template.description = request.form.get("description", "").strip()
+    template.is_active = bool(request.form.get("is_active"))
+    db.session.add(template)
+    db.session.flush()
+    question_lines = request.form.get("questions", "")
+    if question_lines.strip():
+        replace_template_questions(code, question_lines)
+    pdf_path = detect_pdf_template(template, request.files.get("pdf_template"))
+    if not pdf_path and template.pdf_stored_filename:
+        existing_pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
+        pdf_path = existing_pdf_path if os.path.exists(existing_pdf_path) else None
+    seeded_count = 0
+    if not question_lines.strip():
+        seeded_count = seed_questions_from_pdf_fields(template)
+        if not seeded_count and pdf_path:
+            seeded_count = seed_questions_from_pdf_text(code, pdf_path)
+    db.session.commit()
+    return seeded_count
+
+
 def agency_can_create_case_type(agency, case_type):
     form_codes = {template.code for template in FormTemplate.query.filter_by(is_active=True)}
     if case_type in form_codes or case_type in {"I-485", "I-765"}:
@@ -699,45 +737,37 @@ def register_routes(app):
     def agency_list():
         return render_template("agency_list.html", agencies=Agency.query.order_by(Agency.agency_name).all())
 
-    @app.route("/apex/subscriptions/form-filler", methods=["GET", "POST"])
+    @app.route("/apex/subscriptions/form-filler")
     @role_required("apex")
     def apex_form_filler_admin():
-        if request.method == "POST":
-            code = request.form["code"].strip().upper()
-            template = FormTemplate.query.filter_by(code=code).first() or FormTemplate(code=code)
-            template.name = request.form["name"].strip()
-            template.description = request.form.get("description", "").strip()
-            template.is_active = bool(request.form.get("is_active"))
-            db.session.add(template)
-            db.session.flush()
-            question_lines = request.form.get("questions", "")
-            if question_lines.strip():
-                replace_template_questions(code, question_lines)
-            pdf_path = detect_pdf_template(template, request.files.get("pdf_template"))
-            if not pdf_path and template.pdf_stored_filename:
-                existing_pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
-                pdf_path = existing_pdf_path if os.path.exists(existing_pdf_path) else None
-            seeded_count = 0
-            if not question_lines.strip():
-                seeded_count = seed_questions_from_pdf_fields(template)
-                if not seeded_count and pdf_path:
-                    seeded_count = seed_questions_from_pdf_text(code, pdf_path)
-            db.session.commit()
-            if seeded_count:
-                flash(f"Form Filler questionnaire saved with {seeded_count} draft questions extracted from the PDF.", "success")
-            else:
-                flash("Form Filler questionnaire saved.", "success")
-            return redirect(url_for("apex_form_filler_admin"))
-        templates = available_form_templates(active_only=False)
-        questions_by_code = {
-            template.code: CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order).all()
-            for template in templates
-        }
+        status = request.args.get("status", "active")
+        if status not in {"active", "inactive"}:
+            status = "active"
+        search = request.args.get("q", "").strip()
+        templates = FormTemplate.query.filter_by(is_active=(status == "active")).order_by(FormTemplate.code).all()
+        if search:
+            lowered = search.lower()
+            templates = [template for template in templates if template_matches_search(template, lowered)]
         return render_template(
             "apex_form_filler_admin.html",
             templates=templates,
-            questions_by_code=questions_by_code,
+            status=status,
+            search=search,
+            active_count=FormTemplate.query.filter_by(is_active=True).count(),
+            inactive_count=FormTemplate.query.filter_by(is_active=False).count(),
         )
+
+    @app.route("/apex/subscriptions/form-filler/new", methods=["GET", "POST"])
+    @role_required("apex")
+    def apex_form_template_new():
+        if request.method == "POST":
+            seeded_count = save_form_template_from_request()
+            if seeded_count:
+                flash(f"Questionnaire created with {seeded_count} draft questions extracted from the PDF.", "success")
+            else:
+                flash("Questionnaire created.", "success")
+            return redirect(url_for("apex_form_filler_admin"))
+        return render_template("apex_form_template_form.html")
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder", methods=["GET", "POST"])
     @role_required("apex")
