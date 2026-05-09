@@ -212,6 +212,10 @@ def short_pdf_field_key(field_name):
     return raw
 
 
+def normalized_pdf_field_key(field_name):
+    return re.sub(r"[^a-z0-9]", "", (field_name or "").lower())
+
+
 def detect_pdf_template(template, uploaded_file):
     saved = save_upload(uploaded_file, f"form_templates/{template.code}")
     if not saved:
@@ -1446,6 +1450,7 @@ def fill_pdf_widgets_with_pymupdf(case, template):
     field_values = answer_values_by_pdf_field(case)
     if not field_values:
         return None
+    field_lookup = build_pdf_field_value_lookup(field_values)
     document = None
     try:
         document = fitz.open(source_path)
@@ -1454,11 +1459,12 @@ def fill_pdf_widgets_with_pymupdf(case, template):
             page = document.load_page(page_index)
             for widget in page.widgets() or []:
                 field_name = (widget.field_name or "").strip()
-                field_value = field_values.get(field_name) or field_values.get(short_pdf_field_key(field_name))
-                if field_value is None:
+                field_value = lookup_pdf_field_value(field_lookup, field_name)
+                if not field_value:
                     continue
                 widget.field_value = field_value
                 widget.update()
+                overlay_widget_text(page, widget, field_value)
                 filled_count += 1
         if not filled_count:
             document.close()
@@ -1470,6 +1476,51 @@ def fill_pdf_widgets_with_pymupdf(case, template):
         if document:
             document.close()
         return None
+
+
+def build_pdf_field_value_lookup(field_values):
+    lookup = {}
+    for field_name, value in field_values.items():
+        if not value:
+            continue
+        keys = {
+            field_name,
+            short_pdf_field_key(field_name),
+            normalized_pdf_field_key(field_name),
+            normalized_pdf_field_key(short_pdf_field_key(field_name)),
+        }
+        for key in keys:
+            if key:
+                lookup[key] = value
+    return lookup
+
+
+def lookup_pdf_field_value(field_lookup, pdf_field_name):
+    candidates = (
+        pdf_field_name,
+        short_pdf_field_key(pdf_field_name),
+        normalized_pdf_field_key(pdf_field_name),
+        normalized_pdf_field_key(short_pdf_field_key(pdf_field_name)),
+    )
+    for candidate in candidates:
+        if candidate in field_lookup:
+            return field_lookup[candidate]
+    normalized_widget = normalized_pdf_field_key(pdf_field_name)
+    for key, value in field_lookup.items():
+        if key and key in normalized_widget:
+            return value
+    return None
+
+
+def overlay_widget_text(page, widget, value):
+    rect = widget.rect
+    inset_rect = rect.__class__(rect.x0 + 2, rect.y0 + 1, rect.x1 - 2, rect.y1 - 1)
+    text = str(value)
+    font_size = 8 if len(text) > 30 else 9
+    try:
+        page.insert_textbox(inset_rect, text, fontsize=font_size, fontname="helv", color=(0, 0, 0), align=0)
+    except Exception:
+        page.insert_text((rect.x0 + 2, rect.y0 + 10), text[:80], fontsize=font_size, fontname="helv", color=(0, 0, 0))
 
 
 def answer_values_by_pdf_field(case):
