@@ -39,7 +39,7 @@
       <select class="form-select" name="preparer_id">
         <option value="">No preparer selected</option>
         {% for preparer in preparers %}
-          <option value="{{ preparer.id }}" {% if case.preparer_id == preparer.id %}selected{% endif %}>{{ preparer.full_name }}{% if preparer.title %} - {{ preparer.title }}{% endif %}</option>
+          <option value="{{ preparer.id }}" {% if case.preparer_id == preparer.id %}selected{% endif %}>{{ preparer.full_name }}</option>
         {% endfor %}
       </select>
     </div>

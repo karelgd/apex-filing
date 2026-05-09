@@ -534,7 +534,7 @@ def populate_translator_from_form(translator):
 
 def populate_preparer_from_form(preparer):
     preparer.full_name = request.form["full_name"].strip()
-    preparer.title = request.form.get("title", "").strip()
+    preparer.title = ""
     preparer.phone = request.form.get("phone", "").strip()
     preparer.email = request.form.get("email", "").strip()
     preparer.address = request.form.get("address", "").strip()
@@ -1371,8 +1371,6 @@ def render_person_details(pdf, x, y, label, person):
     lines = [person.full_name]
     if isinstance(person, AgencyTranslator):
         lines.append(f"Language: {person.language}")
-    if isinstance(person, AgencyPreparer) and person.title:
-        lines.append(f"Title: {person.title}")
     if person.phone:
         lines.append(f"Phone: {person.phone}")
     if person.email:

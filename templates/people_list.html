@@ -37,11 +37,6 @@
               <label class="form-label">Language</label>
               <input class="form-control" name="language" required>
             </div>
-          {% else %}
-            <div class="mb-3">
-              <label class="form-label">Title</label>
-              <input class="form-control" name="title" placeholder="Attorney, Accredited Representative, Preparer">
-            </div>
           {% endif %}
           <div class="mb-3">
             <label class="form-label">Phone</label>
@@ -68,7 +63,7 @@
                   <div>
                     <strong>{{ person.full_name }}</strong>
                     <div class="text-secondary small">
-                      {% if person_type == 'translator' %}{{ person.language }}{% else %}{{ person.title or 'Form preparer' }}{% endif %}
+                      {% if person_type == 'translator' %}{{ person.language }}{% else %}Form preparer{% endif %}
                       {% if person.email %} · {{ person.email }}{% endif %}
                       {% if person.phone %} · {{ person.phone }}{% endif %}
                     </div>

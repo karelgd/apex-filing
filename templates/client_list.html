@@ -30,12 +30,15 @@
   <a class="btn btn-primary" href="{{ url_for('client_create') }}">Create client</a>
 </div>
 <div class="card">
+  <div class="card-body border-bottom">
+    <input class="form-control client-search" placeholder="Search clients by name, email, phone, or agency">
+  </div>
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead><tr><th>Name</th><th>Email</th><th>Phone</th>{% if apex_view %}<th>Agency</th>{% endif %}<th>Questionnaires</th><th></th></tr></thead>
-      <tbody>
+      <tbody id="client-table-body">
         {% for client in clients %}
-          <tr>
+          <tr class="client-row" data-search="{{ (client.full_name ~ ' ' ~ client.email ~ ' ' ~ client.phone ~ ' ' ~ client.agency.agency_name)|lower }}">
             <td>{{ client.full_name }}</td>
             <td>{{ client.email }}</td>
             <td>{{ client.phone }}</td>
@@ -52,6 +55,7 @@
         {% else %}
           <tr><td colspan="6" class="text-center text-secondary py-4">No clients found.</td></tr>
         {% endfor %}
+        <tr class="client-empty-row d-none"><td colspan="6" class="text-center text-secondary py-4">No matching clients found.</td></tr>
       </tbody>
     </table>
   </div>
@@ -61,4 +65,24 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const clientSearch = document.querySelector(".client-search");
+  const clientRows = Array.from(document.querySelectorAll(".client-row"));
+  const emptyClientRow = document.querySelector(".client-empty-row");
+  clientSearch?.addEventListener("input", () => {
+    const query = clientSearch.value.trim().toLowerCase();
+    let visibleCount = 0;
+    clientRows.forEach((row) => {
+      const visible = !query || row.dataset.search.includes(query);
+      row.classList.toggle("d-none", !visible);
+      if (visible) {
+        visibleCount += 1;
+      }
+    });
+    emptyClientRow?.classList.toggle("d-none", visibleCount !== 0);
+  });
+</script>
 {% endblock %}

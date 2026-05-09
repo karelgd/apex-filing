@@ -34,11 +34,6 @@
           <label class="form-label">Language</label>
           <input class="form-control" name="language" value="{{ person.language }}" required>
         </div>
-      {% else %}
-        <div class="mb-3">
-          <label class="form-label">Title</label>
-          <input class="form-control" name="title" value="{{ person.title or '' }}">
-        </div>
       {% endif %}
       <div class="mb-3">
         <label class="form-label">Phone</label>
