@@ -1457,6 +1457,7 @@ def fill_pdf_widgets_with_pymupdf(case, template):
         filled_count = 0
         for page_index in range(document.page_count):
             page = document.load_page(page_index)
+            matched_widgets = []
             for widget in page.widgets() or []:
                 field_name = (widget.field_name or "").strip()
                 field_value = lookup_pdf_field_value(field_lookup, field_name)
@@ -1465,7 +1466,9 @@ def fill_pdf_widgets_with_pymupdf(case, template):
                 widget.field_value = field_value
                 widget.update()
                 overlay_widget_text(page, widget, field_value)
+                matched_widgets.append(widget)
                 filled_count += 1
+            flatten_matched_widgets(page, matched_widgets)
         if not filled_count:
             document.close()
             return None
@@ -1518,9 +1521,22 @@ def overlay_widget_text(page, widget, value):
     text = str(value)
     font_size = 8 if len(text) > 30 else 9
     try:
-        page.insert_textbox(inset_rect, text, fontsize=font_size, fontname="helv", color=(0, 0, 0), align=0)
+        written = page.insert_textbox(inset_rect, text, fontsize=font_size, fontname="helv", color=(0, 0, 0), align=0)
+        if written < 0:
+            page.insert_text((rect.x0 + 2, rect.y1 - 4), text[:80], fontsize=font_size, fontname="helv", color=(0, 0, 0))
     except Exception:
-        page.insert_text((rect.x0 + 2, rect.y0 + 10), text[:80], fontsize=font_size, fontname="helv", color=(0, 0, 0))
+        page.insert_text((rect.x0 + 2, rect.y1 - 4), text[:80], fontsize=font_size, fontname="helv", color=(0, 0, 0))
+
+
+def flatten_matched_widgets(page, widgets):
+    for widget in widgets:
+        try:
+            if hasattr(page, "delete_widget"):
+                page.delete_widget(widget)
+            else:
+                page.delete_annot(widget)
+        except Exception:
+            continue
 
 
 def answer_values_by_pdf_field(case):
