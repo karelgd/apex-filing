@@ -628,6 +628,27 @@ def register_routes(app):
             title="Translators",
         )
 
+    @app.route("/agency/translators/<int:translator_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def translator_edit(translator_id):
+        translator = AgencyTranslator.query.filter_by(id=translator_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_translator_from_form(translator)
+            db.session.commit()
+            flash("Translator updated.", "success")
+            return redirect(url_for("translator_list"))
+        return render_template("person_form.html", agency=current_user.agency, person=translator, person_type="translator", title="Edit Translator")
+
+    @app.route("/agency/translators/<int:translator_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def translator_delete(translator_id):
+        translator = AgencyTranslator.query.filter_by(id=translator_id, agency_id=current_user.agency_id).first() or abort(404)
+        Case.query.filter_by(translator_id=translator.id).update({"translator_id": None})
+        db.session.delete(translator)
+        db.session.commit()
+        flash("Translator deleted.", "info")
+        return redirect(url_for("translator_list"))
+
     @app.route("/agency/preparers", methods=["GET", "POST"])
     @role_required("agency")
     def preparer_list():
@@ -646,6 +667,27 @@ def register_routes(app):
             person_type="preparer",
             title="Form Preparers",
         )
+
+    @app.route("/agency/preparers/<int:preparer_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def preparer_edit(preparer_id):
+        preparer = AgencyPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_preparer_from_form(preparer)
+            db.session.commit()
+            flash("Form preparer updated.", "success")
+            return redirect(url_for("preparer_list"))
+        return render_template("person_form.html", agency=current_user.agency, person=preparer, person_type="preparer", title="Edit Form Preparer")
+
+    @app.route("/agency/preparers/<int:preparer_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def preparer_delete(preparer_id):
+        preparer = AgencyPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
+        Case.query.filter_by(preparer_id=preparer.id).update({"preparer_id": None})
+        db.session.delete(preparer)
+        db.session.commit()
+        flash("Form preparer deleted.", "info")
+        return redirect(url_for("preparer_list"))
 
     @app.route("/clients")
     @role_required("apex", "agency")

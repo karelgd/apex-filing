@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="agency-shell">
+  <aside class="tool-sidebar">
+    <span class="sidebar-label">Agency tools</span>
+    <a class="tool-link" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+    {% if agency.has_tool('Form Filler') %}
+      <a class="tool-link" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
+    {% endif %}
+    <a class="tool-link {{ 'active' if person_type == 'translator' else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
+    <a class="tool-link {{ 'active' if person_type == 'preparer' else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
+  </aside>
+  <div>
+    <h1 class="h3 mb-3">{{ title }}</h1>
+    <form method="post" class="card card-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3">
+        <label class="form-label">Full name</label>
+        <input class="form-control" name="full_name" value="{{ person.full_name }}" required>
+      </div>
+      {% if person_type == 'translator' %}
+        <div class="mb-3">
+          <label class="form-label">Language</label>
+          <input class="form-control" name="language" value="{{ person.language }}" required>
+        </div>
+      {% else %}
+        <div class="mb-3">
+          <label class="form-label">Title</label>
+          <input class="form-control" name="title" value="{{ person.title or '' }}">
+        </div>
+      {% endif %}
+      <div class="mb-3">
+        <label class="form-label">Phone</label>
+        <input class="form-control" name="phone" value="{{ person.phone or '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input class="form-control" type="email" name="email" value="{{ person.email or '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Address</label>
+        <textarea class="form-control" name="address" rows="3">{{ person.address or '' }}</textarea>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary">Save changes</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('translator_list') if person_type == 'translator' else url_for('preparer_list') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

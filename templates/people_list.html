@@ -53,11 +53,27 @@
           <div class="list-group list-group-flush">
             {% for person in people %}
               <div class="list-group-item">
-                <strong>{{ person.full_name }}</strong>
-                <div class="text-secondary small">
-                  {% if person_type == 'translator' %}{{ person.language }}{% else %}{{ person.title or 'Form preparer' }}{% endif %}
-                  {% if person.email %} · {{ person.email }}{% endif %}
-                  {% if person.phone %} · {{ person.phone }}{% endif %}
+                <div class="d-flex justify-content-between gap-3">
+                  <div>
+                    <strong>{{ person.full_name }}</strong>
+                    <div class="text-secondary small">
+                      {% if person_type == 'translator' %}{{ person.language }}{% else %}{{ person.title or 'Form preparer' }}{% endif %}
+                      {% if person.email %} · {{ person.email }}{% endif %}
+                      {% if person.phone %} · {{ person.phone }}{% endif %}
+                    </div>
+                  </div>
+                  <div class="text-end">
+                    {% if person_type == 'translator' %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('translator_edit', translator_id=person.id) }}">Edit</a>
+                      <form class="d-inline" method="post" action="{{ url_for('translator_delete', translator_id=person.id) }}" onsubmit="return confirm('Delete this translator?')">
+                    {% else %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('preparer_edit', preparer_id=person.id) }}">Edit</a>
+                      <form class="d-inline" method="post" action="{{ url_for('preparer_delete', preparer_id=person.id) }}" onsubmit="return confirm('Delete this form preparer?')">
+                    {% endif %}
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger">Delete</button>
+                      </form>
+                  </div>
                 </div>
               </div>
             {% else %}
