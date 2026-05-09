@@ -185,6 +185,28 @@ def reorder_template_questions(code):
         question.sort_order = index
 
 
+def readable_pdf_field_name(field_name):
+    raw = (field_name or "").split(".")[-1]
+    raw = raw.replace("#", "")
+    raw = re.sub(r"\[\d+\]", "", raw)
+    replacements = {
+        "CCHolder": "Credit Card Holder ",
+        "AptSteFlr": "Apartment/Suite/Floor",
+        "DOB": "Date of Birth",
+        "SSN": "Social Security Number",
+        "USCIS": "USCIS",
+        "PDF417BarCode": "USCIS Barcode",
+    }
+    for old, new in replacements.items():
+        raw = raw.replace(old, new)
+    label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", raw)
+    label = re.sub(r"\s+", " ", label).strip()
+    label = label.replace("Given Name", "Given Name (First Name)")
+    label = label.replace("Family Name", "Family Name (Last Name)")
+    label = label.replace("Middle Name", "Middle Name")
+    return label or field_name
+
+
 def detect_pdf_template(template, uploaded_file):
     saved = save_upload(uploaded_file, f"form_templates/{template.code}")
     if not saved:
@@ -359,6 +381,33 @@ def seed_questions_from_pdf_text(code, pdf_path):
             )
         )
     return len(draft_questions)
+
+
+def seed_questions_from_pdf_fields(template):
+    if CaseQuestion.query.filter_by(case_type=template.code).first():
+        return 0
+    fields = PdfField.query.filter_by(template_id=template.id).order_by(PdfField.page_number, PdfField.id).all()
+    seeded = 0
+    for field in fields:
+        if should_skip_pdf_field(field.field_name):
+            continue
+        seeded += 1
+        db.session.add(
+            CaseQuestion(
+                case_type=template.code,
+                field_key=field.field_name,
+                prompt=readable_pdf_field_name(field.field_name)[:255],
+                input_type=guess_input_type(field.field_name),
+                sort_order=seeded,
+                required=True,
+            )
+        )
+    return seeded
+
+
+def should_skip_pdf_field(field_name):
+    lower = (field_name or "").lower()
+    return any(token in lower for token in ("barcode", "pdf417", "pagecount", "signature"))
 
 
 def extract_draft_questions_from_pdf(pdf_path, code):
@@ -659,7 +708,11 @@ def register_routes(app):
             if not pdf_path and template.pdf_stored_filename:
                 existing_pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
                 pdf_path = existing_pdf_path if os.path.exists(existing_pdf_path) else None
-            seeded_count = seed_questions_from_pdf_text(code, pdf_path) if pdf_path and not question_lines.strip() else 0
+            seeded_count = 0
+            if not question_lines.strip():
+                seeded_count = seed_questions_from_pdf_fields(template)
+                if not seeded_count and pdf_path:
+                    seeded_count = seed_questions_from_pdf_text(code, pdf_path)
             db.session.commit()
             if seeded_count:
                 flash(f"Form Filler questionnaire saved with {seeded_count} draft questions extracted from the PDF.", "success")
@@ -699,11 +752,21 @@ def register_routes(app):
             flash("Question saved.", "success")
             return redirect(url_for("apex_form_builder", template_id=template.id))
         pdf_fields = PdfField.query.filter_by(template_id=template.id).order_by(PdfField.field_name).all()
+        pdf_field_options = [
+            {
+                "name": field.field_name,
+                "label": readable_pdf_field_name(field.field_name),
+                "type": field.field_type,
+                "page": field.page_number,
+            }
+            for field in pdf_fields
+        ]
         return render_template(
             "apex_form_builder.html",
             template=template,
             questions=questions,
             pdf_fields=pdf_fields,
+            pdf_field_options=pdf_field_options,
         )
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/<int:question_id>/delete", methods=["POST"])

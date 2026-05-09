@@ -15,12 +15,12 @@
 
 <div class="row g-4">
   <div class="col-lg-5">
-    <form method="post" class="card card-body">
+    <form method="post" class="card card-body" id="question-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <h2 class="h5 mb-3">Add or update question</h2>
       <div class="mb-3">
         <label class="form-label">Existing question to update</label>
-        <select class="form-select" name="question_id">
+        <select class="form-select" name="question_id" id="question-select">
           <option value="">Create new question</option>
           {% for question in questions %}
             <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
@@ -29,12 +29,12 @@
       </div>
       <div class="mb-3">
         <label class="form-label">Question text</label>
-        <textarea class="form-control" name="prompt" rows="3" required></textarea>
+        <textarea class="form-control" name="prompt" id="question-prompt" rows="3" required></textarea>
       </div>
       <div class="row g-3">
         <div class="col-md-6">
           <label class="form-label">Answer type</label>
-          <select class="form-select" name="input_type">
+          <select class="form-select" name="input_type" id="question-input-type">
             <option value="text">Text</option>
             <option value="textarea">Long answer</option>
             <option value="date">Date</option>
@@ -43,26 +43,27 @@
         </div>
         <div class="col-md-6">
           <label class="form-label">Order</label>
-          <input class="form-control" type="number" name="sort_order" min="1" value="{{ questions|length + 1 }}">
+          <input class="form-control" type="number" name="sort_order" id="question-sort-order" min="1" value="{{ questions|length + 1 }}">
         </div>
       </div>
       <div class="mb-3 mt-3">
         <label class="form-label">Mapped PDF field / internal key</label>
-        <input class="form-control" name="field_key" list="pdf-fields" required>
+        <input class="form-control" name="field_key" id="question-field-key" list="pdf-fields" required>
         <datalist id="pdf-fields">
-          {% for field in pdf_fields %}
-            <option value="{{ field.field_name }}"></option>
+          {% for field in pdf_field_options %}
+            <option value="{{ field.name }}">{{ field.label }}</option>
           {% endfor %}
         </datalist>
+        <div class="form-text">Use a detected PDF field when the answer should be placed into the official form.</div>
       </div>
       <label class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" name="required" checked>
+        <input class="form-check-input" type="checkbox" name="required" id="question-required" checked>
         <span class="form-check-label">Required when visible</span>
       </label>
       <div class="conditional-box">
         <h3 class="h6">Show only if</h3>
         <div class="mb-2">
-          <select class="form-select" name="show_if_question_id">
+          <select class="form-select" name="show_if_question_id" id="question-show-if-id">
             <option value="">Always show</option>
             {% for question in questions %}
               <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
@@ -71,14 +72,14 @@
         </div>
         <div class="row g-2">
           <div class="col-md-5">
-            <select class="form-select" name="show_if_operator">
+            <select class="form-select" name="show_if_operator" id="question-show-if-operator">
               <option value="equals">equals</option>
               <option value="not_equals">does not equal</option>
               <option value="contains">contains</option>
             </select>
           </div>
           <div class="col-md-7">
-            <input class="form-control" name="show_if_value" placeholder="Yes">
+            <input class="form-control" name="show_if_value" id="question-show-if-value" placeholder="Yes">
           </div>
         </div>
       </div>
@@ -115,9 +116,21 @@
     </div>
     <div class="card mt-3">
       <div class="card-header bg-white fw-semibold">Detected PDF fields</div>
-      <div class="card-body pdf-field-list">
-        {% for field in pdf_fields %}
-          <code>{{ field.field_name }}</code>
+      <div class="card-body">
+        {% for field in pdf_field_options %}
+          <div class="border rounded p-2 mb-2 bg-light">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                <div class="fw-semibold">{{ field.label }}</div>
+                <code class="small">{{ field.name }}</code>
+                <div class="small text-secondary">
+                  {% if field.page %}Page {{ field.page }}{% else %}Page unknown{% endif %}
+                  {% if field.type %} - {{ field.type }}{% endif %}
+                </div>
+              </div>
+              <button class="btn btn-sm btn-outline-primary use-pdf-field" type="button" data-field-name="{{ field.name }}">Use</button>
+            </div>
+          </div>
         {% else %}
           {% if template.pdf_stored_filename %}
             <p class="text-secondary mb-0">
@@ -131,4 +144,63 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const questionsById = {
+    {% for question in questions %}
+      "{{ question.id }}": {
+        prompt: {{ question.prompt|tojson }},
+        fieldKey: {{ question.field_key|tojson }},
+        inputType: {{ question.input_type|tojson }},
+        sortOrder: {{ question.sort_order|tojson }},
+        required: {{ question.required|tojson }},
+        showIfQuestionId: {{ question.show_if_question_id|tojson }},
+        showIfOperator: {{ question.show_if_operator|tojson }},
+        showIfValue: {{ question.show_if_value|tojson }}
+      }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+
+  const questionSelect = document.getElementById("question-select");
+  const promptInput = document.getElementById("question-prompt");
+  const fieldInput = document.getElementById("question-field-key");
+  const inputTypeSelect = document.getElementById("question-input-type");
+  const sortOrderInput = document.getElementById("question-sort-order");
+  const requiredInput = document.getElementById("question-required");
+  const showIfIdSelect = document.getElementById("question-show-if-id");
+  const showIfOperatorSelect = document.getElementById("question-show-if-operator");
+  const showIfValueInput = document.getElementById("question-show-if-value");
+
+  questionSelect?.addEventListener("change", () => {
+    const question = questionsById[questionSelect.value];
+    if (!question) {
+      promptInput.value = "";
+      fieldInput.value = "";
+      inputTypeSelect.value = "text";
+      sortOrderInput.value = {{ questions|length + 1 }};
+      requiredInput.checked = true;
+      showIfIdSelect.value = "";
+      showIfOperatorSelect.value = "equals";
+      showIfValueInput.value = "";
+      return;
+    }
+    promptInput.value = question.prompt || "";
+    fieldInput.value = question.fieldKey || "";
+    inputTypeSelect.value = question.inputType || "text";
+    sortOrderInput.value = question.sortOrder || "";
+    requiredInput.checked = Boolean(question.required);
+    showIfIdSelect.value = question.showIfQuestionId || "";
+    showIfOperatorSelect.value = question.showIfOperator || "equals";
+    showIfValueInput.value = question.showIfValue || "";
+  });
+
+  document.querySelectorAll(".use-pdf-field").forEach((button) => {
+    button.addEventListener("click", () => {
+      fieldInput.value = button.dataset.fieldName || "";
+      fieldInput.focus();
+    });
+  });
+</script>
 {% endblock %}
