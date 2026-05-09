@@ -57,7 +57,10 @@
                 Strategy: {{ template.pdf_generation_strategy }}
               </div>
             </div>
-            <span class="badge {{ 'text-bg-success' if template.is_active else 'text-bg-secondary' }}">{{ 'Active' if template.is_active else 'Inactive' }}</span>
+            <div class="text-end">
+              <span class="badge {{ 'text-bg-success' if template.is_active else 'text-bg-secondary' }}">{{ 'Active' if template.is_active else 'Inactive' }}</span>
+              <div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('apex_form_builder', template_id=template.id) }}">Open Builder</a></div>
+            </div>
           </div>
           {% if template.pdf_fields %}
             <details class="mt-3">

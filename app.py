@@ -297,7 +297,9 @@ def query_case_for_role(case_id):
 
 
 def update_case_progress(case):
-    questions = CaseQuestion.query.filter_by(case_type=case.case_type).all()
+    all_questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+    answers_by_question = {answer.question_id: answer.answer_text or "" for answer in case.answers}
+    questions = visible_questions_for_answers(all_questions, answers_by_question)
     if not questions:
         case.progress_percentage = 0
         return
@@ -323,6 +325,26 @@ def first_unanswered_question_index(case, questions, skip_question_id=None):
         if question.id not in answered_ids and question.id != skip_question_id:
             return index
     return None
+
+
+def visible_questions_for_answers(questions, answers_by_question):
+    visible = []
+    for question in questions:
+        if question_is_visible(question, answers_by_question):
+            visible.append(question)
+    return visible
+
+
+def question_is_visible(question, answers_by_question):
+    if not question.show_if_question_id:
+        return True
+    actual = (answers_by_question.get(question.show_if_question_id) or "").strip().lower()
+    expected = (question.show_if_value or "").strip().lower()
+    if question.show_if_operator == "not_equals":
+        return actual != expected
+    if question.show_if_operator == "contains":
+        return expected in actual
+    return actual == expected
 
 
 def can_use_form_filler(agency):
@@ -436,6 +458,35 @@ def register_routes(app):
             "apex_form_filler_admin.html",
             templates=templates,
             questions_by_code=questions_by_code,
+        )
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder", methods=["GET", "POST"])
+    @role_required("apex")
+    def apex_form_builder(template_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        questions = CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order).all()
+        if request.method == "POST":
+            question_id = request.form.get("question_id")
+            question = db.session.get(CaseQuestion, int(question_id)) if question_id else CaseQuestion(case_type=template.code)
+            question.prompt = request.form["prompt"].strip()
+            question.field_key = request.form["field_key"].strip()
+            question.input_type = request.form["input_type"]
+            question.sort_order = int(request.form.get("sort_order") or len(questions) + 1)
+            question.required = bool(request.form.get("required"))
+            show_if_question_id = request.form.get("show_if_question_id")
+            question.show_if_question_id = int(show_if_question_id) if show_if_question_id else None
+            question.show_if_operator = request.form.get("show_if_operator") or "equals"
+            question.show_if_value = request.form.get("show_if_value", "").strip()
+            db.session.add(question)
+            db.session.commit()
+            flash("Question saved.", "success")
+            return redirect(url_for("apex_form_builder", template_id=template.id))
+        pdf_fields = PdfField.query.filter_by(template_id=template.id).order_by(PdfField.field_name).all()
+        return render_template(
+            "apex_form_builder.html",
+            template=template,
+            questions=questions,
+            pdf_fields=pdf_fields,
         )
 
     @app.route("/apex/agencies/new", methods=["GET", "POST"])
@@ -705,8 +756,10 @@ def register_routes(app):
     @role_required("client")
     def questionnaire(case_id):
         case = query_case_for_role(case_id)
-        questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
         answers = {answer.question_id: answer for answer in case.answers}
+        answers_by_question = {answer.question_id: answer.answer_text or "" for answer in case.answers}
+        all_questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+        questions = visible_questions_for_answers(all_questions, answers_by_question)
         if not questions:
             return render_template("questionnaire.html", case=case, questions=questions, answers=answers)
         raw_index = request.args.get("q", 1, type=int)
@@ -719,6 +772,10 @@ def register_routes(app):
             update_case_progress(case)
             db.session.commit()
             save_case_documents(case, "client")
+            answers = {answer.question_id: answer for answer in case.answers}
+            answers_by_question = {answer.question_id: answer.answer_text or "" for answer in case.answers}
+            questions = visible_questions_for_answers(all_questions, answers_by_question)
+            current_index = next((idx for idx, question in enumerate(questions, start=1) if question.id == current_question.id), current_index)
             action = request.form.get("action", "save")
             if action == "next" and current_index < len(questions):
                 return redirect(url_for("questionnaire", case_id=case.id, q=current_index + 1))
@@ -1022,6 +1079,16 @@ def ensure_sqlite_schema():
     for column, ddl in additions.items():
         if column not in existing:
             db.session.execute(text(f"ALTER TABLE form_template ADD COLUMN {column} {ddl}"))
+    if "case_question" in inspector.get_table_names():
+        existing_question = {column["name"] for column in inspector.get_columns("case_question")}
+        question_additions = {
+            "show_if_question_id": "INTEGER",
+            "show_if_operator": "VARCHAR(30) DEFAULT 'equals' NOT NULL",
+            "show_if_value": "VARCHAR(255)",
+        }
+        for column, ddl in question_additions.items():
+            if column not in existing_question:
+                db.session.execute(text(f"ALTER TABLE case_question ADD COLUMN {column} {ddl}"))
     db.session.commit()
 
 
