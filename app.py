@@ -212,6 +212,11 @@ def short_pdf_field_key(field_name):
     return raw
 
 
+def terminal_pdf_field_key(field_name):
+    raw = (field_name or "").split(".")[-1]
+    return raw.replace("#", "")
+
+
 def normalized_pdf_field_key(field_name):
     return re.sub(r"[^a-z0-9]", "", (field_name or "").lower())
 
@@ -1528,14 +1533,15 @@ def fill_pdf_widgets_with_pymupdf(case, template):
             matched_widgets = []
             for widget in page.widgets() or []:
                 field_name = (widget.field_name or "").strip()
-                field_value = lookup_pdf_field_value(field_lookup, field_name)
+                checkbox_widget = is_checkbox_widget(widget)
+                field_value = lookup_pdf_field_value(field_lookup, field_name, strict=checkbox_widget)
                 if not field_value:
                     continue
-                if str(field_value).upper() == "X" and is_checkbox_widget(widget):
+                if str(field_value).upper() == "X" and checkbox_widget:
                     field_value = checkbox_on_value(widget)
                 widget.field_value = field_value
                 widget.update()
-                overlay_widget_text(page, widget, "X" if is_checkbox_widget(widget) else field_value)
+                overlay_widget_text(page, widget, "X" if checkbox_widget else field_value)
                 matched_widgets.append(widget)
                 filled_count += 1
             flatten_matched_widgets(page, matched_widgets)
@@ -1552,34 +1558,50 @@ def fill_pdf_widgets_with_pymupdf(case, template):
 
 
 def build_pdf_field_value_lookup(field_values):
-    lookup = {}
+    lookup = {"exact": {}, "loose": {}}
     for field_name, value in field_values.items():
         if not value:
             continue
-        keys = {
+        exact_keys = {
             field_name,
-            short_pdf_field_key(field_name),
+            terminal_pdf_field_key(field_name),
             normalized_pdf_field_key(field_name),
+            normalized_pdf_field_key(terminal_pdf_field_key(field_name)),
+        }
+        loose_keys = {
+            short_pdf_field_key(field_name),
             normalized_pdf_field_key(short_pdf_field_key(field_name)),
         }
-        for key in keys:
+        for key in exact_keys:
             if key:
-                lookup[key] = value
+                lookup["exact"][key] = value
+        for key in loose_keys:
+            if key:
+                lookup["loose"][key] = value
     return lookup
 
 
-def lookup_pdf_field_value(field_lookup, pdf_field_name):
+def lookup_pdf_field_value(field_lookup, pdf_field_name, strict=False):
     candidates = (
         pdf_field_name,
-        short_pdf_field_key(pdf_field_name),
+        terminal_pdf_field_key(pdf_field_name),
         normalized_pdf_field_key(pdf_field_name),
-        normalized_pdf_field_key(short_pdf_field_key(pdf_field_name)),
+        normalized_pdf_field_key(terminal_pdf_field_key(pdf_field_name)),
     )
     for candidate in candidates:
-        if candidate in field_lookup:
-            return field_lookup[candidate]
+        if candidate in field_lookup["exact"]:
+            return field_lookup["exact"][candidate]
+    if strict:
+        return None
+    loose_candidates = (
+        short_pdf_field_key(pdf_field_name),
+        normalized_pdf_field_key(short_pdf_field_key(pdf_field_name)),
+    )
+    for candidate in loose_candidates:
+        if candidate in field_lookup["loose"]:
+            return field_lookup["loose"][candidate]
     normalized_widget = normalized_pdf_field_key(pdf_field_name)
-    for key, value in field_lookup.items():
+    for key, value in field_lookup["loose"].items():
         if key and key in normalized_widget:
             return value
     return None
