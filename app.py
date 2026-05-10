@@ -1658,7 +1658,7 @@ def checkbox_entry_matches_widget(entry, widget):
     for token in semantic_tokens:
         if token in source_text:
             return token in widget_text
-    if source_key == widget_name:
+    if source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name):
         return True
     return False
 
@@ -1679,10 +1679,11 @@ def answer_entries_by_pdf_field(case):
     for answer in case.answers:
         if answer.question and answer.answer_text:
             if answer.question.input_type == "checkbox":
-                if answer.answer_text == "Yes":
+                field_key = checkbox_field_key_for_answer(answer.question.field_key, answer.answer_text)
+                if field_key:
                     entries.append(
                         {
-                            "field_name": answer.question.field_key,
+                            "field_name": field_key,
                             "value": "X",
                             "input_type": "checkbox",
                             "prompt": answer.question.prompt,
@@ -1698,6 +1699,28 @@ def answer_entries_by_pdf_field(case):
                     }
                 )
     return entries
+
+
+def checkbox_field_key_for_answer(field_key, answer_text):
+    mapping = parse_checkbox_field_mapping(field_key)
+    if mapping:
+        return mapping.get(answer_text.lower())
+    return field_key if answer_text == "Yes" else None
+
+
+def parse_checkbox_field_mapping(field_key):
+    if "=" not in (field_key or ""):
+        return {}
+    mapping = {}
+    for part in re.split(r"[;\n]", field_key):
+        if "=" not in part:
+            continue
+        label, value = part.split("=", 1)
+        label = label.strip().lower()
+        value = value.strip()
+        if label and value:
+            mapping[label] = value
+    return mapping
 
 
 def answer_values_by_pdf_field(case):

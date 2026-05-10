@@ -55,7 +55,7 @@
             <option value="{{ field.name }}">{{ field.label }}</option>
           {% endfor %}
         </datalist>
-        <div class="form-text">Use a detected PDF field when the answer should be placed into the official form.</div>
+        <div class="form-text">Use a detected PDF field when the answer should be placed into the official form. For checkbox groups, use mappings like <code>Yes=PDF_FIELD_FOR_YES;No=PDF_FIELD_FOR_NO</code>.</div>
       </div>
       <label class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="required" id="question-required" checked>
