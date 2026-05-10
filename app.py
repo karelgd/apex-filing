@@ -1614,11 +1614,7 @@ def choose_pdf_field_entry(entries, widget=None):
     for entry in entries:
         if checkbox_entry_matches_widget(entry, widget):
             return entry
-    return entries[0] if len(entries) == 1 and entry_has_widget_specific_key(entries[0]) else None
-
-
-def entry_has_widget_specific_key(entry):
-    return bool(re.search(r"\[\d+\]", entry["field_name"] or ""))
+    return None
 
 
 def overlay_widget_text(page, widget, value):
@@ -1662,7 +1658,7 @@ def checkbox_entry_matches_widget(entry, widget):
     for token in semantic_tokens:
         if token in source_text:
             return token in widget_text
-    if source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name):
+    if source_key == widget_name:
         return True
     return False
 
