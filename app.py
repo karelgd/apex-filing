@@ -1520,10 +1520,10 @@ def fill_pdf_widgets_with_pymupdf(case, template):
     os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
     filename = f"{folder}/{case.case_type.lower()}_official_filled_{uuid.uuid4().hex[:8]}.pdf"
     output_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    field_values = answer_values_by_pdf_field(case)
-    if not field_values:
+    field_entries = answer_entries_by_pdf_field(case)
+    if not field_entries:
         return None
-    field_lookup = build_pdf_field_value_lookup(field_values)
+    field_lookup = build_pdf_field_value_lookup(field_entries)
     document = None
     try:
         document = fitz.open(source_path)
@@ -1534,14 +1534,16 @@ def fill_pdf_widgets_with_pymupdf(case, template):
             for widget in page.widgets() or []:
                 field_name = (widget.field_name or "").strip()
                 checkbox_widget = is_checkbox_widget(widget)
-                field_value = lookup_pdf_field_value(field_lookup, field_name, strict=checkbox_widget)
-                if not field_value:
+                field_entry = lookup_pdf_field_entry(field_lookup, field_name, widget if checkbox_widget else None, strict=checkbox_widget)
+                if not field_entry:
                     continue
-                if str(field_value).upper() == "X" and checkbox_widget:
-                    field_value = checkbox_on_value(widget)
-                widget.field_value = field_value
-                widget.update()
-                overlay_widget_text(page, widget, "X" if checkbox_widget else field_value)
+                field_value = field_entry["value"]
+                if checkbox_widget:
+                    overlay_widget_text(page, widget, "X")
+                else:
+                    widget.field_value = field_value
+                    widget.update()
+                    overlay_widget_text(page, widget, field_value)
                 matched_widgets.append(widget)
                 filled_count += 1
             flatten_matched_widgets(page, matched_widgets)
@@ -1557,11 +1559,10 @@ def fill_pdf_widgets_with_pymupdf(case, template):
         return None
 
 
-def build_pdf_field_value_lookup(field_values):
+def build_pdf_field_value_lookup(field_entries):
     lookup = {"exact": {}, "loose": {}}
-    for field_name, value in field_values.items():
-        if not value:
-            continue
+    for entry in field_entries:
+        field_name = entry["field_name"]
         exact_keys = {
             field_name,
             terminal_pdf_field_key(field_name),
@@ -1574,14 +1575,14 @@ def build_pdf_field_value_lookup(field_values):
         }
         for key in exact_keys:
             if key:
-                lookup["exact"][key] = value
+                lookup["exact"].setdefault(key, []).append(entry)
         for key in loose_keys:
             if key:
-                lookup["loose"][key] = value
+                lookup["loose"].setdefault(key, []).append(entry)
     return lookup
 
 
-def lookup_pdf_field_value(field_lookup, pdf_field_name, strict=False):
+def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=False):
     candidates = (
         pdf_field_name,
         terminal_pdf_field_key(pdf_field_name),
@@ -1590,7 +1591,7 @@ def lookup_pdf_field_value(field_lookup, pdf_field_name, strict=False):
     )
     for candidate in candidates:
         if candidate in field_lookup["exact"]:
-            return field_lookup["exact"][candidate]
+            return choose_pdf_field_entry(field_lookup["exact"][candidate], widget)
     if strict:
         return None
     loose_candidates = (
@@ -1599,12 +1600,25 @@ def lookup_pdf_field_value(field_lookup, pdf_field_name, strict=False):
     )
     for candidate in loose_candidates:
         if candidate in field_lookup["loose"]:
-            return field_lookup["loose"][candidate]
+            return choose_pdf_field_entry(field_lookup["loose"][candidate], widget)
     normalized_widget = normalized_pdf_field_key(pdf_field_name)
-    for key, value in field_lookup["loose"].items():
+    for key, entries in field_lookup["loose"].items():
         if key and key in normalized_widget:
-            return value
+            return choose_pdf_field_entry(entries, widget)
     return None
+
+
+def choose_pdf_field_entry(entries, widget=None):
+    if not widget:
+        return entries[0] if entries else None
+    for entry in entries:
+        if checkbox_entry_matches_widget(entry, widget):
+            return entry
+    return entries[0] if len(entries) == 1 and entry_has_widget_specific_key(entries[0]) else None
+
+
+def entry_has_widget_specific_key(entry):
+    return bool(re.search(r"\[\d+\]", entry["field_name"] or ""))
 
 
 def overlay_widget_text(page, widget, value):
@@ -1637,6 +1651,22 @@ def checkbox_on_value(widget):
     return "Yes"
 
 
+def checkbox_entry_matches_widget(entry, widget):
+    source_key = entry["field_name"] or ""
+    widget_name = (widget.field_name or "").strip()
+    source_text = normalized_pdf_field_key(f"{source_key} {entry.get('prompt', '')}")
+    widget_text = normalized_pdf_field_key(
+        f"{widget_name} {terminal_pdf_field_key(widget_name)} {checkbox_on_value(widget)} {getattr(widget, 'field_label', '') or ''}"
+    )
+    semantic_tokens = ("single", "married", "divorced", "widowed", "yes", "no")
+    for token in semantic_tokens:
+        if token in source_text:
+            return token in widget_text
+    if source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name):
+        return True
+    return False
+
+
 def flatten_matched_widgets(page, widgets):
     for widget in widgets:
         try:
@@ -1648,15 +1678,36 @@ def flatten_matched_widgets(page, widgets):
             continue
 
 
-def answer_values_by_pdf_field(case):
-    values = {}
+def answer_entries_by_pdf_field(case):
+    entries = []
     for answer in case.answers:
         if answer.question and answer.answer_text:
             if answer.question.input_type == "checkbox":
                 if answer.answer_text == "Yes":
-                    values[answer.question.field_key] = "X"
+                    entries.append(
+                        {
+                            "field_name": answer.question.field_key,
+                            "value": "X",
+                            "input_type": "checkbox",
+                            "prompt": answer.question.prompt,
+                        }
+                    )
             else:
-                values[answer.question.field_key] = answer.answer_text
+                entries.append(
+                    {
+                        "field_name": answer.question.field_key,
+                        "value": answer.answer_text,
+                        "input_type": answer.question.input_type,
+                        "prompt": answer.question.prompt,
+                    }
+                )
+    return entries
+
+
+def answer_values_by_pdf_field(case):
+    values = {}
+    for entry in answer_entries_by_pdf_field(case):
+        values[entry["field_name"]] = entry["value"]
     return values
 
 
