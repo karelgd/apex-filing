@@ -612,6 +612,26 @@ body {
   margin-top: 1.5rem;
 }
 
+.checkbox-answer-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .85rem;
+}
+
+.checkbox-answer-option {
+  align-items: center;
+  background: #f6f9fe;
+  border: 1px solid #dce6f3;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  font-size: 1.05rem;
+  font-weight: 800;
+  gap: .6rem;
+  min-width: 140px;
+  padding: .9rem 1rem;
+}
+
 .pdf-field-list {
   display: flex;
   flex-wrap: wrap;

@@ -47,7 +47,13 @@
       {% set answer = answers.get(question.id) %}
       <div class="col-md-6">
         <label class="form-label">{{ question.prompt }}</label>
-        {% if question.input_type == 'textarea' %}
+        {% if question.input_type == 'checkbox' %}
+          <select class="form-select" name="question_{{ question.id }}">
+            <option value="">No answer</option>
+            <option value="Yes" {% if answer and answer.answer_text == 'Yes' %}selected{% endif %}>Yes</option>
+            <option value="No" {% if answer and answer.answer_text == 'No' %}selected{% endif %}>No</option>
+          </select>
+        {% elif question.input_type == 'textarea' %}
           <textarea class="form-control" name="question_{{ question.id }}" rows="4">{{ answer.answer_text if answer else '' }}</textarea>
         {% else %}
           <input class="form-control" type="{{ question.input_type }}" name="question_{{ question.id }}" value="{{ answer.answer_text if answer else '' }}">

@@ -79,7 +79,18 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="question-meta">Question {{ current_index }} of {{ questions|length }}</div>
           <label class="question-prompt">{{ current_question.prompt }}</label>
-          {% if current_question.input_type == 'textarea' %}
+          {% if current_question.input_type == 'checkbox' %}
+            <div class="checkbox-answer-group">
+              <label class="checkbox-answer-option">
+                <input class="form-check-input" type="radio" name="question_{{ current_question.id }}" value="Yes" {% if answer and answer.answer_text == 'Yes' %}checked{% endif %} autofocus>
+                <span>Yes</span>
+              </label>
+              <label class="checkbox-answer-option">
+                <input class="form-check-input" type="radio" name="question_{{ current_question.id }}" value="No" {% if answer and answer.answer_text == 'No' %}checked{% endif %}>
+                <span>No</span>
+              </label>
+            </div>
+          {% elif current_question.input_type == 'textarea' %}
             <textarea class="form-control form-control-lg" name="question_{{ current_question.id }}" rows="6" autofocus>{{ answer.answer_text if answer else '' }}</textarea>
           {% else %}
             <input class="form-control form-control-lg" type="{{ current_question.input_type }}" name="question_{{ current_question.id }}" value="{{ answer.answer_text if answer else '' }}" autofocus>

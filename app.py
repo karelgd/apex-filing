@@ -406,7 +406,7 @@ def seed_questions_from_pdf_fields(template):
                 case_type=template.code,
                 field_key=field.field_name,
                 prompt=readable_pdf_field_name(field.field_name)[:255],
-                input_type=guess_input_type(field.field_name),
+                input_type=guess_input_type(field.field_name, field.field_type),
                 sort_order=seeded,
                 required=True,
             )
@@ -472,8 +472,12 @@ def looks_like_form_prompt(prompt):
     return bool(re.match(r"^(family|given|middle|last|first)\b", lower))
 
 
-def guess_input_type(prompt):
+def guess_input_type(prompt, field_type=None):
+    if field_type and "check" in field_type.lower():
+        return "checkbox"
     lower = prompt.lower()
+    if any(token in lower for token in ("checkbox", "check box", "check if", "select if")):
+        return "checkbox"
     if "date" in lower or "expiration" in lower:
         return "date"
     if "describe" in lower or "explain" in lower or "history" in lower:
@@ -1527,9 +1531,11 @@ def fill_pdf_widgets_with_pymupdf(case, template):
                 field_value = lookup_pdf_field_value(field_lookup, field_name)
                 if not field_value:
                     continue
+                if str(field_value).upper() == "X" and is_checkbox_widget(widget):
+                    field_value = checkbox_on_value(widget)
                 widget.field_value = field_value
                 widget.update()
-                overlay_widget_text(page, widget, field_value)
+                overlay_widget_text(page, widget, "X" if is_checkbox_widget(widget) else field_value)
                 matched_widgets.append(widget)
                 filled_count += 1
             flatten_matched_widgets(page, matched_widgets)
@@ -1592,6 +1598,23 @@ def overlay_widget_text(page, widget, value):
         page.insert_text((rect.x0 + 2, rect.y1 - 4), text[:80], fontsize=font_size, fontname="helv", color=(0, 0, 0))
 
 
+def is_checkbox_widget(widget):
+    widget_type = str(getattr(widget, "field_type_string", "") or getattr(widget, "field_type", "")).lower()
+    return "check" in widget_type
+
+
+def checkbox_on_value(widget):
+    try:
+        states = widget.button_states()
+        on_states = states.get("normal") or states.get("down") or []
+        for state in on_states:
+            if state and state != "Off":
+                return state
+    except Exception:
+        pass
+    return "Yes"
+
+
 def flatten_matched_widgets(page, widgets):
     for widget in widgets:
         try:
@@ -1607,7 +1630,11 @@ def answer_values_by_pdf_field(case):
     values = {}
     for answer in case.answers:
         if answer.question and answer.answer_text:
-            values[answer.question.field_key] = answer.answer_text
+            if answer.question.input_type == "checkbox":
+                if answer.answer_text == "Yes":
+                    values[answer.question.field_key] = "X"
+            else:
+                values[answer.question.field_key] = answer.answer_text
     return values
 
 
