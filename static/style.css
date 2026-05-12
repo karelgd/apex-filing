@@ -470,6 +470,25 @@ body {
   margin-left: .35rem;
 }
 
+.review-question {
+  border-top: 1px solid #edf2f8;
+  padding-top: 1rem;
+}
+
+.review-question-label {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  font-weight: 700;
+  margin-bottom: .5rem;
+}
+
+.review-question-number {
+  color: var(--apex-accent);
+  font-weight: 900;
+}
+
 .table > :not(caption) > * > * {
   padding: .85rem;
 }

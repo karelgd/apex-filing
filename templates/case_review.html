@@ -45,9 +45,10 @@
     </div>
     {% for question in questions %}
       {% set answer = answers.get(question.id) %}
-      <div class="col-md-6">
-        <label class="form-label">
-          {{ question.prompt }}
+      <div class="col-12 review-question">
+        <label class="form-label review-question-label">
+          <span class="review-question-number">{{ loop.index }}.</span>
+          <span>{{ question.prompt }}</span>
           {% if not question.client_visible %}
             <span class="badge text-bg-secondary ms-1">Agency only</span>
           {% endif %}
