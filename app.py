@@ -185,6 +185,26 @@ def reorder_template_questions(code):
         question.sort_order = index
 
 
+def clear_template_questions(code):
+    questions = CaseQuestion.query.filter_by(case_type=code).all()
+    question_ids = [question.id for question in questions]
+    if not question_ids:
+        return 0
+    CaseQuestion.query.filter(CaseQuestion.show_if_question_id.in_(question_ids)).update(
+        {"show_if_question_id": None, "show_if_value": ""},
+        synchronize_session=False,
+    )
+    PdfField.query.filter(PdfField.mapped_question_id.in_(question_ids)).update(
+        {"mapped_question_id": None},
+        synchronize_session=False,
+    )
+    CaseAnswer.query.filter(CaseAnswer.question_id.in_(question_ids)).delete(synchronize_session=False)
+    for question in questions:
+        db.session.delete(question)
+    db.session.flush()
+    return len(question_ids)
+
+
 def readable_pdf_field_name(field_name):
     raw = short_pdf_field_key(field_name)
     replacements = {
@@ -655,13 +675,17 @@ def template_matches_search(template, lowered_search):
 
 def save_form_template_from_request():
     code = request.form["code"].strip().upper()
-    template = FormTemplate.query.filter_by(code=code).first() or FormTemplate(code=code)
+    template = FormTemplate.query.filter_by(code=code).first()
+    rebuilding_existing_template = bool(template)
+    template = template or FormTemplate(code=code)
     template.name = request.form["name"].strip()
     template.description = request.form.get("description", "").strip()
     template.is_active = bool(request.form.get("is_active"))
     db.session.add(template)
     db.session.flush()
     question_lines = request.form.get("questions", "")
+    if rebuilding_existing_template:
+        clear_template_questions(code)
     if question_lines.strip():
         replace_template_questions(code, question_lines)
     pdf_path = detect_pdf_template(template, request.files.get("pdf_template"))
