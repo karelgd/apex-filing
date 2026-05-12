@@ -663,6 +663,23 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.builder-question-item {
+  cursor: grab;
+  transition: background-color .15s ease, box-shadow .15s ease, opacity .15s ease, transform .15s ease;
+}
+
+.builder-question-item:hover {
+  background: #f8fbff;
+}
+
+.builder-question-item.is-dragging {
+  background: #eef4ff;
+  box-shadow: 0 18px 34px rgba(22, 32, 51, .16);
+  cursor: grabbing;
+  opacity: .72;
+  transform: scale(.995);
+}
+
 .builder-question-body {
   min-width: 0;
 }
@@ -683,11 +700,6 @@ body {
 
 .builder-question-actions .badge {
   line-height: 1.45;
-}
-
-.builder-move-btn {
-  font-weight: 900;
-  min-width: 34px;
 }
 
 .questionnaire-admin-card {

@@ -23,7 +23,7 @@
         <select class="form-select" name="question_id" id="question-select">
           <option value="">Create new question</option>
           {% for question in questions %}
-            <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
+            <option value="{{ question.id }}" data-prompt="{{ question.prompt }}">{{ question.sort_order }}. {{ question.prompt }}</option>
           {% endfor %}
         </select>
       </div>
@@ -106,26 +106,18 @@
           </div>
         {% endif %}
       </div>
-      <div class="list-group list-group-flush">
+      <div class="list-group list-group-flush" id="question-sort-list" data-reorder-url="{{ url_for('apex_form_questions_reorder', template_id=template.id) }}">
         {% for question in questions %}
-          <div class="list-group-item">
+          <div class="list-group-item builder-question-item" draggable="true" data-question-id="{{ question.id }}">
             <div class="builder-question-row">
               <div class="builder-question-body">
-                <strong>{{ question.sort_order }}. {{ question.prompt }}</strong>
+                <strong><span class="question-order-number">{{ question.sort_order }}</span>. {{ question.prompt }}</strong>
                 <div class="small text-secondary">Field: <code>{{ question.field_key }}</code> - Type: {{ question.input_type }}</div>
                 {% if question.show_if_question %}
                   <div class="small text-primary">Shows if "{{ question.show_if_question.prompt }}" {{ question.show_if_operator }} "{{ question.show_if_value }}"</div>
                 {% endif %}
               </div>
               <div class="builder-question-actions">
-                <form method="post" action="{{ url_for('apex_form_question_move', template_id=template.id, question_id=question.id, direction='up') }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="btn btn-sm btn-outline-secondary builder-move-btn" type="submit" {% if loop.first %}disabled{% endif %} aria-label="Move question {{ question.sort_order }} up">&uarr;</button>
-                </form>
-                <form method="post" action="{{ url_for('apex_form_question_move', template_id=template.id, question_id=question.id, direction='down') }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="btn btn-sm btn-outline-secondary builder-move-btn" type="submit" {% if loop.last %}disabled{% endif %} aria-label="Move question {{ question.sort_order }} down">&darr;</button>
-                </form>
                 <span class="badge {{ 'text-bg-primary' if question.client_visible else 'text-bg-secondary' }}">{{ 'Client' if question.client_visible else 'Agency only' }}</span>
                 <span class="badge text-bg-light border">{{ 'Required' if question.required else 'Optional' }}</span>
                 <label class="form-check mt-1" title="Mark this question for a bulk action">
@@ -234,6 +226,86 @@
       fieldInput.value = button.dataset.fieldName || "";
       fieldInput.focus();
     });
+  });
+
+  const questionSortList = document.getElementById("question-sort-list");
+  const csrfToken = document.querySelector("#question-bulk-actions input[name='csrf_token']")?.value || "";
+  let draggedQuestion = null;
+
+  function questionItems() {
+    return Array.from(questionSortList?.querySelectorAll(".builder-question-item") || []);
+  }
+
+  function updateQuestionOrderLabels() {
+    questionItems().forEach((item, index) => {
+      const number = item.querySelector(".question-order-number");
+      if (number) {
+        number.textContent = index + 1;
+      }
+      const option = questionSelect?.querySelector(`option[value="${item.dataset.questionId}"]`);
+      if (option) {
+        option.textContent = `${index + 1}. ${option.dataset.prompt || ""}`;
+      }
+    });
+  }
+
+  async function saveQuestionOrder() {
+    const questionIds = questionItems().map((item) => item.dataset.questionId);
+    const response = await fetch(questionSortList.dataset.reorderUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken
+      },
+      body: JSON.stringify({ question_ids: questionIds })
+    });
+    if (!response.ok) {
+      throw new Error("Unable to save question order.");
+    }
+  }
+
+  function insertDraggedQuestion(target, pointerY) {
+    if (!draggedQuestion || !target || target === draggedQuestion) {
+      return;
+    }
+    const bounds = target.getBoundingClientRect();
+    const afterTarget = pointerY > bounds.top + bounds.height / 2;
+    questionSortList.insertBefore(draggedQuestion, afterTarget ? target.nextSibling : target);
+  }
+
+  questionSortList?.addEventListener("dragstart", (event) => {
+    if (event.target.closest("button, input, label, form, a")) {
+      event.preventDefault();
+      return;
+    }
+    draggedQuestion = event.target.closest(".builder-question-item");
+    if (!draggedQuestion) {
+      return;
+    }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draggedQuestion.dataset.questionId || "");
+    requestAnimationFrame(() => draggedQuestion.classList.add("is-dragging"));
+  });
+
+  questionSortList?.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    const target = event.target.closest(".builder-question-item");
+    insertDraggedQuestion(target, event.clientY);
+  });
+
+  questionSortList?.addEventListener("dragend", async () => {
+    if (!draggedQuestion) {
+      return;
+    }
+    draggedQuestion.classList.remove("is-dragging");
+    draggedQuestion = null;
+    updateQuestionOrderLabels();
+    try {
+      await saveQuestionOrder();
+    } catch (error) {
+      alert("The new order could not be saved. The page will reload to restore the last saved order.");
+      window.location.reload();
+    }
   });
 </script>
 {% endblock %}
