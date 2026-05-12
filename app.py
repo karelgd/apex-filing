@@ -920,6 +920,30 @@ def register_routes(app):
         flash(f"{updated} marked question{'s' if updated != 1 else ''} set to {label}.", "success")
         return redirect(url_for("apex_form_builder", template_id=template.id))
 
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/<int:question_id>/move/<direction>", methods=["POST"])
+    @role_required("apex")
+    def apex_form_question_move(template_id, question_id, direction):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        question = db.session.get(CaseQuestion, question_id) or abort(404)
+        if question.case_type != template.code or direction not in {"up", "down"}:
+            abort(404)
+
+        reorder_template_questions(template.code)
+        db.session.flush()
+        ordered_questions = CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order, CaseQuestion.id).all()
+        index = next((idx for idx, item in enumerate(ordered_questions) if item.id == question.id), None)
+        if index is None:
+            abort(404)
+        neighbor_index = index - 1 if direction == "up" else index + 1
+        if 0 <= neighbor_index < len(ordered_questions):
+            neighbor = ordered_questions[neighbor_index]
+            question.sort_order, neighbor.sort_order = neighbor.sort_order, question.sort_order
+            db.session.commit()
+            flash("Question order updated.", "success")
+        else:
+            db.session.commit()
+        return redirect(url_for("apex_form_builder", template_id=template.id))
+
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/delete", methods=["POST"])
     @role_required("apex")
     def apex_form_template_delete(template_id):

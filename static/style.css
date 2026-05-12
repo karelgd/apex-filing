@@ -656,6 +656,40 @@ body {
   padding: .9rem;
 }
 
+.builder-question-row {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.builder-question-body {
+  min-width: 0;
+}
+
+.builder-question-body code {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.builder-question-actions {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  justify-content: flex-end;
+  max-width: 260px;
+}
+
+.builder-question-actions .badge {
+  line-height: 1.45;
+}
+
+.builder-move-btn {
+  font-weight: 900;
+  min-width: 34px;
+}
+
 .questionnaire-admin-card {
   border: 1px solid #dce6f3;
   box-shadow: 0 18px 44px rgba(22, 32, 51, .06);
@@ -758,6 +792,15 @@ body {
   .questionnaire-row {
     align-items: start;
     grid-template-columns: 1fr;
+  }
+
+  .builder-question-row {
+    grid-template-columns: 1fr;
+  }
+
+  .builder-question-actions {
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .questionnaire-actions,
