@@ -1800,13 +1800,12 @@ def checkbox_entry_matches_widget(entry, widget, widget_occurrence=None, widget_
     )
     for category in categories:
         category_set = set(category)
-        source_matches = source_tokens & category_set
+        source_token = next((token for token in category if token in source_tokens), None)
         widget_matches = widget_tokens & category_set
-        if source_matches and widget_matches:
-            return bool(source_matches & widget_matches)
-        if source_matches and not widget_matches and widget_occurrence is not None and widget_count > 1:
-            source_token = next((token for token in category if token in source_matches), None)
-            return source_token is not None and category.index(source_token) == widget_occurrence
+        if source_token and widget_matches:
+            return source_token in widget_matches
+        if source_token and not widget_matches and widget_occurrence is not None and widget_count > 1:
+            return category.index(source_token) == widget_occurrence
 
     answer_token = (entry.get("answer_text") or "").strip().lower()
     if answer_token in {"yes", "no"}:
