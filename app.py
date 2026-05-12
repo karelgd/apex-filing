@@ -1631,13 +1631,24 @@ def fill_pdf_widgets_with_pymupdf(case, template):
     try:
         document = fitz.open(source_path)
         filled_count = 0
+        widget_occurrences = {}
         for page_index in range(document.page_count):
             page = document.load_page(page_index)
             matched_widgets = []
-            for widget in page.widgets() or []:
+            widgets = sorted(page.widgets() or [], key=visual_widget_sort_key)
+            for widget in widgets:
                 field_name = (widget.field_name or "").strip()
                 checkbox_widget = is_checkbox_widget(widget)
-                field_entry = lookup_pdf_field_entry(field_lookup, field_name, widget if checkbox_widget else None, strict=checkbox_widget)
+                occurrence_key = normalized_pdf_field_key(field_name)
+                widget_occurrence = widget_occurrences.get(occurrence_key, 0)
+                widget_occurrences[occurrence_key] = widget_occurrence + 1
+                field_entry = lookup_pdf_field_entry(
+                    field_lookup,
+                    field_name,
+                    widget if checkbox_widget else None,
+                    strict=checkbox_widget,
+                    widget_occurrence=widget_occurrence,
+                )
                 if not field_entry:
                     continue
                 field_value = field_entry["value"]
@@ -1666,7 +1677,7 @@ def fill_pdf_widgets_with_pymupdf(case, template):
 def build_pdf_field_value_lookup(field_entries):
     lookup = {"exact": {}, "loose": {}}
     for entry in field_entries:
-        field_name = entry["field_name"]
+        field_name = pdf_field_selector_parts(entry["field_name"])["field_name"]
         exact_keys = {
             field_name,
             terminal_pdf_field_key(field_name),
@@ -1686,7 +1697,7 @@ def build_pdf_field_value_lookup(field_entries):
     return lookup
 
 
-def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=False):
+def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=False, widget_occurrence=None):
     candidates = (
         pdf_field_name,
         terminal_pdf_field_key(pdf_field_name),
@@ -1695,7 +1706,7 @@ def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=Fal
     )
     for candidate in candidates:
         if candidate in field_lookup["exact"]:
-            return choose_pdf_field_entry(field_lookup["exact"][candidate], widget, allow_field_fallback=True)
+            return choose_pdf_field_entry(field_lookup["exact"][candidate], widget, widget_occurrence)
     if strict:
         return None
     loose_candidates = (
@@ -1704,22 +1715,20 @@ def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=Fal
     )
     for candidate in loose_candidates:
         if candidate in field_lookup["loose"]:
-            return choose_pdf_field_entry(field_lookup["loose"][candidate], widget)
+            return choose_pdf_field_entry(field_lookup["loose"][candidate], widget, widget_occurrence)
     normalized_widget = normalized_pdf_field_key(pdf_field_name)
     for key, entries in field_lookup["loose"].items():
         if key and key in normalized_widget:
-            return choose_pdf_field_entry(entries, widget)
+            return choose_pdf_field_entry(entries, widget, widget_occurrence)
     return None
 
 
-def choose_pdf_field_entry(entries, widget=None, allow_field_fallback=False):
+def choose_pdf_field_entry(entries, widget=None, widget_occurrence=None):
     if not widget:
         return entries[0] if entries else None
     for entry in entries:
-        if checkbox_entry_matches_widget(entry, widget):
+        if checkbox_entry_matches_widget(entry, widget, widget_occurrence):
             return entry
-    if allow_field_fallback and len(entries) == 1:
-        return entries[0]
     return None
 
 
@@ -1770,32 +1779,59 @@ def checkbox_on_value(widget):
     return "Yes"
 
 
-def checkbox_entry_matches_widget(entry, widget):
-    source_key = entry["field_name"] or ""
+def checkbox_entry_matches_widget(entry, widget, widget_occurrence=None):
+    selector = pdf_field_selector_parts(entry["field_name"])
+    source_key = selector["field_name"] or ""
     widget_name = (widget.field_name or "").strip()
     source_text = f"{source_key} {entry.get('prompt', '')}"
     widget_text = f"{widget_name} {terminal_pdf_field_key(widget_name)} {checkbox_on_value(widget)} {getattr(widget, 'field_label', '') or ''}"
     source_tokens = semantic_tokens_from_pdf_text(source_text)
     widget_tokens = semantic_tokens_from_pdf_text(widget_text)
+    if selector["choice_index"] is not None and widget_occurrence is not None:
+        return selector["choice_index"] == widget_occurrence
+    if selector["choice_label"]:
+        return selector["choice_label"] in widget_tokens
     categories = (
-        {"female", "male"},
-        {"single", "married", "divorced", "widowed"},
+        ("male", "female"),
+        ("single", "married", "divorced", "widowed"),
     )
     for category in categories:
-        source_matches = source_tokens & category
-        widget_matches = widget_tokens & category
+        category_set = set(category)
+        source_matches = source_tokens & category_set
+        widget_matches = widget_tokens & category_set
         if source_matches and widget_matches:
             return bool(source_matches & widget_matches)
+        if source_matches and not widget_matches and widget_occurrence is not None:
+            source_token = next((token for token in category if token in source_matches), None)
+            return source_token is not None and category.index(source_token) == widget_occurrence
 
     answer_token = (entry.get("answer_text") or "").strip().lower()
     if answer_token in {"yes", "no"}:
         widget_yes_no = widget_tokens & {"yes", "no"}
         if widget_yes_no:
             return answer_token in widget_yes_no
+        if widget_occurrence is not None:
+            return ("yes", "no").index(answer_token) == widget_occurrence
 
     if source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name):
         return True
     return False
+
+
+def pdf_field_selector_parts(field_name):
+    raw = field_name or ""
+    if "::" not in raw:
+        return {"field_name": raw, "choice_index": None, "choice_label": ""}
+    base, choice = raw.rsplit("::", 1)
+    choice = choice.strip()
+    if choice.isdigit():
+        return {"field_name": base.strip(), "choice_index": int(choice), "choice_label": ""}
+    return {"field_name": base.strip(), "choice_index": None, "choice_label": choice.lower()}
+
+
+def visual_widget_sort_key(widget):
+    rect = widget.rect
+    return (round(rect.y0, 1), round(rect.x0, 1), round(rect.y1, 1), round(rect.x1, 1))
 
 
 def semantic_tokens_from_pdf_text(value):
