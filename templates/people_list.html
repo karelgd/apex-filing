@@ -1,29 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="agency-shell">
-  <aside class="tool-sidebar">
-    <span class="sidebar-label">Agency tools</span>
-    <a class="tool-link" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
-    <a class="tool-link" href="{{ url_for('client_list') }}">Clients</a>
-    <a class="tool-link {{ 'active' if person_type == 'translator' else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
-    <a class="tool-link {{ 'active' if person_type == 'preparer' else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
-    <span class="sidebar-label mt-4">Subscriptions</span>
-    {% if agency.has_tool('Form Filler') %}
-      <a class="tool-link" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
-    {% endif %}
-    {% if agency.has_tool('Motion Creation') %}
-      <span class="tool-link muted">Motion Creation</span>
-    {% endif %}
-    {% if agency.has_tool('Power of Attorney Creator') %}
-      <span class="tool-link muted">Power of Attorney</span>
-    {% endif %}
-    {% if agency.has_tool('Contract Generator') %}
-      <span class="tool-link muted">Contract Generator</span>
-    {% endif %}
-  </aside>
-  <div>
-    <h1 class="h3 mb-3">{{ title }}</h1>
-    <div class="row g-4">
+<h1 class="h3 mb-3">{{ title }}</h1>
+<div class="row g-4">
       <div class="col-lg-5">
         <form method="post" class="card card-body">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -88,7 +66,5 @@
           </div>
         </div>
       </div>
-    </div>
   </div>
-</div>
 {% endblock %}

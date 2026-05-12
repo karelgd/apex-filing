@@ -34,9 +34,10 @@
         {% endfor %}
       {% endif %}
     {% endwith %}
-    {% if current_user.is_authenticated and current_user.role == 'apex' %}
-      <div class="apex-shell">
-        <aside class="tool-sidebar apex-sidebar">
+    {% if current_user.is_authenticated and current_user.role in ['apex', 'agency'] %}
+      <div class="{{ 'apex-shell' if current_user.role == 'apex' else 'agency-shell' }}">
+        <aside class="tool-sidebar app-sidebar">
+          {% if current_user.role == 'apex' %}
           <span class="sidebar-label">Apex Admin</span>
           <a class="tool-link {{ 'active' if request.endpoint == 'apex_dashboard' else '' }}" href="{{ url_for('apex_dashboard') }}">Dashboard</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['agency_list', 'agency_create', 'agency_edit'] else '' }}" href="{{ url_for('agency_list') }}">Agencies</a>
@@ -44,11 +45,31 @@
           <a class="tool-link {{ 'active' if request.endpoint in ['case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('case_list') }}">Cases</a>
           <span class="sidebar-label mt-4">Subscriptions</span>
           <a class="tool-link {{ 'active' if request.endpoint in ['apex_form_filler_admin', 'apex_form_template_new', 'apex_form_builder'] else '' }}" href="{{ url_for('apex_form_filler_admin') }}">Form Filler Admin</a>
+          {% else %}
+          <span class="sidebar-label">Agency tools</span>
+          <a class="tool-link {{ 'active' if request.endpoint == 'agency_dashboard' else '' }}" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['translator_list', 'translator_edit'] else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['preparer_list', 'preparer_edit'] else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
+          <span class="sidebar-label mt-4">Subscriptions</span>
+          {% if current_user.agency.has_tool('Form Filler') %}
+            <a class="tool-link {{ 'active' if request.endpoint in ['agency_form_filler', 'case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
+          {% endif %}
+          {% if current_user.agency.has_tool('Motion Creation') %}
+            <span class="tool-link muted">Motion Creation</span>
+          {% endif %}
+          {% if current_user.agency.has_tool('Power of Attorney Creator') %}
+            <span class="tool-link muted">Power of Attorney</span>
+          {% endif %}
+          {% if current_user.agency.has_tool('Contract Generator') %}
+            <span class="tool-link muted">Contract Generator</span>
+          {% endif %}
+          {% endif %}
         </aside>
-        <section class="apex-main">
+        <section class="app-main">
     {% endif %}
     {% block content %}{% endblock %}
-    {% if current_user.is_authenticated and current_user.role == 'apex' %}
+    {% if current_user.is_authenticated and current_user.role in ['apex', 'agency'] %}
         </section>
       </div>
     {% endif %}

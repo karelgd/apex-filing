@@ -505,12 +505,12 @@ body {
   grid-template-columns: 236px minmax(0, 1fr);
 }
 
-.apex-sidebar {
+.app-sidebar {
   position: sticky;
   top: 1rem;
 }
 
-.apex-main {
+.app-main {
   min-width: 0;
 }
 
@@ -830,7 +830,7 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .apex-sidebar,
+  .app-sidebar,
   .question-map {
     position: static;
   }
