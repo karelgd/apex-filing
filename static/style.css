@@ -455,6 +455,21 @@ body {
   max-width: 260px;
 }
 
+.client-actions {
+  white-space: nowrap;
+  min-width: 132px;
+}
+
+.client-actions .btn,
+.client-actions form {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.client-actions .btn + form {
+  margin-left: .35rem;
+}
+
 .table > :not(caption) > * > * {
   padding: .85rem;
 }
