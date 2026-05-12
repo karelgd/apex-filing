@@ -1695,7 +1695,7 @@ def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=Fal
     )
     for candidate in candidates:
         if candidate in field_lookup["exact"]:
-            return choose_pdf_field_entry(field_lookup["exact"][candidate], widget)
+            return choose_pdf_field_entry(field_lookup["exact"][candidate], widget, allow_field_fallback=True)
     if strict:
         return None
     loose_candidates = (
@@ -1712,12 +1712,14 @@ def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=Fal
     return None
 
 
-def choose_pdf_field_entry(entries, widget=None):
+def choose_pdf_field_entry(entries, widget=None, allow_field_fallback=False):
     if not widget:
         return entries[0] if entries else None
     for entry in entries:
         if checkbox_entry_matches_widget(entry, widget):
             return entry
+    if allow_field_fallback and len(entries) == 1:
+        return entries[0]
     return None
 
 
