@@ -1707,8 +1707,6 @@ def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=Fal
     for candidate in candidates:
         if candidate in field_lookup["exact"]:
             return choose_pdf_field_entry(field_lookup["exact"][candidate], widget, widget_occurrence)
-    if strict:
-        return None
     loose_candidates = (
         short_pdf_field_key(pdf_field_name),
         normalized_pdf_field_key(short_pdf_field_key(pdf_field_name)),
@@ -1720,6 +1718,8 @@ def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=Fal
     for key, entries in field_lookup["loose"].items():
         if key and key in normalized_widget:
             return choose_pdf_field_entry(entries, widget, widget_occurrence)
+    if strict:
+        return None
     return None
 
 
