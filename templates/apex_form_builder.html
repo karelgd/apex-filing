@@ -89,7 +89,15 @@
   </div>
   <div class="col-lg-7">
     <div class="card">
-      <div class="card-header bg-white fw-semibold">Current questionnaire</div>
+      <form id="bulk-delete-questions" method="post" action="{{ url_for('apex_form_questions_bulk_delete', template_id=template.id) }}" onsubmit="return confirm('Delete all marked questions? They will not be shown to clients or included in generated PDFs.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      </form>
+      <div class="card-header bg-white d-flex justify-content-between align-items-center gap-3">
+        <span class="fw-semibold">Current questionnaire</span>
+        {% if questions %}
+          <button class="btn btn-sm btn-outline-danger" type="submit" form="bulk-delete-questions">Delete Marked</button>
+        {% endif %}
+      </div>
       <div class="list-group list-group-flush">
         {% for question in questions %}
           <div class="list-group-item">
@@ -103,6 +111,9 @@
               </div>
               <div class="d-flex align-items-start gap-2">
                 <span class="badge text-bg-light border">{{ 'Required' if question.required else 'Optional' }}</span>
+                <label class="form-check mt-1" title="Mark this question for bulk deletion">
+                  <input class="form-check-input" type="checkbox" name="question_ids" value="{{ question.id }}" form="bulk-delete-questions" aria-label="Mark question {{ question.sort_order }} for deletion">
+                </label>
                 <form method="post" action="{{ url_for('apex_form_question_delete', template_id=template.id, question_id=question.id) }}" onsubmit="return confirm('Delete this question? It will not be shown to clients or included in generated PDFs.')">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn btn-sm btn-outline-danger">Delete</button>

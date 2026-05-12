@@ -205,6 +205,19 @@ def clear_template_questions(code):
     return len(question_ids)
 
 
+def delete_case_question(question):
+    CaseQuestion.query.filter_by(show_if_question_id=question.id).update(
+        {"show_if_question_id": None, "show_if_value": ""},
+        synchronize_session=False,
+    )
+    PdfField.query.filter_by(mapped_question_id=question.id).update(
+        {"mapped_question_id": None},
+        synchronize_session=False,
+    )
+    CaseAnswer.query.filter_by(question_id=question.id).delete(synchronize_session=False)
+    db.session.delete(question)
+
+
 def readable_pdf_field_name(field_name):
     raw = short_pdf_field_key(field_name)
     replacements = {
@@ -848,20 +861,37 @@ def register_routes(app):
         question = db.session.get(CaseQuestion, question_id) or abort(404)
         if question.case_type != template.code:
             abort(404)
-        CaseQuestion.query.filter_by(show_if_question_id=question.id).update(
-            {"show_if_question_id": None, "show_if_value": ""},
-            synchronize_session=False,
-        )
-        PdfField.query.filter_by(mapped_question_id=question.id).update(
-            {"mapped_question_id": None},
-            synchronize_session=False,
-        )
-        CaseAnswer.query.filter_by(question_id=question.id).delete(synchronize_session=False)
-        db.session.delete(question)
+        delete_case_question(question)
         db.session.flush()
         reorder_template_questions(template.code)
         db.session.commit()
         flash("Question deleted from the questionnaire.", "info")
+        return redirect(url_for("apex_form_builder", template_id=template.id))
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/delete-marked", methods=["POST"])
+    @role_required("apex")
+    def apex_form_questions_bulk_delete(template_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        question_ids = []
+        for raw_id in request.form.getlist("question_ids"):
+            try:
+                question_ids.append(int(raw_id))
+            except (TypeError, ValueError):
+                continue
+        if not question_ids:
+            flash("Select at least one question to delete.", "warning")
+            return redirect(url_for("apex_form_builder", template_id=template.id))
+
+        questions = CaseQuestion.query.filter(
+            CaseQuestion.case_type == template.code,
+            CaseQuestion.id.in_(question_ids),
+        ).all()
+        for question in questions:
+            delete_case_question(question)
+        db.session.flush()
+        reorder_template_questions(template.code)
+        db.session.commit()
+        flash(f"{len(questions)} marked question{'s' if len(questions) != 1 else ''} deleted.", "info")
         return redirect(url_for("apex_form_builder", template_id=template.id))
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/delete", methods=["POST"])
