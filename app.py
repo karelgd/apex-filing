@@ -1771,14 +1771,26 @@ def checkbox_on_value(widget):
 def checkbox_entry_matches_widget(entry, widget):
     source_key = entry["field_name"] or ""
     widget_name = (widget.field_name or "").strip()
-    source_text = f"{source_key} {entry.get('answer_text', '')} {entry.get('prompt', '')}"
+    source_text = f"{source_key} {entry.get('prompt', '')}"
     widget_text = f"{widget_name} {terminal_pdf_field_key(widget_name)} {checkbox_on_value(widget)} {getattr(widget, 'field_label', '') or ''}"
     source_tokens = semantic_tokens_from_pdf_text(source_text)
     widget_tokens = semantic_tokens_from_pdf_text(widget_text)
-    semantic_tokens = ("female", "male", "single", "married", "divorced", "widowed", "yes", "no")
-    for token in semantic_tokens:
-        if token in source_tokens:
-            return token in widget_tokens
+    categories = (
+        {"female", "male"},
+        {"single", "married", "divorced", "widowed"},
+    )
+    for category in categories:
+        source_matches = source_tokens & category
+        widget_matches = widget_tokens & category
+        if source_matches and widget_matches:
+            return bool(source_matches & widget_matches)
+
+    answer_token = (entry.get("answer_text") or "").strip().lower()
+    if answer_token in {"yes", "no"}:
+        widget_yes_no = widget_tokens & {"yes", "no"}
+        if widget_yes_no:
+            return answer_token in widget_yes_no
+
     if source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name):
         return True
     return False
