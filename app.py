@@ -1631,6 +1631,7 @@ def fill_pdf_widgets_with_pymupdf(case, template):
     try:
         document = fitz.open(source_path)
         filled_count = 0
+        checkbox_widget_counts = count_checkbox_widgets_by_field(document)
         widget_occurrences = {}
         for page_index in range(document.page_count):
             page = document.load_page(page_index)
@@ -1648,6 +1649,7 @@ def fill_pdf_widgets_with_pymupdf(case, template):
                     widget if checkbox_widget else None,
                     strict=checkbox_widget,
                     widget_occurrence=widget_occurrence,
+                    widget_count=checkbox_widget_counts.get(occurrence_key, 1),
                 )
                 if not field_entry:
                     continue
@@ -1697,7 +1699,7 @@ def build_pdf_field_value_lookup(field_entries):
     return lookup
 
 
-def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=False, widget_occurrence=None):
+def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=False, widget_occurrence=None, widget_count=1):
     candidates = (
         pdf_field_name,
         terminal_pdf_field_key(pdf_field_name),
@@ -1706,28 +1708,28 @@ def lookup_pdf_field_entry(field_lookup, pdf_field_name, widget=None, strict=Fal
     )
     for candidate in candidates:
         if candidate in field_lookup["exact"]:
-            return choose_pdf_field_entry(field_lookup["exact"][candidate], widget, widget_occurrence)
+            return choose_pdf_field_entry(field_lookup["exact"][candidate], widget, widget_occurrence, widget_count)
     loose_candidates = (
         short_pdf_field_key(pdf_field_name),
         normalized_pdf_field_key(short_pdf_field_key(pdf_field_name)),
     )
     for candidate in loose_candidates:
         if candidate in field_lookup["loose"]:
-            return choose_pdf_field_entry(field_lookup["loose"][candidate], widget, widget_occurrence)
+            return choose_pdf_field_entry(field_lookup["loose"][candidate], widget, widget_occurrence, widget_count)
     normalized_widget = normalized_pdf_field_key(pdf_field_name)
     for key, entries in field_lookup["loose"].items():
         if key and key in normalized_widget:
-            return choose_pdf_field_entry(entries, widget, widget_occurrence)
+            return choose_pdf_field_entry(entries, widget, widget_occurrence, widget_count)
     if strict:
         return None
     return None
 
 
-def choose_pdf_field_entry(entries, widget=None, widget_occurrence=None):
+def choose_pdf_field_entry(entries, widget=None, widget_occurrence=None, widget_count=1):
     if not widget:
         return entries[0] if entries else None
     for entry in entries:
-        if checkbox_entry_matches_widget(entry, widget, widget_occurrence):
+        if checkbox_entry_matches_widget(entry, widget, widget_occurrence, widget_count):
             return entry
     return None
 
@@ -1779,7 +1781,7 @@ def checkbox_on_value(widget):
     return "Yes"
 
 
-def checkbox_entry_matches_widget(entry, widget, widget_occurrence=None):
+def checkbox_entry_matches_widget(entry, widget, widget_occurrence=None, widget_count=1):
     selector = pdf_field_selector_parts(entry["field_name"])
     source_key = selector["field_name"] or ""
     widget_name = (widget.field_name or "").strip()
@@ -1794,6 +1796,7 @@ def checkbox_entry_matches_widget(entry, widget, widget_occurrence=None):
     categories = (
         ("male", "female"),
         ("single", "married", "divorced", "widowed"),
+        ("initial", "replacement", "renewal"),
     )
     for category in categories:
         category_set = set(category)
@@ -1801,7 +1804,7 @@ def checkbox_entry_matches_widget(entry, widget, widget_occurrence=None):
         widget_matches = widget_tokens & category_set
         if source_matches and widget_matches:
             return bool(source_matches & widget_matches)
-        if source_matches and not widget_matches and widget_occurrence is not None:
+        if source_matches and not widget_matches and widget_occurrence is not None and widget_count > 1:
             source_token = next((token for token in category if token in source_matches), None)
             return source_token is not None and category.index(source_token) == widget_occurrence
 
@@ -1810,10 +1813,10 @@ def checkbox_entry_matches_widget(entry, widget, widget_occurrence=None):
         widget_yes_no = widget_tokens & {"yes", "no"}
         if widget_yes_no:
             return answer_token in widget_yes_no
-        if widget_occurrence is not None:
+        if widget_occurrence is not None and widget_count == 2:
             return ("yes", "no").index(answer_token) == widget_occurrence
 
-    if source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name):
+    if widget_count == 1 and (source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name)):
         return True
     return False
 
@@ -1832,6 +1835,18 @@ def pdf_field_selector_parts(field_name):
 def visual_widget_sort_key(widget):
     rect = widget.rect
     return (round(rect.y0, 1), round(rect.x0, 1), round(rect.y1, 1), round(rect.x1, 1))
+
+
+def count_checkbox_widgets_by_field(document):
+    counts = {}
+    for page_index in range(document.page_count):
+        page = document.load_page(page_index)
+        for widget in page.widgets() or []:
+            if not is_checkbox_widget(widget):
+                continue
+            key = normalized_pdf_field_key((widget.field_name or "").strip())
+            counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def semantic_tokens_from_pdf_text(value):
