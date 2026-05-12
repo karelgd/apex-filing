@@ -61,6 +61,10 @@
         <input class="form-check-input" type="checkbox" name="required" id="question-required" checked>
         <span class="form-check-label">Required when visible</span>
       </label>
+      <label class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="client_visible" id="question-client-visible" checked>
+        <span class="form-check-label">Send to client questionnaire</span>
+      </label>
       <div class="conditional-box">
         <h3 class="h6">Show only if</h3>
         <div class="mb-2">
@@ -89,13 +93,17 @@
   </div>
   <div class="col-lg-7">
     <div class="card">
-      <form id="bulk-delete-questions" method="post" action="{{ url_for('apex_form_questions_bulk_delete', template_id=template.id) }}" onsubmit="return confirm('Delete all marked questions? They will not be shown to clients or included in generated PDFs.')">
+      <form id="question-bulk-actions" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       </form>
-      <div class="card-header bg-white d-flex justify-content-between align-items-center gap-3">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center gap-3 flex-wrap">
         <span class="fw-semibold">Current questionnaire</span>
         {% if questions %}
-          <button class="btn btn-sm btn-outline-danger" type="submit" form="bulk-delete-questions">Delete Marked</button>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-primary" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_client_visibility', template_id=template.id) }}" name="visibility_action" value="show">Show to Client</button>
+            <button class="btn btn-sm btn-outline-secondary" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_client_visibility', template_id=template.id) }}" name="visibility_action" value="hide">Agency Only</button>
+            <button class="btn btn-sm btn-outline-danger" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_bulk_delete', template_id=template.id) }}" onclick="return confirm('Delete all marked questions? They will not be shown to clients or included in generated PDFs.')">Delete Marked</button>
+          </div>
         {% endif %}
       </div>
       <div class="list-group list-group-flush">
@@ -110,9 +118,10 @@
                 {% endif %}
               </div>
               <div class="d-flex align-items-start gap-2">
+                <span class="badge {{ 'text-bg-primary' if question.client_visible else 'text-bg-secondary' }}">{{ 'Client' if question.client_visible else 'Agency only' }}</span>
                 <span class="badge text-bg-light border">{{ 'Required' if question.required else 'Optional' }}</span>
-                <label class="form-check mt-1" title="Mark this question for bulk deletion">
-                  <input class="form-check-input" type="checkbox" name="question_ids" value="{{ question.id }}" form="bulk-delete-questions" aria-label="Mark question {{ question.sort_order }} for deletion">
+                <label class="form-check mt-1" title="Mark this question for a bulk action">
+                  <input class="form-check-input" type="checkbox" name="question_ids" value="{{ question.id }}" form="question-bulk-actions" aria-label="Mark question {{ question.sort_order }} for bulk action">
                 </label>
                 <form method="post" action="{{ url_for('apex_form_question_delete', template_id=template.id, question_id=question.id) }}" onsubmit="return confirm('Delete this question? It will not be shown to clients or included in generated PDFs.')">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -168,6 +177,7 @@
         inputType: {{ question.input_type|tojson }},
         sortOrder: {{ question.sort_order|tojson }},
         required: {{ question.required|tojson }},
+        clientVisible: {{ question.client_visible|tojson }},
         showIfQuestionId: {{ question.show_if_question_id|tojson }},
         showIfOperator: {{ question.show_if_operator|tojson }},
         showIfValue: {{ question.show_if_value|tojson }}
@@ -181,6 +191,7 @@
   const inputTypeSelect = document.getElementById("question-input-type");
   const sortOrderInput = document.getElementById("question-sort-order");
   const requiredInput = document.getElementById("question-required");
+  const clientVisibleInput = document.getElementById("question-client-visible");
   const showIfIdSelect = document.getElementById("question-show-if-id");
   const showIfOperatorSelect = document.getElementById("question-show-if-operator");
   const showIfValueInput = document.getElementById("question-show-if-value");
@@ -193,6 +204,7 @@
       inputTypeSelect.value = "text";
       sortOrderInput.value = {{ questions|length + 1 }};
       requiredInput.checked = true;
+      clientVisibleInput.checked = true;
       showIfIdSelect.value = "";
       showIfOperatorSelect.value = "equals";
       showIfValueInput.value = "";
@@ -203,6 +215,7 @@
     inputTypeSelect.value = question.inputType || "text";
     sortOrderInput.value = question.sortOrder || "";
     requiredInput.checked = Boolean(question.required);
+    clientVisibleInput.checked = Boolean(question.clientVisible);
     showIfIdSelect.value = question.showIfQuestionId || "";
     showIfOperatorSelect.value = question.showIfOperator || "equals";
     showIfValueInput.value = question.showIfValue || "";

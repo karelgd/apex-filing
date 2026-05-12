@@ -225,6 +225,7 @@ class CaseQuestion(db.Model):
     input_type = db.Column(db.String(30), default="text", nullable=False)
     sort_order = db.Column(db.Integer, default=0, nullable=False)
     required = db.Column(db.Boolean, default=True, nullable=False)
+    client_visible = db.Column(db.Boolean, default=True, nullable=False)
     show_if_question_id = db.Column(db.Integer, db.ForeignKey("case_question.id"))
     show_if_operator = db.Column(db.String(30), default="equals", nullable=False)
     show_if_value = db.Column(db.String(255))

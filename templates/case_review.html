@@ -46,7 +46,12 @@
     {% for question in questions %}
       {% set answer = answers.get(question.id) %}
       <div class="col-md-6">
-        <label class="form-label">{{ question.prompt }}</label>
+        <label class="form-label">
+          {{ question.prompt }}
+          {% if not question.client_visible %}
+            <span class="badge text-bg-secondary ms-1">Agency only</span>
+          {% endif %}
+        </label>
         {% if question.input_type == 'checkbox' %}
           <select class="form-select" name="question_{{ question.id }}">
             <option value="">No answer</option>

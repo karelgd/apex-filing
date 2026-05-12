@@ -605,14 +605,16 @@ def assign_case_people_from_form(case):
 
 
 def update_case_progress(case):
-    all_questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+    all_questions = CaseQuestion.query.filter_by(case_type=case.case_type, client_visible=True).order_by(CaseQuestion.sort_order).all()
     answers_by_question = {answer.question_id: answer.answer_text or "" for answer in case.answers}
     questions = visible_questions_for_answers(all_questions, answers_by_question)
     if not questions:
         case.progress_percentage = 0
         return
+    visible_question_ids = [question.id for question in questions]
     answered = CaseAnswer.query.filter(
         CaseAnswer.case_id == case.id,
+        CaseAnswer.question_id.in_(visible_question_ids),
         CaseAnswer.answer_text.isnot(None),
         CaseAnswer.answer_text != "",
     ).count()
@@ -828,6 +830,7 @@ def register_routes(app):
             question.input_type = request.form["input_type"]
             question.sort_order = int(request.form.get("sort_order") or len(questions) + 1)
             question.required = bool(request.form.get("required"))
+            question.client_visible = bool(request.form.get("client_visible"))
             show_if_question_id = request.form.get("show_if_question_id")
             question.show_if_question_id = int(show_if_question_id) if show_if_question_id else None
             question.show_if_operator = request.form.get("show_if_operator") or "equals"
@@ -892,6 +895,29 @@ def register_routes(app):
         reorder_template_questions(template.code)
         db.session.commit()
         flash(f"{len(questions)} marked question{'s' if len(questions) != 1 else ''} deleted.", "info")
+        return redirect(url_for("apex_form_builder", template_id=template.id))
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/client-visibility", methods=["POST"])
+    @role_required("apex")
+    def apex_form_questions_client_visibility(template_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        question_ids = []
+        for raw_id in request.form.getlist("question_ids"):
+            try:
+                question_ids.append(int(raw_id))
+            except (TypeError, ValueError):
+                continue
+        if not question_ids:
+            flash("Select at least one question first.", "warning")
+            return redirect(url_for("apex_form_builder", template_id=template.id))
+        visible = request.form.get("visibility_action") == "show"
+        updated = CaseQuestion.query.filter(
+            CaseQuestion.case_type == template.code,
+            CaseQuestion.id.in_(question_ids),
+        ).update({"client_visible": visible}, synchronize_session=False)
+        db.session.commit()
+        label = "visible to clients" if visible else "agency review only"
+        flash(f"{updated} marked question{'s' if updated != 1 else ''} set to {label}.", "success")
         return redirect(url_for("apex_form_builder", template_id=template.id))
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/delete", methods=["POST"])
@@ -1287,7 +1313,7 @@ def register_routes(app):
         case = query_case_for_role(case_id)
         answers = {answer.question_id: answer for answer in case.answers}
         answers_by_question = {answer.question_id: answer.answer_text or "" for answer in case.answers}
-        all_questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+        all_questions = CaseQuestion.query.filter_by(case_type=case.case_type, client_visible=True).order_by(CaseQuestion.sort_order).all()
         questions = visible_questions_for_answers(all_questions, answers_by_question)
         if not questions:
             return render_template("questionnaire.html", case=case, questions=questions, answers=answers)
@@ -1901,6 +1927,7 @@ def ensure_sqlite_schema():
             "show_if_question_id": "INTEGER",
             "show_if_operator": "VARCHAR(30) DEFAULT 'equals' NOT NULL",
             "show_if_value": "VARCHAR(255)",
+            "client_visible": "BOOLEAN DEFAULT 1 NOT NULL",
         }
         for column, ddl in question_additions.items():
             if column not in existing_question:
