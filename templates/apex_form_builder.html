@@ -57,6 +57,19 @@
         </datalist>
         <div class="form-text">Use a detected PDF field when the answer should be placed into the official form. For checkbox groups, use mappings like <code>Yes=PDF_FIELD_FOR_YES;No=PDF_FIELD_FOR_NO</code>.</div>
       </div>
+      <div class="mb-3">
+        <label class="form-label">PDF answer rendering</label>
+        <select class="form-select" name="render_mode" id="question-render-mode">
+          <option value="normal">Normal text</option>
+          <option value="split_boxes">Separate characters into boxes</option>
+        </select>
+        <div class="form-text">Use separate characters for A-number, SSN, I-94, and other fields made of many small boxes.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Number of boxes, optional</label>
+        <input class="form-control" type="number" name="render_box_count" id="question-render-box-count" min="0" value="0">
+        <div class="form-text">Use 0 to match the answer length. Set this when the PDF has extra empty boxes after the answer.</div>
+      </div>
       <label class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="required" id="question-required" checked>
         <span class="form-check-label">Required when visible</span>
@@ -112,7 +125,7 @@
             <div class="builder-question-row">
               <div class="builder-question-body">
                 <strong><span class="question-order-number">{{ question.sort_order }}</span>. {{ question.prompt }}</strong>
-                <div class="small text-secondary">Field: <code>{{ question.field_key }}</code> - Type: {{ question.input_type }}</div>
+                <div class="small text-secondary">Field: <code>{{ question.field_key }}</code> - Type: {{ question.input_type }}{% if question.render_mode == 'split_boxes' %} - Box characters{% if question.render_box_count %} ({{ question.render_box_count }}){% endif %}{% endif %}</div>
                 {% if question.show_if_question %}
                   <div class="small text-primary">Shows if "{{ question.show_if_question.prompt }}" {{ question.show_if_operator }} "{{ question.show_if_value }}"</div>
                 {% endif %}
@@ -175,6 +188,8 @@
         prompt: {{ question.prompt|tojson }},
         fieldKey: {{ question.field_key|tojson }},
         inputType: {{ question.input_type|tojson }},
+        renderMode: {{ question.render_mode|tojson }},
+        renderBoxCount: {{ question.render_box_count|tojson }},
         sortOrder: {{ question.sort_order|tojson }},
         required: {{ question.required|tojson }},
         clientVisible: {{ question.client_visible|tojson }},
@@ -189,6 +204,8 @@
   const promptInput = document.getElementById("question-prompt");
   const fieldInput = document.getElementById("question-field-key");
   const inputTypeSelect = document.getElementById("question-input-type");
+  const renderModeSelect = document.getElementById("question-render-mode");
+  const renderBoxCountInput = document.getElementById("question-render-box-count");
   const sortOrderInput = document.getElementById("question-sort-order");
   const requiredInput = document.getElementById("question-required");
   const clientVisibleInput = document.getElementById("question-client-visible");
@@ -202,6 +219,8 @@
       promptInput.value = "";
       fieldInput.value = "";
       inputTypeSelect.value = "text";
+      renderModeSelect.value = "normal";
+      renderBoxCountInput.value = "0";
       sortOrderInput.value = {{ questions|length + 1 }};
       requiredInput.checked = true;
       clientVisibleInput.checked = true;
@@ -213,6 +232,8 @@
     promptInput.value = question.prompt || "";
     fieldInput.value = question.fieldKey || "";
     inputTypeSelect.value = question.inputType || "text";
+    renderModeSelect.value = question.renderMode || "normal";
+    renderBoxCountInput.value = question.renderBoxCount || "0";
     sortOrderInput.value = question.sortOrder || "";
     requiredInput.checked = Boolean(question.required);
     clientVisibleInput.checked = Boolean(question.clientVisible);

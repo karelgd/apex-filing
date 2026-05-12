@@ -223,6 +223,8 @@ class CaseQuestion(db.Model):
     prompt = db.Column(db.String(255), nullable=False)
     field_key = db.Column(db.String(80), nullable=False)
     input_type = db.Column(db.String(30), default="text", nullable=False)
+    render_mode = db.Column(db.String(30), default="normal", nullable=False)
+    render_box_count = db.Column(db.Integer, default=0, nullable=False)
     sort_order = db.Column(db.Integer, default=0, nullable=False)
     required = db.Column(db.Boolean, default=True, nullable=False)
     client_visible = db.Column(db.Boolean, default=True, nullable=False)

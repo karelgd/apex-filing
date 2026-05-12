@@ -828,6 +828,11 @@ def register_routes(app):
             question.prompt = request.form["prompt"].strip()
             question.field_key = request.form["field_key"].strip()
             question.input_type = request.form["input_type"]
+            question.render_mode = request.form.get("render_mode") or "normal"
+            try:
+                question.render_box_count = max(0, int(request.form.get("render_box_count") or 0))
+            except ValueError:
+                question.render_box_count = 0
             question.sort_order = int(request.form.get("sort_order") or len(questions) + 1)
             question.required = bool(request.form.get("required"))
             question.client_visible = bool(request.form.get("client_visible"))
@@ -1639,9 +1644,10 @@ def fill_pdf_widgets_with_pymupdf(case, template):
                 if checkbox_widget:
                     overlay_widget_text(page, widget, "X")
                 else:
-                    widget.field_value = field_value
-                    widget.update()
-                    overlay_widget_text(page, widget, field_value)
+                    if field_entry.get("render_mode") != "split_boxes":
+                        widget.field_value = field_value
+                        widget.update()
+                    overlay_widget_text(page, widget, field_value, field_entry)
                 matched_widgets.append(widget)
                 filled_count += 1
             flatten_matched_widgets(page, matched_widgets)
@@ -1715,7 +1721,10 @@ def choose_pdf_field_entry(entries, widget=None):
     return None
 
 
-def overlay_widget_text(page, widget, value):
+def overlay_widget_text(page, widget, value, field_entry=None):
+    if field_entry and field_entry.get("render_mode") == "split_boxes":
+        overlay_split_box_text(page, widget, value, field_entry)
+        return
     rect = widget.rect
     inset_rect = rect.__class__(rect.x0 + 2, rect.y0 + 1, rect.x1 - 2, rect.y1 - 1)
     text = str(value)
@@ -1726,6 +1735,20 @@ def overlay_widget_text(page, widget, value):
             page.insert_text((rect.x0 + 2, rect.y1 - 4), text[:80], fontsize=font_size, fontname="helv", color=(0, 0, 0))
     except Exception:
         page.insert_text((rect.x0 + 2, rect.y1 - 4), text[:80], fontsize=font_size, fontname="helv", color=(0, 0, 0))
+
+
+def overlay_split_box_text(page, widget, value, field_entry):
+    rect = widget.rect
+    text = re.sub(r"\s+", "", str(value or ""))
+    if not text:
+        return
+    box_count = max(int(field_entry.get("render_box_count") or 0), len(text), 1)
+    cell_width = rect.width / box_count
+    font_size = min(9, max(6, rect.height * 0.62))
+    y = rect.y0 + (rect.height * 0.72)
+    for index, character in enumerate(text[:80]):
+        x = rect.x0 + (cell_width * index) + (cell_width * 0.34)
+        page.insert_text((x, y), character, fontsize=font_size, fontname="helv", color=(0, 0, 0))
 
 
 def is_checkbox_widget(widget):
@@ -1748,17 +1771,22 @@ def checkbox_on_value(widget):
 def checkbox_entry_matches_widget(entry, widget):
     source_key = entry["field_name"] or ""
     widget_name = (widget.field_name or "").strip()
-    source_text = normalized_pdf_field_key(f"{source_key} {entry.get('prompt', '')}")
-    widget_text = normalized_pdf_field_key(
-        f"{widget_name} {terminal_pdf_field_key(widget_name)} {checkbox_on_value(widget)} {getattr(widget, 'field_label', '') or ''}"
-    )
-    semantic_tokens = ("single", "married", "divorced", "widowed", "yes", "no")
+    source_text = f"{source_key} {entry.get('answer_text', '')} {entry.get('prompt', '')}"
+    widget_text = f"{widget_name} {terminal_pdf_field_key(widget_name)} {checkbox_on_value(widget)} {getattr(widget, 'field_label', '') or ''}"
+    source_tokens = semantic_tokens_from_pdf_text(source_text)
+    widget_tokens = semantic_tokens_from_pdf_text(widget_text)
+    semantic_tokens = ("female", "male", "single", "married", "divorced", "widowed", "yes", "no")
     for token in semantic_tokens:
-        if token in source_text:
-            return token in widget_text
+        if token in source_tokens:
+            return token in widget_tokens
     if source_key == widget_name or terminal_pdf_field_key(source_key) == terminal_pdf_field_key(widget_name):
         return True
     return False
+
+
+def semantic_tokens_from_pdf_text(value):
+    spaced = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", value or "")
+    return {token for token in re.split(r"[^a-z0-9]+", spaced.lower()) if token}
 
 
 def flatten_matched_widgets(page, widgets):
@@ -1784,6 +1812,9 @@ def answer_entries_by_pdf_field(case):
                             "field_name": field_key,
                             "value": "X",
                             "input_type": "checkbox",
+                            "render_mode": answer.question.render_mode,
+                            "render_box_count": answer.question.render_box_count,
+                            "answer_text": answer.answer_text,
                             "prompt": answer.question.prompt,
                         }
                     )
@@ -1793,6 +1824,8 @@ def answer_entries_by_pdf_field(case):
                         "field_name": answer.question.field_key,
                         "value": answer.answer_text,
                         "input_type": answer.question.input_type,
+                        "render_mode": answer.question.render_mode,
+                        "render_box_count": answer.question.render_box_count,
                         "prompt": answer.question.prompt,
                     }
                 )
@@ -1946,6 +1979,8 @@ def ensure_sqlite_schema():
             "show_if_operator": "VARCHAR(30) DEFAULT 'equals' NOT NULL",
             "show_if_value": "VARCHAR(255)",
             "client_visible": "BOOLEAN DEFAULT 1 NOT NULL",
+            "render_mode": "VARCHAR(30) DEFAULT 'normal' NOT NULL",
+            "render_box_count": "INTEGER DEFAULT 0 NOT NULL",
         }
         for column, ddl in question_additions.items():
             if column not in existing_question:
