@@ -262,6 +262,31 @@
 
   function patternPromptFor(language, text) {
     const normalized = normalizePrompt(text);
+    if (
+      normalized.includes("first time") &&
+      normalized.includes("work authorization") &&
+      normalized.includes("category")
+    ) {
+      if (language === "es") {
+        return "Es la primera vez que solicita autorizacion de empleo bajo esta categoria?";
+      }
+      if (language === "ht") {
+        return "Eske se premye fwa ou aplike pou otorizasyon travay anba kategori sa a?";
+      }
+    }
+    if (
+      normalized.startsWith("what is your address") &&
+      normalized.includes("do not include city") &&
+      normalized.includes("state") &&
+      normalized.includes("zip code")
+    ) {
+      if (language === "es") {
+        return "Cual es su direccion? (no incluya ciudad, estado ni codigo postal)";
+      }
+      if (language === "ht") {
+        return "Ki adres ou? (pa mete vil, eta, oswa kod postal)";
+      }
+    }
     const whatMatch = normalized.match(/^what is your (.+)$/);
     if (whatMatch) {
       const subject = fieldLabelFor(language, whatMatch[1]);
