@@ -14,6 +14,33 @@ body {
   min-height: 100vh;
 }
 
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-success,
+.btn-success:hover,
+.btn-success:focus,
+.btn-success:active,
+.btn-danger,
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active,
+.btn-warning,
+.btn-warning:hover,
+.btn-warning:focus,
+.btn-warning:active,
+.btn-info,
+.btn-info:hover,
+.btn-info:focus,
+.btn-info:active,
+.btn-secondary,
+.btn-secondary:hover,
+.btn-secondary:focus,
+.btn-secondary:active {
+  color: #ffffff !important;
+}
+
 .home-page {
   background:
     linear-gradient(155deg, #377dff 0%, #8cc5ff 46%, #eef6ff 46.2%, #f7fbff 100%);
@@ -919,6 +946,16 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.motion-field-grid {
+  display: grid;
+  gap: 1rem 1.1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.motion-field-grid-compact {
+  max-width: 560px;
+}
+
 .motion-grid-respondent {
   align-items: end;
   grid-template-columns: repeat(4, minmax(0, 1fr)) 118px;
@@ -977,7 +1014,7 @@ body {
   border: 0;
   border-radius: 999px;
   box-shadow: 0 12px 24px rgba(22, 32, 51, .12);
-  color: #ffffff;
+  color: #ffffff !important;
   font-weight: 900;
   min-width: max-content;
   padding: .65rem 1.05rem;
@@ -986,7 +1023,7 @@ body {
 
 .motion-btn:hover,
 .motion-btn:focus {
-  color: #ffffff;
+  color: #ffffff !important;
   filter: brightness(.97);
   transform: translateY(-1px);
 }
@@ -1089,8 +1126,13 @@ body {
   }
 
   .motion-grid-two,
+  .motion-field-grid,
   .motion-grid-respondent {
     grid-template-columns: 1fr;
+  }
+
+  .motion-field-grid-compact {
+    max-width: none;
   }
 
   .motion-row-action {

@@ -62,11 +62,11 @@
     <div class="motion-section-head">
       <span>03</span>
       <div>
-        <h2>Court and Judge</h2>
-        <p>Search official references or type manually when the result is not listed.</p>
+        <h2>Court</h2>
+        <p>Search official court references or type manually when the result is not listed.</p>
       </div>
     </div>
-    <div class="motion-grid motion-grid-two">
+    <div class="motion-field-grid">
       <div>
         <label class="form-label">Immigration Court</label>
         <div class="autocomplete-wrap">
@@ -83,6 +83,18 @@
         <label class="form-label">Court Address</label>
         <textarea class="form-control" name="immigration_court_address" rows="2" placeholder="Required when entered manually"></textarea>
       </div>
+    </div>
+  </section>
+
+  <section class="motion-section">
+    <div class="motion-section-head">
+      <span>04</span>
+      <div>
+        <h2>Judge</h2>
+        <p>Select the immigration judge assigned to the matter, or enter the judge manually.</p>
+      </div>
+    </div>
+    <div class="motion-field-grid motion-field-grid-compact">
       <div>
         <label class="form-label">Immigration Judge</label>
         <div class="autocomplete-wrap">
@@ -100,13 +112,13 @@
 
   <section class="motion-section">
     <div class="motion-section-head">
-      <span>04</span>
+      <span>05</span>
       <div>
         <h2>Service</h2>
         <p>Select the OPLA office that will appear in the proof of service.</p>
       </div>
     </div>
-    <div class="motion-grid motion-grid-two">
+    <div class="motion-field-grid">
       <div>
         <label class="form-label">OPLA Office</label>
         <input class="form-control" name="opla_office" value="Office of the Principal Legal Advisor" readonly required>
@@ -132,7 +144,7 @@
 
   <section class="motion-section">
     <div class="motion-section-head">
-      <span>05</span>
+      <span>06</span>
       <div>
         <h2>Exhibits</h2>
         <p>List the evidence that should appear in the motion packet.</p>
@@ -152,13 +164,13 @@
 
   <section class="motion-section">
     <div class="motion-section-head">
-      <span>06</span>
+      <span>07</span>
       <div>
         <h2>Representation</h2>
         <p>Choose counsel and firm information, or leave blank for pro se motions.</p>
       </div>
     </div>
-    <div class="motion-grid motion-grid-two">
+    <div class="motion-field-grid">
       <div>
         <label class="form-label">Lawyer</label>
         <select class="form-select" name="lawyer_id">
