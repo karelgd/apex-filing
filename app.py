@@ -2530,14 +2530,35 @@ def split_pdf_lines(text, max_chars):
     return lines
 
 
-def draw_pdf_lines(pdf, lines, x, y, max_chars=90, font_name="Times-Roman", font_size=11, leading=14, bottom_margin=inch):
+def split_pdf_lines_by_width(pdf, text, max_width, font_name="Times-Roman", font_size=11):
+    text = text or "(No answer)"
+    wrapped = []
+    for paragraph in text.splitlines() or [text]:
+        words = paragraph.split()
+        if not words:
+            wrapped.append("")
+            continue
+        line = ""
+        for word in words:
+            candidate = f"{line} {word}".strip()
+            if line and pdf.stringWidth(candidate, font_name, font_size) > max_width:
+                wrapped.append(line)
+                line = word
+            else:
+                line = candidate
+        wrapped.append(line)
+    return wrapped
+
+
+def draw_pdf_lines(pdf, lines, x, y, max_chars=90, font_name="Times-Roman", font_size=11, leading=14, bottom_margin=inch, right_margin=inch):
     width, height = letter
     pdf.setFont(font_name, font_size)
+    max_width = width - x - right_margin
     for paragraph in lines:
         if not paragraph:
             y -= leading
             continue
-        for line in split_pdf_lines(paragraph, max_chars):
+        for line in split_pdf_lines_by_width(pdf, paragraph, max_width, font_name, font_size):
             if y < bottom_margin:
                 pdf.showPage()
                 y = height - inch
