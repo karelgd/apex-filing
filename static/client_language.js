@@ -479,6 +479,18 @@
         promptFor(language, element.textContent || "");
       element.textContent = translatedText || element.dataset.originalText;
     });
+    document.querySelectorAll(".question-prompt, .question-map-link b").forEach((element) => {
+      if (!element.dataset.originalText) {
+        element.dataset.originalText = element.textContent;
+      }
+      const translatedText =
+        promptFor(language, element.dataset.i18nText || "") ||
+        promptFor(language, element.dataset.originalText || "") ||
+        promptFor(language, element.textContent || "");
+      if (translatedText) {
+        element.textContent = translatedText;
+      }
+    });
   }
 
   const select = document.getElementById("client-language-select");

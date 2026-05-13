@@ -102,7 +102,7 @@
     });
   </script>
   {% if current_user.is_authenticated and current_user.role == 'client' %}
-    <script src="{{ url_for('static', filename='client_language.js') }}"></script>
+    <script src="{{ url_for('static', filename='client_language.js') }}?v=20260512-address-fix"></script>
   {% endif %}
   {% block scripts %}{% endblock %}
 </body>
