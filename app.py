@@ -2530,7 +2530,7 @@ def split_pdf_lines(text, max_chars):
     return lines
 
 
-def draw_pdf_lines(pdf, lines, x, y, max_chars=82, font_name="Times-Roman", font_size=11, leading=14, bottom_margin=inch):
+def draw_pdf_lines(pdf, lines, x, y, max_chars=90, font_name="Times-Roman", font_size=11, leading=14, bottom_margin=inch):
     width, height = letter
     pdf.setFont(font_name, font_size)
     for paragraph in lines:
@@ -2720,7 +2720,7 @@ def motion_pdf_response(motion):
     pdf = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     left = inch
-    body_max_chars = 82
+    body_max_chars = 88
     y = height - inch
     pdf.setTitle(motion.title)
 
