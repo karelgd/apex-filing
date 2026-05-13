@@ -40,14 +40,18 @@
   <button class="btn btn-outline-primary align-self-start mb-4" type="button" id="add-respondent">+ Add more respondents</button>
 
   <div class="row g-3">
-    <div class="col-md-4">
+    <div class="col-md-6">
       <label class="form-label">Immigration Court</label>
-      <input class="form-control" name="immigration_court" list="court-options" placeholder="Search or type manually" required>
+      <input class="form-control" name="immigration_court" list="court-options" placeholder="Search or type Court Name manually" required>
       <datalist id="court-options">
         {% for court in courts %}
-          <option value="{{ court.label }}"></option>
+          <option value="{{ court.label }}" data-address="{{ court.address_text }}"></option>
         {% endfor %}
       </datalist>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Immigration Court Address</label>
+      <textarea class="form-control" name="immigration_court_address" rows="2" placeholder="Required when entered manually"></textarea>
     </div>
     <div class="col-md-4">
       <label class="form-label">Immigration Judge</label>
@@ -60,20 +64,44 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">OPLA Office</label>
-      <input class="form-control" name="opla_office" list="opla-options" placeholder="Search or type manually" required>
+      <input class="form-control" name="opla_office" value="Office of the Principal Legal Advisor" readonly required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">OPLA Address Search</label>
+      <input class="form-control" name="opla_lookup" list="opla-options" placeholder="Search OPLA office or type address manually below">
       <datalist id="opla-options">
         {% for office in opla_offices %}
-          <option value="{{ office.label }}"></option>
+          <option value="{{ office.label }}" data-address="{{ office.address_text }}"></option>
         {% endfor %}
       </datalist>
     </div>
-    <div class="col-md-6">
-      <label class="form-label">Lawyer Name</label>
-      <input class="form-control" name="lawyer_name" placeholder="Leave blank for pro se">
+    <div class="col-md-4">
+      <label class="form-label">OPLA Address</label>
+      <textarea class="form-control" name="opla_address" rows="2" placeholder="Required when entered manually"></textarea>
     </div>
     <div class="col-md-6">
-      <label class="form-label">Law Firm Name</label>
-      <input class="form-control" name="law_firm_name" placeholder="Optional">
+      <label class="form-label">Lawyer</label>
+      <select class="form-select" name="lawyer_id">
+        <option value="">Pro Se / no lawyer</option>
+        {% for lawyer in lawyers %}
+          <option value="{{ lawyer.id }}">{{ lawyer.full_name }} - Bar {{ lawyer.bar_number }}</option>
+        {% endfor %}
+      </select>
+      {% if not lawyers %}
+        <div class="form-text">No lawyers yet. Add one from the Lawyers menu if needed.</div>
+      {% endif %}
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Law Firm</label>
+      <select class="form-select" name="law_firm_id">
+        <option value="">No law firm</option>
+        {% for firm in law_firms %}
+          <option value="{{ firm.id }}">{{ firm.name }}</option>
+        {% endfor %}
+      </select>
+      {% if not law_firms %}
+        <div class="form-text">No law firms yet. Add one from the Law Firms menu if needed.</div>
+      {% endif %}
     </div>
   </div>
 
@@ -107,5 +135,19 @@
     }
   });
   updateRemoveButtons();
+
+  const hydrateAddressFromDatalist = (inputName, addressName, datalistId) => {
+    const input = document.querySelector(`[name="${inputName}"]`);
+    const address = document.querySelector(`[name="${addressName}"]`);
+    const datalist = document.getElementById(datalistId);
+    input?.addEventListener("change", () => {
+      const option = Array.from(datalist?.options || []).find((item) => item.value === input.value);
+      if (option && option.dataset.address && !address.value.trim()) {
+        address.value = option.dataset.address;
+      }
+    });
+  };
+  hydrateAddressFromDatalist("immigration_court", "immigration_court_address", "court-options");
+  hydrateAddressFromDatalist("opla_lookup", "opla_address", "opla-options");
 </script>
 {% endblock %}

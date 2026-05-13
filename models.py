@@ -156,9 +156,40 @@ class AgencyPreparer(db.Model):
     agency = db.relationship("Agency", backref=db.backref("preparers", cascade="all, delete-orphan"))
 
 
+class AgencyLawyer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    first_name = db.Column(db.String(80), nullable=False)
+    middle_name = db.Column(db.String(80))
+    last_name = db.Column(db.String(80), nullable=False)
+    bar_number = db.Column(db.String(80), nullable=False)
+    phone = db.Column(db.String(40))
+    email = db.Column(db.String(160))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("lawyers", cascade="all, delete-orphan"))
+
+    @property
+    def full_name(self):
+        parts = [self.first_name, self.middle_name, self.last_name]
+        return " ".join(part for part in parts if part)
+
+
+class AgencyLawFirm(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    phone = db.Column(db.String(40))
+    address = db.Column(db.String(240), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("law_firms", cascade="all, delete-orphan"))
+
+
 class MotionTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    name = db.Column(db.String(180), nullable=False, default="Untitled Motion Template")
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -167,15 +198,18 @@ class MotionTemplate(db.Model):
 
     @property
     def display_name(self):
-        first_line = next((line.strip() for line in (self.content or "").splitlines() if line.strip()), "")
-        return first_line[:80] or f"Motion Template #{self.id}"
+        return self.name or f"Motion Template #{self.id}"
 
 
 class ImmigrationCourt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(180), nullable=False)
+    address_line1 = db.Column(db.String(180))
+    address_line2 = db.Column(db.String(180))
     city = db.Column(db.String(100))
     state = db.Column(db.String(2))
+    zip_code = db.Column(db.String(20))
+    postal_code = db.Column(db.String(20))
     address = db.Column(db.String(240))
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
@@ -183,6 +217,13 @@ class ImmigrationCourt(db.Model):
     def label(self):
         location = ", ".join(part for part in [self.city, self.state] if part)
         return f"{self.name} - {location}" if location else self.name
+
+    @property
+    def address_text(self):
+        parts = [self.address_line1, self.address_line2]
+        city_line = " ".join(part for part in [", ".join(part for part in [self.city, self.state] if part), self.postal_code or self.zip_code] if part)
+        parts.append(city_line)
+        return "\n".join(part for part in parts if part) or (self.address or "")
 
 
 class ImmigrationJudge(db.Model):
@@ -199,9 +240,13 @@ class ImmigrationJudge(db.Model):
 class OplaOffice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(180), nullable=False)
+    address_line1 = db.Column(db.String(180))
+    address_line2 = db.Column(db.String(180))
     city = db.Column(db.String(100))
     state = db.Column(db.String(2))
+    postal_code = db.Column(db.String(20))
     address = db.Column(db.String(240))
+    phone = db.Column(db.String(40))
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     @property
@@ -209,22 +254,38 @@ class OplaOffice(db.Model):
         location = ", ".join(part for part in [self.city, self.state] if part)
         return f"{self.name} - {location}" if location else self.name
 
+    @property
+    def address_text(self):
+        parts = [self.address_line1, self.address_line2]
+        city_line = " ".join(part for part in [", ".join(part for part in [self.city, self.state] if part), self.postal_code] if part)
+        parts.append(city_line)
+        return "\n".join(part for part in parts if part) or (self.address or "")
+
 
 class MotionDraft(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey("motion_template.id"), nullable=False)
     immigration_court = db.Column(db.String(240), nullable=False)
+    immigration_court_address = db.Column(db.Text)
     immigration_judge = db.Column(db.String(240), nullable=False)
     opla_office = db.Column(db.String(240), nullable=False)
+    opla_address = db.Column(db.Text)
+    lawyer_id = db.Column(db.Integer, db.ForeignKey("agency_lawyer.id"))
+    law_firm_id = db.Column(db.Integer, db.ForeignKey("agency_law_firm.id"))
     lawyer_name = db.Column(db.String(160))
+    lawyer_bar_number = db.Column(db.String(80))
     law_firm_name = db.Column(db.String(180))
+    law_firm_phone = db.Column(db.String(40))
+    law_firm_address = db.Column(db.Text)
     rendered_content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency", backref=db.backref("motion_drafts", cascade="all, delete-orphan"))
     template = db.relationship("MotionTemplate")
+    lawyer = db.relationship("AgencyLawyer")
+    law_firm = db.relationship("AgencyLawFirm")
     respondents = db.relationship("MotionRespondent", back_populates="motion", cascade="all, delete-orphan", order_by="MotionRespondent.sort_order")
 
     @property

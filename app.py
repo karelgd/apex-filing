@@ -2,6 +2,7 @@ import os
 import json
 import re
 import uuid
+from io import BytesIO
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -19,6 +20,7 @@ from flask import (
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from werkzeug.utils import secure_filename
 from sqlalchemy import inspect, text
@@ -28,6 +30,8 @@ from models import (
     ActiveSession,
     Agency,
     AgencyDocument,
+    AgencyLawFirm,
+    AgencyLawyer,
     AgencyPreparer,
     AgencyTranslator,
     AgencyUser,
@@ -49,6 +53,8 @@ from models import (
     SubscriptionTool,
     db,
 )
+
+OPLAOffice = OplaOffice
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -589,6 +595,21 @@ def populate_preparer_from_form(preparer):
     preparer.address = request.form.get("address", "").strip()
 
 
+def populate_lawyer_from_form(lawyer):
+    lawyer.first_name = request.form["first_name"].strip()
+    lawyer.middle_name = request.form.get("middle_name", "").strip()
+    lawyer.last_name = request.form["last_name"].strip()
+    lawyer.bar_number = request.form["bar_number"].strip()
+    lawyer.phone = request.form.get("phone", "").strip()
+    lawyer.email = request.form.get("email", "").strip()
+
+
+def populate_law_firm_from_form(firm):
+    firm.name = request.form["name"].strip()
+    firm.phone = request.form.get("phone", "").strip()
+    firm.address = request.form["address"].strip()
+
+
 def query_case_for_role(case_id):
     case = db.session.get(Case, case_id) or abort(404)
     if current_user.role == "apex":
@@ -727,13 +748,33 @@ def save_form_template_from_request():
     return seeded_count
 
 
-def render_motion_content(template, respondents, court, judge, opla, lawyer_name, law_firm_name):
+def motion_profile_block(motion):
+    return {
+        "court_name": motion.immigration_court,
+        "court_address": motion.immigration_court_address or "",
+        "judge_name": motion.immigration_judge,
+        "opla_name": motion.opla_office,
+        "opla_address": motion.opla_address or "",
+        "lawyer_name": motion.lawyer_name or "Pro Se",
+        "lawyer_bar_number": motion.lawyer_bar_number or "",
+        "law_firm_name": motion.law_firm_name or "",
+        "law_firm_phone": motion.law_firm_phone or "",
+        "law_firm_address": motion.law_firm_address or "",
+    }
+
+
+def render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm):
     lead = respondents[0] if respondents else {}
     respondent_lines = [
         f"{person.get('last_name', '').upper()}, {person.get('first_name', '')} {person.get('middle_name', '')}".strip()
         + f" (A# {person.get('alien_number', '')})"
         for person in respondents
     ]
+    lawyer_name = lawyer.full_name if lawyer else "Pro Se"
+    lawyer_bar_number = lawyer.bar_number if lawyer else ""
+    law_firm_name = law_firm.name if law_firm else ""
+    law_firm_phone = law_firm.phone if law_firm else ""
+    law_firm_address = law_firm.address if law_firm else ""
     variables = {
         "alien_first_name": lead.get("first_name", ""),
         "alien_middle_name": lead.get("middle_name", ""),
@@ -742,26 +783,87 @@ def render_motion_content(template, respondents, court, judge, opla, lawyer_name
         "alien_number": lead.get("alien_number", ""),
         "respondents": "\n".join(respondent_lines),
         "immigration_court": court,
+        "immigration_court_address": court_address,
         "immigration_judge": judge,
         "opla_office": opla,
+        "opla_address": opla_address,
         "lawyer_name": lawyer_name,
+        "lawyer_bar_number": lawyer_bar_number,
         "law_firm_name": law_firm_name,
+        "law_firm_phone": law_firm_phone,
+        "law_firm_address": law_firm_address,
         "today": datetime.utcnow().strftime("%B %d, %Y"),
     }
     rendered = template.content or ""
     for key, value in variables.items():
         rendered = rendered.replace(f"{{{{ {key} }}}}", value).replace(f"{{{{{key}}}}}", value)
-    header = "\n".join(
+    caption = "\n".join(
         [
-            f"Immigration Court: {court}",
-            f"Immigration Judge: {judge}",
-            f"OPLA Office: {opla}",
-            f"Respondent(s): {variables['respondents']}",
-            f"Attorney/Representative: {lawyer_name or 'Pro Se'}",
-            f"Law Firm: {law_firm_name or 'N/A'}",
+            "UNITED STATES DEPARTMENT OF JUSTICE",
+            "EXECUTIVE OFFICE FOR IMMIGRATION REVIEW",
+            court.upper(),
+            court_address,
+            "",
+            "In the Matter of:",
+            variables["respondents"],
+            "",
+            "Respondent(s).",
+            "",
+            f"Before: {judge}",
         ]
     )
-    return f"{header}\n\n{'-' * 72}\n\n{rendered}".strip()
+    representative = "\n".join(
+        [
+            lawyer_name,
+            f"Bar No.: {lawyer_bar_number}" if lawyer_bar_number else "",
+            law_firm_name,
+            law_firm_address,
+            law_firm_phone,
+        ]
+    )
+    proof = "\n".join(
+        [
+            "CERTIFICATE OF SERVICE",
+            "",
+            f"I certify that on {variables['today']}, a true and correct copy of the foregoing motion was served on:",
+            "",
+            opla,
+            opla_address,
+            "",
+            "by the method required by the Immigration Court practice rules.",
+            "",
+            "Respectfully submitted,",
+            representative,
+            "",
+            "Signature: ______________________________",
+        ]
+    )
+    order = "\n".join(
+        [
+            "PROPOSED ORDER",
+            "",
+            "Upon consideration of the foregoing motion, it is hereby:",
+            "",
+            "[  ] GRANTED",
+            "[  ] DENIED",
+            "",
+            "Date: ____________________",
+            "",
+            "________________________________________",
+            "Immigration Judge",
+        ]
+    )
+    sections = [
+        "PRESENTATION",
+        caption,
+        "MOTION",
+        rendered,
+        "PROOF OF SERVICE",
+        proof,
+        "PROPOSED ORDER",
+        order,
+    ]
+    return "\n\n".join(section.strip() for section in sections if section.strip()).strip()
 
 
 def motion_reference_lists():
@@ -1147,11 +1249,15 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         if request.method == "POST":
+            name = request.form["name"].strip()
             content = request.form["content"].strip()
+            if not name:
+                flash("Template name is required.", "danger")
+                return render_template("motion_template_form.html", template=None)
             if not content:
                 flash("Motion template content is required.", "danger")
                 return render_template("motion_template_form.html", template=None)
-            template = MotionTemplate(agency_id=agency.id, content=content)
+            template = MotionTemplate(agency_id=agency.id, name=name, content=content)
             db.session.add(template)
             db.session.commit()
             flash("Motion template created.", "success")
@@ -1167,7 +1273,11 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         template = motion_template_for_agency(template_id, agency.id)
         if request.method == "POST":
+            template.name = request.form["name"].strip()
             template.content = request.form["content"].strip()
+            if not template.name:
+                flash("Template name is required.", "danger")
+                return render_template("motion_template_form.html", template=template)
             if not template.content:
                 flash("Motion template content is required.", "danger")
                 return render_template("motion_template_form.html", template=template)
@@ -1201,6 +1311,8 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         templates = MotionTemplate.query.filter_by(agency_id=agency.id).order_by(MotionTemplate.updated_at.desc()).all()
         references = motion_reference_lists()
+        lawyers = AgencyLawyer.query.filter_by(agency_id=agency.id).order_by(AgencyLawyer.last_name, AgencyLawyer.first_name).all()
+        law_firms = AgencyLawFirm.query.filter_by(agency_id=agency.id).order_by(AgencyLawFirm.name).all()
         if request.method == "POST":
             if not templates:
                 flash("Create a motion template before creating a motion.", "warning")
@@ -1222,24 +1334,39 @@ def register_routes(app):
                     respondents.append(person)
             if not respondents or any(not person["first_name"] or not person["last_name"] or not person["alien_number"] for person in respondents):
                 flash("Each respondent needs first name, last name, and alien number.", "danger")
-                return render_template("motion_form.html", templates=templates, **references)
+                return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
             court = request.form["immigration_court"].strip()
+            court_address = request.form.get("immigration_court_address", "").strip()
             judge = request.form["immigration_judge"].strip()
-            opla = request.form["opla_office"].strip()
-            if not court or not judge or not opla:
-                flash("Immigration Court, Immigration Judge, and OPLA Office are required.", "danger")
-                return render_template("motion_form.html", templates=templates, **references)
-            lawyer_name = request.form.get("lawyer_name", "").strip()
-            law_firm_name = request.form.get("law_firm_name", "").strip()
+            opla = request.form.get("opla_office", "Office of the Principal Legal Advisor").strip() or "Office of the Principal Legal Advisor"
+            opla_address = request.form.get("opla_address", "").strip()
+            if not court or not court_address or not judge or not opla or not opla_address:
+                flash("Immigration Court, Court Address, Immigration Judge, OPLA Office, and OPLA Address are required.", "danger")
+                return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
+            lawyer_id = request.form.get("lawyer_id")
+            law_firm_id = request.form.get("law_firm_id")
+            lawyer = db.session.get(AgencyLawyer, int(lawyer_id)) if lawyer_id else None
+            law_firm = db.session.get(AgencyLawFirm, int(law_firm_id)) if law_firm_id else None
+            if lawyer and lawyer.agency_id != agency.id:
+                abort(403)
+            if law_firm and law_firm.agency_id != agency.id:
+                abort(403)
             motion = MotionDraft(
                 agency_id=agency.id,
                 template_id=template.id,
                 immigration_court=court,
+                immigration_court_address=court_address,
                 immigration_judge=judge,
                 opla_office=opla,
-                lawyer_name=lawyer_name,
-                law_firm_name=law_firm_name,
-                rendered_content=render_motion_content(template, respondents, court, judge, opla, lawyer_name, law_firm_name),
+                opla_address=opla_address,
+                lawyer_id=lawyer.id if lawyer else None,
+                law_firm_id=law_firm.id if law_firm else None,
+                lawyer_name=lawyer.full_name if lawyer else "",
+                lawyer_bar_number=lawyer.bar_number if lawyer else "",
+                law_firm_name=law_firm.name if law_firm else "",
+                law_firm_phone=law_firm.phone if law_firm else "",
+                law_firm_address=law_firm.address if law_firm else "",
+                rendered_content=render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm),
             )
             db.session.add(motion)
             db.session.flush()
@@ -1248,7 +1375,7 @@ def register_routes(app):
             db.session.commit()
             flash("Motion created.", "success")
             return redirect(url_for("motion_detail", motion_id=motion.id))
-        return render_template("motion_form.html", templates=templates, **references)
+        return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
 
     @app.route("/agency/tools/motions/<int:motion_id>")
     @role_required("agency")
@@ -1274,6 +1401,16 @@ def register_routes(app):
             mimetype="text/plain",
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
+
+    @app.route("/agency/tools/motions/<int:motion_id>/pdf")
+    @role_required("agency")
+    def motion_pdf(motion_id):
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        motion = motion_for_agency(motion_id, agency.id)
+        return motion_pdf_response(motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>/delete", methods=["POST"])
     @role_required("agency")
@@ -1367,6 +1504,80 @@ def register_routes(app):
         db.session.commit()
         flash("Form preparer deleted.", "info")
         return redirect(url_for("preparer_list"))
+
+    @app.route("/agency/lawyers", methods=["GET", "POST"])
+    @role_required("agency")
+    def lawyer_list():
+        agency = current_user.agency
+        if request.method == "POST":
+            lawyer = AgencyLawyer(agency_id=agency.id)
+            populate_lawyer_from_form(lawyer)
+            db.session.add(lawyer)
+            db.session.commit()
+            flash("Lawyer saved.", "success")
+            return redirect(url_for("lawyer_list"))
+        return render_template(
+            "lawyer_list.html",
+            lawyers=AgencyLawyer.query.filter_by(agency_id=agency.id).order_by(AgencyLawyer.last_name, AgencyLawyer.first_name).all(),
+        )
+
+    @app.route("/agency/lawyers/<int:lawyer_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def lawyer_edit(lawyer_id):
+        lawyer = AgencyLawyer.query.filter_by(id=lawyer_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_lawyer_from_form(lawyer)
+            db.session.commit()
+            flash("Lawyer updated.", "success")
+            return redirect(url_for("lawyer_list"))
+        return render_template("lawyer_form.html", lawyer=lawyer)
+
+    @app.route("/agency/lawyers/<int:lawyer_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def lawyer_delete(lawyer_id):
+        lawyer = AgencyLawyer.query.filter_by(id=lawyer_id, agency_id=current_user.agency_id).first() or abort(404)
+        MotionDraft.query.filter_by(lawyer_id=lawyer.id).update({"lawyer_id": None})
+        db.session.delete(lawyer)
+        db.session.commit()
+        flash("Lawyer deleted.", "info")
+        return redirect(url_for("lawyer_list"))
+
+    @app.route("/agency/law-firms", methods=["GET", "POST"])
+    @role_required("agency")
+    def law_firm_list():
+        agency = current_user.agency
+        if request.method == "POST":
+            firm = AgencyLawFirm(agency_id=agency.id)
+            populate_law_firm_from_form(firm)
+            db.session.add(firm)
+            db.session.commit()
+            flash("Law firm saved.", "success")
+            return redirect(url_for("law_firm_list"))
+        return render_template(
+            "law_firm_list.html",
+            firms=AgencyLawFirm.query.filter_by(agency_id=agency.id).order_by(AgencyLawFirm.name).all(),
+        )
+
+    @app.route("/agency/law-firms/<int:firm_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def law_firm_edit(firm_id):
+        firm = AgencyLawFirm.query.filter_by(id=firm_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_law_firm_from_form(firm)
+            db.session.commit()
+            flash("Law firm updated.", "success")
+            return redirect(url_for("law_firm_list"))
+        return render_template("law_firm_form.html", firm=firm)
+
+    @app.route("/agency/law-firms/<int:firm_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def law_firm_delete(firm_id):
+        firm = AgencyLawFirm.query.filter_by(id=firm_id, agency_id=current_user.agency_id).first() or abort(404)
+        MotionDraft.query.filter_by(law_firm_id=firm.id).update({"law_firm_id": None})
+        db.session.delete(firm)
+        db.session.commit()
+        flash("Law firm deleted.", "info")
+        return redirect(url_for("law_firm_list"))
 
     @app.route("/clients")
     @role_required("apex", "agency")
@@ -2203,6 +2414,40 @@ def split_pdf_lines(text, max_chars):
     return lines
 
 
+def motion_pdf_response(motion):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    left = inch
+    right = width - inch
+    y = height - inch
+    pdf.setTitle(motion.title)
+    pdf.setFont("Times-Roman", 11)
+    for paragraph in (motion.rendered_content or "").splitlines():
+        if not paragraph.strip():
+            y -= 12
+            continue
+        is_heading = paragraph.strip().isupper() and len(paragraph.strip()) < 80
+        pdf.setFont("Times-Bold" if is_heading else "Times-Roman", 11)
+        for line in split_pdf_lines(paragraph, 92):
+            if y < inch:
+                pdf.showPage()
+                y = height - inch
+                pdf.setFont("Times-Bold" if is_heading else "Times-Roman", 11)
+            pdf.drawString(left, y, line)
+            y -= 14
+        if is_heading:
+            y -= 4
+    pdf.save()
+    buffer.seek(0)
+    filename = f"motion-{motion.id}.pdf"
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 def init_database():
     db.create_all()
     ensure_sqlite_schema()
@@ -2285,6 +2530,48 @@ def ensure_sqlite_schema():
         for column, ddl in case_additions.items():
             if column not in existing_case:
                 db.session.execute(text(f"ALTER TABLE 'case' ADD COLUMN {column} {ddl}"))
+    if "motion_template" in inspector.get_table_names():
+        existing_motion_template = {column["name"] for column in inspector.get_columns("motion_template")}
+        motion_template_additions = {
+            "name": "VARCHAR(180) DEFAULT 'Untitled Motion Template' NOT NULL",
+        }
+        for column, ddl in motion_template_additions.items():
+            if column not in existing_motion_template:
+                db.session.execute(text(f"ALTER TABLE motion_template ADD COLUMN {column} {ddl}"))
+    if "motion_draft" in inspector.get_table_names():
+        existing_motion = {column["name"] for column in inspector.get_columns("motion_draft")}
+        motion_additions = {
+            "immigration_court_address": "TEXT",
+            "opla_address": "TEXT",
+            "lawyer_id": "INTEGER",
+            "law_firm_id": "INTEGER",
+            "lawyer_bar_number": "VARCHAR(80)",
+            "law_firm_phone": "VARCHAR(40)",
+            "law_firm_address": "TEXT",
+        }
+        for column, ddl in motion_additions.items():
+            if column not in existing_motion:
+                db.session.execute(text(f"ALTER TABLE motion_draft ADD COLUMN {column} {ddl}"))
+    reference_table_additions = {
+        "immigration_court": {
+            "address_line1": "VARCHAR(180)",
+            "address_line2": "VARCHAR(180)",
+            "zip_code": "VARCHAR(20)",
+            "postal_code": "VARCHAR(20)",
+        },
+        "opla_office": {
+            "address_line1": "VARCHAR(180)",
+            "address_line2": "VARCHAR(180)",
+            "postal_code": "VARCHAR(20)",
+            "phone": "VARCHAR(40)",
+        },
+    }
+    for table_name, additions in reference_table_additions.items():
+        if table_name in inspector.get_table_names():
+            existing_reference = {column["name"] for column in inspector.get_columns(table_name)}
+            for column, ddl in additions.items():
+                if column not in existing_reference:
+                    db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column} {ddl}"))
     db.session.commit()
 
 

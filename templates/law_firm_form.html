@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">Edit Law Firm</h1>
+<form method="post" class="card card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3"><label class="form-label">Name</label><input class="form-control" name="name" value="{{ firm.name }}" required></div>
+  <div class="mb-3"><label class="form-label">Phone</label><input class="form-control" name="phone" value="{{ firm.phone or '' }}"></div>
+  <div class="mb-3"><label class="form-label">Address</label><textarea class="form-control" name="address" rows="3" required>{{ firm.address }}</textarea></div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary">Save changes</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('law_firm_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

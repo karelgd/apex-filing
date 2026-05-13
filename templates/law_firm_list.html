@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">Law Firms</h1>
+<div class="row g-4">
+  <div class="col-lg-5">
+    <form method="post" class="card card-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h2 class="h5 mb-3">Create Law Firm</h2>
+      <div class="mb-3"><label class="form-label">Name</label><input class="form-control" name="name" required></div>
+      <div class="mb-3"><label class="form-label">Phone</label><input class="form-control" name="phone"></div>
+      <div class="mb-3"><label class="form-label">Address</label><textarea class="form-control" name="address" rows="3" required></textarea></div>
+      <button class="btn btn-primary">Save Law Firm</button>
+    </form>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Law Firms</div>
+      <div class="list-group list-group-flush">
+        {% for firm in firms %}
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                <strong>{{ firm.name }}</strong>
+                <div class="text-secondary small">{{ firm.phone or 'No phone' }} - {{ firm.address }}</div>
+              </div>
+              <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('law_firm_edit', firm_id=firm.id) }}">Edit</a>
+                <form method="post" action="{{ url_for('law_firm_delete', firm_id=firm.id) }}" onsubmit="return confirm('Delete this law firm?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="list-group-item text-secondary">No law firms yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

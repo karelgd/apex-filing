@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">Edit Lawyer</h1>
+<form method="post" class="card card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-md-4"><label class="form-label">First Name</label><input class="form-control" name="first_name" value="{{ lawyer.first_name }}" required></div>
+    <div class="col-md-4"><label class="form-label">Middle Name</label><input class="form-control" name="middle_name" value="{{ lawyer.middle_name or '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Last Name</label><input class="form-control" name="last_name" value="{{ lawyer.last_name }}" required></div>
+    <div class="col-md-6"><label class="form-label">BAR Number</label><input class="form-control" name="bar_number" value="{{ lawyer.bar_number }}" required></div>
+    <div class="col-md-6"><label class="form-label">Phone</label><input class="form-control" name="phone" value="{{ lawyer.phone or '' }}"></div>
+    <div class="col-12"><label class="form-label">Email</label><input class="form-control" type="email" name="email" value="{{ lawyer.email or '' }}"></div>
+  </div>
+  <div class="d-flex gap-2 mt-3">
+    <button class="btn btn-primary">Save changes</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('lawyer_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
