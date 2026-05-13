@@ -100,6 +100,22 @@
       "Are you divorced?": "¿Está divorciado/a?",
       "Are you widowed?": "¿Es viudo/a?",
       "Have you previously filed Form I-765?": "¿Ha presentado anteriormente el Formulario I-765?",
+      "What is your First Name?": "Cual es su primer nombre?",
+      "What is your Middle Name? (or N/A)": "Cual es su segundo nombre? (o N/A)",
+      "What is your Last Name?": "Cual es su apellido?",
+      "What is your Last Name(s)?": "Cuales son sus apellidos?",
+      "Is this the first time you apply for work authorization under this category?": "Es la primera vez que solicita autorizacion de empleo bajo esta categoria?",
+      "Are you applying because you lost or damage your work permit card?": "Esta solicitando porque perdio o se dano su permiso de trabajo?",
+      "Are you trying to renew your work authorization?": "Esta tratando de renovar su autorizacion de empleo?",
+      "What is your current address?": "Cual es su direccion actual?",
+      "What is your phone number?": "Cual es su numero de telefono?",
+      "What is your email address?": "Cual es su correo electronico?",
+      "What is your date of birth?": "Cual es su fecha de nacimiento?",
+      "What is your country of birth?": "Cual es su pais de nacimiento?",
+      "What is your country of citizenship?": "Cual es su pais de ciudadania?",
+      "What is your A-Number?": "Cual es su A-Number?",
+      "What is your Social Security Number?": "Cual es su numero de Seguro Social?",
+      "What is your I-94 number?": "Cual es su numero I-94?",
       "Applicant's First Name": "Nombre del solicitante",
       "Applicant's Middle Name": "Segundo nombre del solicitante",
       "Applicant's Last Name(s)": "Apellido(s) del solicitante",
@@ -115,6 +131,22 @@
       "Are you divorced?": "Èske ou divòse?",
       "Are you widowed?": "Èske mari/madanm ou mouri?",
       "Have you previously filed Form I-765?": "Èske ou te deja soumèt Fòm I-765?",
+      "What is your First Name?": "Ki prenon ou?",
+      "What is your Middle Name? (or N/A)": "Ki dezyem non ou? (oswa N/A)",
+      "What is your Last Name?": "Ki siyati ou?",
+      "What is your Last Name(s)?": "Ki siyati ou yo?",
+      "Is this the first time you apply for work authorization under this category?": "Eske se premye fwa ou aplike pou otorizasyon travay anba kategori sa a?",
+      "Are you applying because you lost or damage your work permit card?": "Eske w ap aplike paske ou pedi oswa domaje kat travay ou?",
+      "Are you trying to renew your work authorization?": "Eske w ap eseye renouvle otorizasyon travay ou?",
+      "What is your current address?": "Ki adres ou kounye a?",
+      "What is your phone number?": "Ki nimewo telefon ou?",
+      "What is your email address?": "Ki imel ou?",
+      "What is your date of birth?": "Ki dat nesans ou?",
+      "What is your country of birth?": "Nan ki peyi ou fet?",
+      "What is your country of citizenship?": "Ki peyi sitwayente ou?",
+      "What is your A-Number?": "Ki A-Number ou?",
+      "What is your Social Security Number?": "Ki nimewo Sekirite Sosyal ou?",
+      "What is your I-94 number?": "Ki nimewo I-94 ou?",
       "Applicant's First Name": "Non aplikan an",
       "Applicant's Middle Name": "Dezyèm non aplikan an",
       "Applicant's Last Name(s)": "Siyati aplikan an",
@@ -135,7 +167,82 @@
     if (language === "en") {
       return null;
     }
-    return promptTranslations[language]?.[text.trim()] || textFor(language, text.trim());
+    const cleanText = text.trim();
+    const prompts = promptTranslations[language] || {};
+    if (prompts[cleanText]) {
+      return prompts[cleanText];
+    }
+    const normalizedText = normalizePrompt(cleanText);
+    for (const [source, translation] of Object.entries(prompts)) {
+      if (normalizePrompt(source) === normalizedText) {
+        return translation;
+      }
+    }
+    return patternPromptFor(language, cleanText) || textFor(language, cleanText);
+  }
+
+  function normalizePrompt(value) {
+    return value
+      .toLowerCase()
+      .replace(/[’]/g, "'")
+      .replace(/\s+/g, " ")
+      .replace(/[?.:]+$/g, "")
+      .trim();
+  }
+
+  function patternPromptFor(language, text) {
+    const normalized = normalizePrompt(text);
+    const whatMatch = normalized.match(/^what is your (.+)$/);
+    if (whatMatch) {
+      const subject = fieldLabelFor(language, whatMatch[1]);
+      if (language === "es") {
+        return `Cual es su ${subject}?`;
+      }
+      if (language === "ht") {
+        return `Ki ${subject} ou?`;
+      }
+    }
+    return null;
+  }
+
+  function fieldLabelFor(language, subject) {
+    const labels = {
+      es: {
+        "first name": "primer nombre",
+        "middle name": "segundo nombre",
+        "last name": "apellido",
+        "last name(s)": "apellido(s)",
+        "current address": "direccion actual",
+        "mailing address": "direccion postal",
+        "phone number": "numero de telefono",
+        "email address": "correo electronico",
+        "date of birth": "fecha de nacimiento",
+        "country of birth": "pais de nacimiento",
+        "country of citizenship": "pais de ciudadania",
+        "passport number": "numero de pasaporte",
+        "i-94 number": "numero I-94",
+        "a-number": "A-Number",
+        "social security number": "numero de Seguro Social"
+      },
+      ht: {
+        "first name": "prenon",
+        "middle name": "dezyem non",
+        "last name": "siyati",
+        "last name(s)": "siyati",
+        "current address": "adres aktyel",
+        "mailing address": "adres postal",
+        "phone number": "nimewo telefon",
+        "email address": "imel",
+        "date of birth": "dat nesans",
+        "country of birth": "peyi kote ou fet",
+        "country of citizenship": "peyi sitwayente",
+        "passport number": "nimewo paspo",
+        "i-94 number": "nimewo I-94",
+        "a-number": "A-Number",
+        "social security number": "nimewo Sekirite Sosyal"
+      }
+    };
+    return labels[language]?.[subject] || subject;
   }
 
   function applyLanguage(language) {
