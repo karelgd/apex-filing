@@ -1,4 +1,5 @@
 import os
+import importlib.util
 import json
 import re
 import uuid
@@ -24,6 +25,7 @@ from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from werkzeug.utils import secure_filename
 from sqlalchemy import inspect, text
+import click
 
 from forms import CASE_STATUSES, CASE_TYPES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
 from models import (
@@ -55,6 +57,7 @@ from models import (
 )
 
 OPLAOffice = OplaOffice
+Judge = ImmigrationJudge
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -896,6 +899,27 @@ def register_routes(app):
     def init_db_command():
         init_database()
         print("Database initialized.")
+
+    @app.cli.command("import-motion-references")
+    @click.argument("source_path", required=False)
+    @click.option("--kind", "kinds", multiple=True, type=click.Choice(["courts", "opla", "judges"]), help="Reference type to import. Repeat for more than one.")
+    def import_motion_references_command(source_path, kinds):
+        source_path = source_path or os.path.join(BASE_DIR, "import_courts_and_opla.py")
+        if not os.path.exists(source_path):
+            raise click.ClickException(f"Import source not found: {source_path}")
+        selected_kinds = kinds or ("courts", "opla", "judges")
+        spec = importlib.util.spec_from_file_location("motion_reference_importer", source_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        imported = []
+        for kind in selected_kinds:
+            function_name = f"import_{kind}"
+            importer = getattr(module, function_name, None)
+            if not importer:
+                raise click.ClickException(f"{source_path} does not define {function_name}().")
+            importer()
+            imported.append(kind)
+        print(f"Imported motion references: {', '.join(imported)}")
 
     @app.route("/")
     def home():
