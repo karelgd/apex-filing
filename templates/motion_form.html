@@ -134,6 +134,26 @@
     <div class="motion-section-head">
       <span>05</span>
       <div>
+        <h2>Exhibits</h2>
+        <p>List the evidence that should appear in the motion packet.</p>
+      </div>
+    </div>
+    <div id="exhibit-list">
+      <div class="exhibit-row">
+        <label class="form-label">Exhibit A</label>
+        <div class="motion-exhibit-grid">
+          <input class="form-control" name="exhibit_description[]" placeholder="Example: Copy of prior removal order">
+          <button class="btn motion-btn motion-btn-danger remove-exhibit" type="button" disabled>Remove</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn motion-btn motion-btn-teal" type="button" id="add-exhibit">Add Exhibit</button>
+  </section>
+
+  <section class="motion-section">
+    <div class="motion-section-head">
+      <span>06</span>
+      <div>
         <h2>Representation</h2>
         <p>Choose counsel and firm information, or leave blank for pro se motions.</p>
       </div>
@@ -200,6 +220,38 @@
     }
   });
   updateRemoveButtons();
+
+  const exhibitList = document.getElementById("exhibit-list");
+  const exhibitLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const updateExhibitRows = () => {
+    const rows = exhibitList?.querySelectorAll(".exhibit-row") || [];
+    rows.forEach((row, index) => {
+      const label = row.querySelector("label");
+      const button = row.querySelector(".remove-exhibit");
+      if (label) {
+        label.textContent = `Exhibit ${exhibitLetters[index] || index + 1}`;
+      }
+      if (button) {
+        button.disabled = rows.length === 1;
+      }
+    });
+  };
+  document.getElementById("add-exhibit")?.addEventListener("click", () => {
+    const firstRow = exhibitList.querySelector(".exhibit-row");
+    const clone = firstRow.cloneNode(true);
+    clone.querySelectorAll("input").forEach((input) => {
+      input.value = "";
+    });
+    exhibitList.appendChild(clone);
+    updateExhibitRows();
+  });
+  exhibitList?.addEventListener("click", (event) => {
+    if (event.target.classList.contains("remove-exhibit")) {
+      event.target.closest(".exhibit-row").remove();
+      updateExhibitRows();
+    }
+  });
+  updateExhibitRows();
 
   document.querySelectorAll(".motion-autocomplete").forEach((input) => {
     const menu = document.getElementById(input.dataset.list);

@@ -278,6 +278,7 @@ class MotionDraft(db.Model):
     law_firm_name = db.Column(db.String(180))
     law_firm_phone = db.Column(db.String(40))
     law_firm_address = db.Column(db.Text)
+    exhibits_text = db.Column(db.Text)
     rendered_content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -290,9 +291,8 @@ class MotionDraft(db.Model):
 
     @property
     def title(self):
-        if self.respondents:
-            lead = self.respondents[0]
-            return f"Motion for {lead.full_name}"
+        if self.template and self.template.display_name:
+            return self.template.display_name.upper()
         return f"Motion #{self.id}"
 
 

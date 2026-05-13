@@ -766,7 +766,30 @@ def motion_profile_block(motion):
     }
 
 
-def render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm):
+def exhibit_label(index):
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if index < len(letters):
+        return letters[index]
+    first = letters[(index // len(letters)) - 1]
+    second = letters[index % len(letters)]
+    return f"{first}{second}"
+
+
+def normalize_exhibits(raw_exhibits):
+    exhibits = []
+    for value in raw_exhibits:
+        text_value = (value or "").strip()
+        if text_value:
+            exhibits.append(text_value)
+    return exhibits
+
+
+def render_exhibits_text(exhibits):
+    return "\n".join(f"Exhibit {exhibit_label(index)} - {description}" for index, description in enumerate(exhibits))
+
+
+def render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits=None):
+    exhibits = exhibits or []
     lead = respondents[0] if respondents else {}
     respondent_lines = [
         f"{person.get('last_name', '').upper()}, {person.get('first_name', '')} {person.get('middle_name', '')}".strip()
@@ -795,6 +818,7 @@ def render_motion_content(template, respondents, court, court_address, judge, op
         "law_firm_name": law_firm_name,
         "law_firm_phone": law_firm_phone,
         "law_firm_address": law_firm_address,
+        "exhibits": render_exhibits_text(exhibits),
         "today": datetime.utcnow().strftime("%B %d, %Y"),
     }
     rendered = template.content or ""
@@ -859,8 +883,10 @@ def render_motion_content(template, respondents, court, court_address, judge, op
     sections = [
         "PRESENTATION",
         caption,
-        "MOTION",
+        template.display_name.upper(),
         rendered,
+        "EXHIBITS",
+        render_exhibits_text(exhibits) or "No exhibits listed.",
         "PROOF OF SERVICE",
         proof,
         "PROPOSED ORDER",
@@ -1375,6 +1401,7 @@ def register_routes(app):
                 return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
             lawyer_id = request.form.get("lawyer_id")
             law_firm_id = request.form.get("law_firm_id")
+            exhibits = normalize_exhibits(request.form.getlist("exhibit_description[]"))
             lawyer = db.session.get(AgencyLawyer, int(lawyer_id)) if lawyer_id else None
             law_firm = db.session.get(AgencyLawFirm, int(law_firm_id)) if law_firm_id else None
             if lawyer and lawyer.agency_id != agency.id:
@@ -1396,7 +1423,8 @@ def register_routes(app):
                 law_firm_name=law_firm.name if law_firm else "",
                 law_firm_phone=law_firm.phone if law_firm else "",
                 law_firm_address=law_firm.address if law_firm else "",
-                rendered_content=render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm),
+                exhibits_text="\n".join(exhibits),
+                rendered_content=render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits),
             )
             db.session.add(motion)
             db.session.flush()
@@ -2444,30 +2472,179 @@ def split_pdf_lines(text, max_chars):
     return lines
 
 
+def draw_pdf_lines(pdf, lines, x, y, max_chars=90, font_name="Times-Roman", font_size=11, leading=14, bottom_margin=inch):
+    width, height = letter
+    pdf.setFont(font_name, font_size)
+    for paragraph in lines:
+        if not paragraph:
+            y -= leading
+            continue
+        for line in split_pdf_lines(paragraph, max_chars):
+            if y < bottom_margin:
+                pdf.showPage()
+                y = height - inch
+                pdf.setFont(font_name, font_size)
+            pdf.drawString(x, y, line)
+            y -= leading
+    return y
+
+
+def draw_centered_pdf_line(pdf, text_value, y, font_name="Times-Bold", font_size=11):
+    width, _ = letter
+    pdf.setFont(font_name, font_size)
+    pdf.drawCentredString(width / 2, y, text_value)
+    return y - (font_size + 4)
+
+
+def motion_body_text(motion):
+    lines = (motion.rendered_content or "").splitlines()
+    title = (motion.title or "").strip()
+    collecting = False
+    body_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped == title:
+            collecting = True
+            continue
+        if collecting and stripped in {"EXHIBITS", "PROOF OF SERVICE", "CERTIFICATE OF SERVICE", "PROPOSED ORDER"}:
+            break
+        if collecting:
+            body_lines.append(line)
+    return "\n".join(body_lines).strip() if body_lines else (motion.rendered_content or "")
+
+
+def motion_exhibits(motion):
+    return normalize_exhibits((motion.exhibits_text or "").splitlines())
+
+
+def respondent_caption_lines(motion):
+    lines = []
+    for person in motion.respondents:
+        name = f"{person.last_name.upper()}, {person.first_name} {person.middle_name or ''}".strip()
+        lines.append(f"{name}, A# {person.alien_number}")
+    return lines or ["Respondent(s)"]
+
+
+def draw_motion_caption(pdf, motion, y):
+    width, _ = letter
+    left = inch
+    right = width - inch
+    middle = left + 300
+    top = y
+    bottom = y - 132
+    pdf.setLineWidth(1)
+    pdf.line(left, top, right, top)
+    pdf.line(left, bottom, right, bottom)
+    pdf.line(middle, top, middle, bottom)
+    y_left = top - 18
+    pdf.setFont("Times-Roman", 11)
+    pdf.drawString(left + 10, y_left, "In the Matter of:")
+    y_left -= 18
+    for line in respondent_caption_lines(motion):
+        pdf.drawString(left + 10, y_left, line)
+        y_left -= 15
+    y_left -= 5
+    pdf.drawString(left + 10, y_left, "Respondent(s).")
+    y_right = top - 18
+    pdf.setFont("Times-Bold", 11)
+    pdf.drawString(middle + 14, y_right, "IN REMOVAL PROCEEDINGS")
+    y_right -= 20
+    pdf.setFont("Times-Roman", 11)
+    pdf.drawString(middle + 14, y_right, f"Before: {motion.immigration_judge}")
+    y_right -= 16
+    pdf.drawString(middle + 14, y_right, "Immigration Judge")
+    return bottom - 24
+
+
+def draw_motion_header(pdf, motion, y):
+    representative_lines = []
+    if motion.lawyer_name:
+        representative_lines.append(motion.lawyer_name)
+    if motion.lawyer_bar_number:
+        representative_lines.append(f"Bar No.: {motion.lawyer_bar_number}")
+    if motion.law_firm_name:
+        representative_lines.append(motion.law_firm_name)
+    if motion.law_firm_address:
+        representative_lines.extend(motion.law_firm_address.splitlines())
+    if motion.law_firm_phone:
+        representative_lines.append(motion.law_firm_phone)
+    if not representative_lines:
+        representative_lines = ["Pro Se"]
+    y = draw_pdf_lines(pdf, representative_lines, inch, y, max_chars=52, font_size=10, leading=12)
+    y -= 18
+    y = draw_centered_pdf_line(pdf, "UNITED STATES DEPARTMENT OF JUSTICE", y, "Times-Bold", 11)
+    y = draw_centered_pdf_line(pdf, "EXECUTIVE OFFICE FOR IMMIGRATION REVIEW", y, "Times-Bold", 11)
+    y = draw_centered_pdf_line(pdf, (motion.immigration_court or "").upper(), y, "Times-Bold", 11)
+    if motion.immigration_court_address:
+        for line in motion.immigration_court_address.splitlines():
+            y = draw_centered_pdf_line(pdf, line, y, "Times-Roman", 10)
+    return y - 10
+
+
 def motion_pdf_response(motion):
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     left = inch
-    right = width - inch
     y = height - inch
     pdf.setTitle(motion.title)
-    pdf.setFont("Times-Roman", 11)
-    for paragraph in (motion.rendered_content or "").splitlines():
-        if not paragraph.strip():
-            y -= 12
-            continue
-        is_heading = paragraph.strip().isupper() and len(paragraph.strip()) < 80
-        pdf.setFont("Times-Bold" if is_heading else "Times-Roman", 11)
-        for line in split_pdf_lines(paragraph, 92):
-            if y < inch:
-                pdf.showPage()
-                y = height - inch
-                pdf.setFont("Times-Bold" if is_heading else "Times-Roman", 11)
-            pdf.drawString(left, y, line)
-            y -= 14
-        if is_heading:
-            y -= 4
+
+    y = draw_motion_header(pdf, motion, y)
+    y = draw_motion_caption(pdf, motion, y)
+    y = draw_centered_pdf_line(pdf, motion.title, y, "Times-Bold", 12)
+    y -= 8
+    y = draw_pdf_lines(pdf, motion_body_text(motion).splitlines(), left, y, max_chars=88, font_size=11, leading=15)
+
+    pdf.showPage()
+    y = height - inch
+    y = draw_centered_pdf_line(pdf, "EXHIBITS", y, "Times-Bold", 12)
+    y -= 10
+    exhibits = motion_exhibits(motion)
+    exhibit_lines = [f"Exhibit {exhibit_label(index)}: {description}" for index, description in enumerate(exhibits)] or ["No exhibits listed."]
+    y = draw_pdf_lines(pdf, exhibit_lines, left, y, max_chars=88, font_size=11, leading=16)
+
+    y -= 22
+    if y < 2 * inch:
+        pdf.showPage()
+        y = height - inch
+    y = draw_centered_pdf_line(pdf, "CERTIFICATE OF SERVICE", y, "Times-Bold", 12)
+    y -= 10
+    service_lines = [
+        f"I certify that on {datetime.utcnow().strftime('%B %d, %Y')}, a true and correct copy of the foregoing motion was served on:",
+        "",
+        motion.opla_office,
+        *[line for line in (motion.opla_address or "").splitlines() if line.strip()],
+        "",
+        "by the method required by the Immigration Court practice rules.",
+        "",
+        "Respectfully submitted,",
+        "",
+        "________________________________________",
+        motion.lawyer_name or "Pro Se",
+    ]
+    y = draw_pdf_lines(pdf, service_lines, left, y, max_chars=88, font_size=11, leading=15)
+
+    pdf.showPage()
+    y = height - inch
+    y = draw_motion_header(pdf, motion, y)
+    y = draw_motion_caption(pdf, motion, y)
+    y = draw_centered_pdf_line(pdf, "PROPOSED ORDER", y, "Times-Bold", 12)
+    y -= 16
+    order_lines = [
+        f"Upon consideration of Respondent's {motion.title}, it is hereby:",
+        "",
+        "[  ] GRANTED",
+        "",
+        "[  ] DENIED",
+        "",
+        "[  ] OTHER: ________________________________________________",
+        "",
+        "Date: ______________________________",
+        "",
+        "____________________________________________",
+        "Immigration Judge",
+    ]
+    draw_pdf_lines(pdf, order_lines, left, y, max_chars=88, font_size=11, leading=17)
     pdf.save()
     buffer.seek(0)
     filename = f"motion-{motion.id}.pdf"
@@ -2578,6 +2755,7 @@ def ensure_sqlite_schema():
             "lawyer_bar_number": "VARCHAR(80)",
             "law_firm_phone": "VARCHAR(40)",
             "law_firm_address": "TEXT",
+            "exhibits_text": "TEXT",
         }
         for column, ddl in motion_additions.items():
             if column not in existing_motion:

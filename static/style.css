@@ -955,6 +955,16 @@ body {
   justify-content: flex-end;
 }
 
+.exhibit-row {
+  margin-bottom: .75rem;
+}
+
+.motion-exhibit-grid {
+  display: grid;
+  gap: .75rem;
+  grid-template-columns: minmax(0, 1fr) 118px;
+}
+
 .motion-submit-bar {
   align-items: center;
   display: flex;
@@ -1085,6 +1095,10 @@ body {
 
   .motion-row-action {
     justify-content: stretch;
+  }
+
+  .motion-exhibit-grid {
+    grid-template-columns: 1fr;
   }
 
   .motion-btn {
