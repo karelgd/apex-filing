@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-4">
+<div class="motion-page">
+<div class="d-flex justify-content-between align-items-start gap-3 mb-4 motion-heading">
   <div>
     <h1 class="h3 mb-1">Create Motion</h1>
     <p class="text-secondary mb-0">Select an agency template and enter the motion details.</p>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('agency_motions') }}">Back to Motion Creation</a>
+  <a class="btn motion-btn motion-btn-muted" href="{{ url_for('agency_motions') }}">Back to Motion Creation</a>
 </div>
 
 {% if not templates %}
@@ -14,109 +15,164 @@
     <a href="{{ url_for('motion_template_new') }}">Create Template</a>
   </div>
 {% else %}
-<form class="card card-body" method="post" id="motion-form">
+<form class="motion-form-shell" method="post" id="motion-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <div class="mb-3">
-    <label class="form-label">Template Motion</label>
-    <select class="form-select" name="template_id" required>
-      {% for template in templates %}
-        <option value="{{ template.id }}">{{ template.display_name }}</option>
-      {% endfor %}
-    </select>
-  </div>
 
-  <h2 class="h5 mt-3">Respondents</h2>
-  <div id="respondent-list">
-    <div class="respondent-row border rounded p-3 mb-3">
-      <div class="row g-3 align-items-end">
-        <div class="col-md-3"><label class="form-label">Alien Last Name</label><input class="form-control" name="respondent_last_name[]" required></div>
-        <div class="col-md-3"><label class="form-label">Alien Middle Name</label><input class="form-control" name="respondent_middle_name[]"></div>
-        <div class="col-md-3"><label class="form-label">Alien First Name</label><input class="form-control" name="respondent_first_name[]" required></div>
-        <div class="col-md-2"><label class="form-label">Alien Number</label><input class="form-control" name="respondent_alien_number[]" required></div>
-        <div class="col-md-1"><button class="btn btn-outline-danger remove-respondent w-100" type="button" disabled>Remove</button></div>
+  <section class="motion-section motion-section-primary">
+    <div class="motion-section-head">
+      <span>01</span>
+      <div>
+        <h2>Template</h2>
+        <p>Choose the agency-owned template that will become the motion body.</p>
       </div>
     </div>
-  </div>
-  <button class="btn btn-outline-primary align-self-start mb-4" type="button" id="add-respondent">+ Add more respondents</button>
-
-  <div class="row g-3">
-    <div class="col-md-6">
-      <label class="form-label">Immigration Court</label>
-      <div class="autocomplete-wrap">
-        <input class="form-control motion-autocomplete" name="immigration_court" data-list="court-options" data-address-target="immigration_court_address" autocomplete="off" placeholder="Search or type Court Name manually" required>
-        <div class="autocomplete-menu" id="court-options">
-          {% for court in courts %}
-            <button type="button" data-value="{{ court.label }}" data-address="{{ court.address_text }}">{{ court.label }}</button>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="form-text">{{ courts|length }} courts loaded. Manual entry is allowed.</div>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label">Immigration Court Address</label>
-      <textarea class="form-control" name="immigration_court_address" rows="2" placeholder="Required when entered manually"></textarea>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Immigration Judge</label>
-      <div class="autocomplete-wrap">
-        <input class="form-control motion-autocomplete" name="immigration_judge" data-list="judge-options" autocomplete="off" placeholder="Search or type manually" required>
-        <div class="autocomplete-menu" id="judge-options">
-          {% for judge in judges %}
-            <button type="button" data-value="{{ judge.label }}">{{ judge.label }}</button>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="form-text">{{ judges|length }} judges loaded. Manual entry is allowed.</div>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">OPLA Office</label>
-      <input class="form-control" name="opla_office" value="Office of the Principal Legal Advisor" readonly required>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">OPLA Address Search</label>
-      <div class="autocomplete-wrap">
-        <input class="form-control motion-autocomplete" name="opla_lookup" data-list="opla-options" data-address-target="opla_address" autocomplete="off" placeholder="Search OPLA office or type address manually below">
-        <div class="autocomplete-menu" id="opla-options">
-          {% for office in opla_offices %}
-            <button type="button" data-value="{{ office.label }}" data-address="{{ office.address_text }}">{{ office.label }}</button>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="form-text">{{ opla_offices|length }} OPLA offices loaded. Manual address entry is allowed.</div>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">OPLA Address</label>
-      <textarea class="form-control" name="opla_address" rows="2" placeholder="Required when entered manually"></textarea>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label">Lawyer</label>
-      <select class="form-select" name="lawyer_id">
-        <option value="">Pro Se / no lawyer</option>
-        {% for lawyer in lawyers %}
-          <option value="{{ lawyer.id }}">{{ lawyer.full_name }} - Bar {{ lawyer.bar_number }}</option>
+    <div>
+      <label class="form-label">Template Motion</label>
+      <select class="form-select" name="template_id" required>
+        {% for template in templates %}
+          <option value="{{ template.id }}">{{ template.display_name }}</option>
         {% endfor %}
       </select>
-      {% if not lawyers %}
-        <div class="form-text">No lawyers yet. Add one from the Lawyers menu if needed.</div>
-      {% endif %}
     </div>
-    <div class="col-md-6">
-      <label class="form-label">Law Firm</label>
-      <select class="form-select" name="law_firm_id">
-        <option value="">No law firm</option>
-        {% for firm in law_firms %}
-          <option value="{{ firm.id }}">{{ firm.name }}</option>
-        {% endfor %}
-      </select>
-      {% if not law_firms %}
-        <div class="form-text">No law firms yet. Add one from the Law Firms menu if needed.</div>
-      {% endif %}
-    </div>
-  </div>
+  </section>
 
-  <button class="btn btn-primary mt-4">Create Motion</button>
+  <section class="motion-section">
+    <div class="motion-section-head">
+      <span>02</span>
+      <div>
+        <h2>Respondents</h2>
+        <p>Add every respondent who should appear in the caption and motion text.</p>
+      </div>
+    </div>
+    <div id="respondent-list">
+      <div class="respondent-row">
+        <div class="motion-grid motion-grid-respondent">
+          <div><label class="form-label">Alien Last Name</label><input class="form-control" name="respondent_last_name[]" required></div>
+          <div><label class="form-label">Alien Middle Name</label><input class="form-control" name="respondent_middle_name[]"></div>
+          <div><label class="form-label">Alien First Name</label><input class="form-control" name="respondent_first_name[]" required></div>
+          <div><label class="form-label">Alien Number</label><input class="form-control" name="respondent_alien_number[]" required></div>
+          <div class="motion-row-action"><button class="btn motion-btn motion-btn-danger remove-respondent" type="button" disabled>Remove</button></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn motion-btn motion-btn-teal" type="button" id="add-respondent">Add Respondent</button>
+  </section>
+
+  <section class="motion-section">
+    <div class="motion-section-head">
+      <span>03</span>
+      <div>
+        <h2>Court and Judge</h2>
+        <p>Search official references or type manually when the result is not listed.</p>
+      </div>
+    </div>
+    <div class="motion-grid motion-grid-two">
+      <div>
+        <label class="form-label">Immigration Court</label>
+        <div class="autocomplete-wrap">
+          <input class="form-control motion-autocomplete" name="immigration_court" data-list="court-options" data-address-target="immigration_court_address" autocomplete="off" placeholder="Search court or type manually" required>
+          <div class="autocomplete-menu" id="court-options">
+            {% for court in courts %}
+              <button type="button" data-value="{{ court.label }}" data-address="{{ court.address_text }}">{{ court.label }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-text">{{ courts|length }} courts loaded. Manual entry is allowed.</div>
+      </div>
+      <div>
+        <label class="form-label">Court Address</label>
+        <textarea class="form-control" name="immigration_court_address" rows="2" placeholder="Required when entered manually"></textarea>
+      </div>
+      <div>
+        <label class="form-label">Immigration Judge</label>
+        <div class="autocomplete-wrap">
+          <input class="form-control motion-autocomplete" name="immigration_judge" data-list="judge-options" autocomplete="off" placeholder="Search judge or type manually" required>
+          <div class="autocomplete-menu" id="judge-options">
+            {% for judge in judges %}
+              <button type="button" data-value="{{ judge.label }}">{{ judge.label }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-text">{{ judges|length }} judges loaded. Manual entry is allowed.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="motion-section">
+    <div class="motion-section-head">
+      <span>04</span>
+      <div>
+        <h2>Service</h2>
+        <p>Select the OPLA office that will appear in the proof of service.</p>
+      </div>
+    </div>
+    <div class="motion-grid motion-grid-two">
+      <div>
+        <label class="form-label">OPLA Office</label>
+        <input class="form-control" name="opla_office" value="Office of the Principal Legal Advisor" readonly required>
+      </div>
+      <div>
+        <label class="form-label">OPLA Address Search</label>
+        <div class="autocomplete-wrap">
+          <input class="form-control motion-autocomplete" name="opla_lookup" data-list="opla-options" data-address-target="opla_address" autocomplete="off" placeholder="Search OPLA office or type address manually">
+          <div class="autocomplete-menu" id="opla-options">
+            {% for office in opla_offices %}
+              <button type="button" data-value="{{ office.label }}" data-address="{{ office.address_text }}">{{ office.label }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-text">{{ opla_offices|length }} OPLA offices loaded. Manual address entry is allowed.</div>
+      </div>
+      <div>
+        <label class="form-label">OPLA Address</label>
+        <textarea class="form-control" name="opla_address" rows="2" placeholder="Required when entered manually"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="motion-section">
+    <div class="motion-section-head">
+      <span>05</span>
+      <div>
+        <h2>Representation</h2>
+        <p>Choose counsel and firm information, or leave blank for pro se motions.</p>
+      </div>
+    </div>
+    <div class="motion-grid motion-grid-two">
+      <div>
+        <label class="form-label">Lawyer</label>
+        <select class="form-select" name="lawyer_id">
+          <option value="">Pro Se / no lawyer</option>
+          {% for lawyer in lawyers %}
+            <option value="{{ lawyer.id }}">{{ lawyer.full_name }} - Bar {{ lawyer.bar_number }}</option>
+          {% endfor %}
+        </select>
+        {% if not lawyers %}
+          <div class="form-text">No lawyers yet. Add one from the Lawyers menu if needed.</div>
+        {% endif %}
+      </div>
+      <div>
+        <label class="form-label">Law Firm</label>
+        <select class="form-select" name="law_firm_id">
+          <option value="">No law firm</option>
+          {% for firm in law_firms %}
+            <option value="{{ firm.id }}">{{ firm.name }}</option>
+          {% endfor %}
+        </select>
+        {% if not law_firms %}
+          <div class="form-text">No law firms yet. Add one from the Law Firms menu if needed.</div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <div class="motion-submit-bar">
+    <a class="btn motion-btn motion-btn-muted" href="{{ url_for('agency_motions') }}">Cancel</a>
+    <button class="btn motion-btn motion-btn-primary">Create Motion</button>
+  </div>
 </form>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
