@@ -116,6 +116,19 @@
       "What is your A-Number?": "Cual es su A-Number?",
       "What is your Social Security Number?": "Cual es su numero de Seguro Social?",
       "What is your I-94 number?": "Cual es su numero I-94?",
+      "What is your i94 number?": "Cual es su numero I-94?",
+      "What is your I94 number?": "Cual es su numero I-94?",
+      "Do you have a USCIS Online Account Number?": "Tiene un numero de cuenta en linea de USCIS?",
+      "Have you filed for work authorization before?": "Ha solicitado autorizacion de empleo anteriormente?",
+      "When did you Last Enter the United States?": "Cuando fue la ultima vez que entro a los Estados Unidos?",
+      "When did you last enter the United States?": "Cuando fue la ultima vez que entro a los Estados Unidos?",
+      "What Country Issued your Passport?": "Que pais emitio su pasaporte?",
+      "What country issued your passport?": "Que pais emitio su pasaporte?",
+      "What was your place of entry into the USA? (Ex: El Paso, TX)": "Cual fue su lugar de entrada a los Estados Unidos? (Ej.: El Paso, TX)",
+      "What was your Status when you last entered the United States?": "Cual era su estatus cuando entro por ultima vez a los Estados Unidos?",
+      "What was your status when you last entered the United States?": "Cual era su estatus cuando entro por ultima vez a los Estados Unidos?",
+      "Do you have any criminal history?": "Tiene algun antecedente penal?",
+      "Select YES here to continue.": "Seleccione SI aqui para continuar.",
       "Applicant's First Name": "Nombre del solicitante",
       "Applicant's Middle Name": "Segundo nombre del solicitante",
       "Applicant's Last Name(s)": "Apellido(s) del solicitante",
@@ -147,6 +160,19 @@
       "What is your A-Number?": "Ki A-Number ou?",
       "What is your Social Security Number?": "Ki nimewo Sekirite Sosyal ou?",
       "What is your I-94 number?": "Ki nimewo I-94 ou?",
+      "What is your i94 number?": "Ki nimewo I-94 ou?",
+      "What is your I94 number?": "Ki nimewo I-94 ou?",
+      "Do you have a USCIS Online Account Number?": "Eske ou gen yon nimewo kont sou entenet USCIS?",
+      "Have you filed for work authorization before?": "Eske ou te deja aplike pou otorizasyon travay?",
+      "When did you Last Enter the United States?": "Ki le ou te antre Ozetazini denye fwa?",
+      "When did you last enter the United States?": "Ki le ou te antre Ozetazini denye fwa?",
+      "What Country Issued your Passport?": "Ki peyi ki te bay paspo ou?",
+      "What country issued your passport?": "Ki peyi ki te bay paspo ou?",
+      "What was your place of entry into the USA? (Ex: El Paso, TX)": "Ki kote ou te antre Ozetazini? (Egz.: El Paso, TX)",
+      "What was your Status when you last entered the United States?": "Ki estati ou te genyen le ou te antre Ozetazini denye fwa?",
+      "What was your status when you last entered the United States?": "Ki estati ou te genyen le ou te antre Ozetazini denye fwa?",
+      "Do you have any criminal history?": "Eske ou gen antecedan penal?",
+      "Select YES here to continue.": "Chwazi WI isit la pou kontinye.",
       "Applicant's First Name": "Non aplikan an",
       "Applicant's Middle Name": "Dezyèm non aplikan an",
       "Applicant's Last Name(s)": "Siyati aplikan an",
@@ -202,6 +228,54 @@
         return `Ki ${subject} ou?`;
       }
     }
+    const whatWasMatch = normalized.match(/^what was your (.+)$/);
+    if (whatWasMatch) {
+      const subject = fieldLabelFor(language, whatWasMatch[1]);
+      if (language === "es") {
+        return `Cual fue su ${subject}?`;
+      }
+      if (language === "ht") {
+        return `Ki ${subject} ou te genyen?`;
+      }
+    }
+    const doYouHaveMatch = normalized.match(/^do you have (.+)$/);
+    if (doYouHaveMatch) {
+      const subject = fieldLabelFor(language, doYouHaveMatch[1]);
+      if (language === "es") {
+        return `Tiene ${subject}?`;
+      }
+      if (language === "ht") {
+        return `Eske ou gen ${subject}?`;
+      }
+    }
+    const haveYouMatch = normalized.match(/^have you (.+)$/);
+    if (haveYouMatch) {
+      const subject = fieldLabelFor(language, haveYouMatch[1]);
+      if (language === "es") {
+        return `Ha ${subject}?`;
+      }
+      if (language === "ht") {
+        return `Eske ou te ${subject}?`;
+      }
+    }
+    const whenDidMatch = normalized.match(/^when did you (.+)$/);
+    if (whenDidMatch) {
+      const subject = fieldLabelFor(language, whenDidMatch[1]);
+      if (language === "es") {
+        return `Cuando ${subject}?`;
+      }
+      if (language === "ht") {
+        return `Ki le ou te ${subject}?`;
+      }
+    }
+    if (normalized.startsWith("select yes")) {
+      if (language === "es") {
+        return "Seleccione SI aqui para continuar.";
+      }
+      if (language === "ht") {
+        return "Chwazi WI isit la pou kontinye.";
+      }
+    }
     return null;
   }
 
@@ -220,7 +294,18 @@
         "country of birth": "pais de nacimiento",
         "country of citizenship": "pais de ciudadania",
         "passport number": "numero de pasaporte",
+        "passport expiration date": "fecha de vencimiento del pasaporte",
+        "passport country of issuance": "pais de emision del pasaporte",
+        "country issued your passport": "pais que emitio su pasaporte",
         "i-94 number": "numero I-94",
+        "i94 number": "numero I-94",
+        "uscis online account number": "numero de cuenta en linea de USCIS",
+        "place of entry into the usa": "lugar de entrada a los Estados Unidos",
+        "place of entry into the usa (ex: el paso, tx)": "lugar de entrada a los Estados Unidos (Ej.: El Paso, TX)",
+        "status when you last entered the united states": "estatus cuando entro por ultima vez a los Estados Unidos",
+        "last enter the united states": "entro por ultima vez a los Estados Unidos",
+        "filed for work authorization before": "solicitado autorizacion de empleo anteriormente",
+        "any criminal history": "algun antecedente penal",
         "a-number": "A-Number",
         "social security number": "numero de Seguro Social"
       },
@@ -237,7 +322,18 @@
         "country of birth": "peyi kote ou fet",
         "country of citizenship": "peyi sitwayente",
         "passport number": "nimewo paspo",
+        "passport expiration date": "dat ekspirasyon paspo",
+        "passport country of issuance": "peyi ki bay paspo a",
+        "country issued your passport": "peyi ki te bay paspo ou",
         "i-94 number": "nimewo I-94",
+        "i94 number": "nimewo I-94",
+        "uscis online account number": "nimewo kont sou entenet USCIS",
+        "place of entry into the usa": "kote ou te antre Ozetazini",
+        "place of entry into the usa (ex: el paso, tx)": "kote ou te antre Ozetazini (Egz.: El Paso, TX)",
+        "status when you last entered the united states": "estati ou le ou te antre Ozetazini denye fwa",
+        "last enter the united states": "antre Ozetazini denye fwa",
+        "filed for work authorization before": "deja aplike pou otorizasyon travay",
+        "any criminal history": "antecedan penal",
         "a-number": "A-Number",
         "social security number": "nimewo Sekirite Sosyal"
       }
