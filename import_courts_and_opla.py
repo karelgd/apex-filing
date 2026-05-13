@@ -10,6 +10,33 @@ from app import app, db, ImmigrationCourt, OPLAOffice
 EOIR_COURT_LIST_URL = "https://www.justice.gov/eoir/find-immigration-court-and-access-internet-based-hearings"
 EOIR_BASE = "https://www.justice.gov"
 
+FALLBACK_COURTS = [
+    {
+        "name": "Miami Immigration Court",
+        "address_line1": "333 S. Miami Avenue, Suite 700",
+        "address_line2": "",
+        "city": "Miami",
+        "state": "FL",
+        "postal_code": "33130",
+    },
+    {
+        "name": "Orlando Immigration Court",
+        "address_line1": "3535 Lawton Road, Suite 200",
+        "address_line2": "",
+        "city": "Orlando",
+        "state": "FL",
+        "postal_code": "32803",
+    },
+    {
+        "name": "Krome North Service Processing Center",
+        "address_line1": "18201 SW 12th Street",
+        "address_line2": "",
+        "city": "Miami",
+        "state": "FL",
+        "postal_code": "33194",
+    },
+]
+
 
 def scrape_eoir_courts():
     """
@@ -39,9 +66,16 @@ def scrape_eoir_courts():
         text = a.get_text(strip=True)
         if not text:
             continue
-        if "immigration-court" in href and "/eoir/" in href:
+        if "immigration-court" in href and ("/eoir/" in href or href.startswith("/")):
             full = urljoin(EOIR_BASE, href)
             court_links[text] = full
+
+    if not court_links:
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            text = a.get_text(strip=True)
+            if text and "immigration court" in text.lower():
+                court_links[text] = urljoin(EOIR_BASE, href)
 
     print(f"Found {len(court_links)} possible courts. Fetching each court page...")
 
@@ -119,6 +153,9 @@ def scrape_eoir_courts():
         )
 
     print("Finished scraping EOIR courts.")
+    if not courts_data:
+        print("No courts scraped from EOIR page. Using bundled fallback courts.")
+        return FALLBACK_COURTS
     return courts_data
 
 
@@ -876,11 +913,13 @@ def import_judges():
 
     with app.app_context():
         # Detectar la columna de "nombre" automáticamente
-        non_pk_cols = [c for c in Judge.__table__.columns if not c.primary_key]
-        if not non_pk_cols:
-            raise RuntimeError("No non-primary-key columns found on Judge table.")
-        name_col = non_pk_cols[0]      # columna tipo Judge.<algo>
-        name_field = name_col.name     # nombre del atributo, ej. 'name', 'full_name', etc.
+        name_col = Judge.__table__.columns.get("name")
+        if name_col is None:
+            non_pk_cols = [c for c in Judge.__table__.columns if not c.primary_key]
+            if not non_pk_cols:
+                raise RuntimeError("No non-primary-key columns found on Judge table.")
+            name_col = non_pk_cols[0]
+        name_field = name_col.name
 
         print(f"Using Judge.{name_field} as the name field.")
 
@@ -936,4 +975,3 @@ if __name__ == "__main__":
         import_opla()
     else:
         print("Unknown command. Use 'courts' or 'opla'.")
-

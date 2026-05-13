@@ -921,6 +921,12 @@ def register_routes(app):
             imported.append(kind)
         print(f"Imported motion references: {', '.join(imported)}")
 
+    @app.cli.command("motion-reference-counts")
+    def motion_reference_counts_command():
+        print(f"Courts: {ImmigrationCourt.query.count()}")
+        print(f"Judges: {ImmigrationJudge.query.count()}")
+        print(f"OPLA offices: {OplaOffice.query.count()}")
+
     @app.route("/")
     def home():
         if current_user.is_authenticated:
