@@ -9,6 +9,12 @@ from app import app, db, ImmigrationCourt, OPLAOffice
 
 EOIR_COURT_LIST_URL = "https://www.justice.gov/eoir/find-immigration-court-and-access-internet-based-hearings"
 EOIR_BASE = "https://www.justice.gov"
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; ApexFilingImporter/1.0; "
+        "+https://www.justice.gov/eoir/find-immigration-court-and-access-internet-based-hearings)"
+    )
+}
 
 FALLBACK_COURTS = [
     {
@@ -38,6 +44,147 @@ FALLBACK_COURTS = [
 ]
 
 
+def clean_text(value):
+    return re.sub(r"\s+", " ", value or "").strip()
+
+
+def looks_like_court_name(value):
+    text = clean_text(value)
+    if not text:
+        return False
+    lowered = text.lower()
+    if lowered.startswith("find an immigration court"):
+        return False
+    return (
+        lowered.endswith("immigration court")
+        or lowered.endswith("adjudication center")
+        or "immigration court" in lowered
+    )
+
+
+def parse_city_state_zip(value):
+    match = re.match(r"^(.*?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$", clean_text(value))
+    if not match:
+        return None, None, None
+    return match.group(1), match.group(2), match.group(3)
+
+
+def fetch_soup(url):
+    resp = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
+    resp.raise_for_status()
+    return BeautifulSoup(resp.text, "html.parser")
+
+
+def scrape_eoir_roster():
+    """
+    Read EOIR's court/hearing roster directly. This page includes court names and
+    judge rows, so it gives us a useful import even when individual court pages
+    or TRAC are unavailable from PythonAnywhere.
+    """
+    print(f"Downloading EOIR court and judge roster from {EOIR_COURT_LIST_URL}...")
+    soup = fetch_soup(EOIR_COURT_LIST_URL)
+    courts = {}
+    judges = {}
+
+    for heading in soup.find_all(["h2", "h3", "h4"]):
+        court_name = clean_text(heading.get_text(" ", strip=True).replace("\xa0", " "))
+        if not looks_like_court_name(court_name):
+            continue
+
+        link = heading.find("a", href=True)
+        courts[court_name] = {
+            "name": court_name,
+            "url": urljoin(EOIR_BASE, link["href"]) if link else None,
+            "address_line1": None,
+            "address_line2": None,
+            "city": None,
+            "state": None,
+            "postal_code": None,
+        }
+
+        for sibling in heading.find_next_siblings():
+            if sibling.name in ("h2", "h3"):
+                break
+            for raw_line in sibling.get_text("\n", strip=True).split("\n"):
+                line = clean_text(raw_line.replace("\xa0", " "))
+                judge_name = parse_eoir_judge_line(line)
+                if judge_name:
+                    judges[(judge_name, court_name)] = {
+                        "name": judge_name,
+                        "court_name": court_name,
+                    }
+
+    print(f"EOIR roster found {len(courts)} courts and {len(judges)} court/judge rows.")
+    return list(courts.values()), list(judges.values())
+
+
+def parse_eoir_judge_line(line):
+    if not line:
+        return None
+    lowered = line.lower()
+    if (
+        "judge name" in lowered
+        or "webex" in lowered
+        or "access code" in lowered
+        or "telephonic" in lowered
+        or "http" in lowered
+    ):
+        return None
+    if not re.search(r"\([A-Z0-9]{2,4}\)", line):
+        return None
+    name = re.sub(r"\s*\([A-Z0-9]{2,4}\)\s*$", "", line).strip()
+    name = re.sub(r"^(ACIJ|RDCIJ|DCIJ)\s+", "", name).strip()
+    if len(name.split()) < 2:
+        return None
+    return name
+
+
+def add_court_address_from_detail_page(court):
+    if not court.get("url"):
+        return court
+    try:
+        csoup = fetch_soup(court["url"])
+    except Exception as e:
+        print(f"    !! Could not fetch address for {court['name']}: {e}")
+        return court
+
+    heading = csoup.find(
+        lambda tag: tag.name in ("h2", "h3")
+        and tag.get_text(strip=True).lower().startswith("address")
+    )
+    if not heading:
+        return court
+
+    lines = []
+    for sibling in heading.find_next_siblings():
+        if sibling.name in ("h2", "h3", "h4"):
+            break
+        for raw_line in sibling.get_text("\n", strip=True).split("\n"):
+            line = clean_text(raw_line)
+            if line:
+                lines.append(line)
+
+    if not lines:
+        return court
+
+    city, state, postal_code = parse_city_state_zip(lines[-1])
+    if city and state and postal_code:
+        court["city"] = city
+        court["state"] = state
+        court["postal_code"] = postal_code
+        address_lines = lines[:-1]
+        if address_lines:
+            court["address_line1"] = address_lines[0]
+        if len(address_lines) > 1:
+            court["address_line2"] = ", ".join(address_lines[1:])
+    else:
+        court["address_line1"] = lines[0]
+        if len(lines) > 1:
+            court["address_line2"] = ", ".join(lines[1:])
+
+    return court
+
+
 def scrape_eoir_courts():
     """
     Scrape EOIR's 'Find an Immigration Court' page, then visit each court page
@@ -53,10 +200,19 @@ def scrape_eoir_courts():
           "zip_code": "33130"
         }
     """
+    try:
+        roster_courts, _ = scrape_eoir_roster()
+    except Exception as e:
+        print(f"Could not download EOIR roster: {e}")
+        print("Using bundled fallback courts.")
+        return FALLBACK_COURTS
+
+    if roster_courts:
+        print(f"Found {len(roster_courts)} courts on the EOIR roster. Fetching address pages when available...")
+        return [add_court_address_from_detail_page(court) for court in roster_courts]
+
     print("Downloading court list from EOIR...")
-    resp = requests.get(EOIR_COURT_LIST_URL, timeout=30)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
+    soup = fetch_soup(EOIR_COURT_LIST_URL)
 
     court_links = {}
 
@@ -84,7 +240,7 @@ def scrape_eoir_courts():
     for name, url in sorted(court_links.items()):
         print(f"  → {name}  ({url})")
         try:
-            cr = requests.get(url, timeout=30)
+            cr = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
             cr.raise_for_status()
         except Exception as e:
             print(f"    !! Error fetching {url}: {e}")
@@ -182,6 +338,7 @@ def import_courts():
                 existing.city = c["city"]
                 existing.state = c["state"]
                 existing.zip_code = c["postal_code"]
+                existing.postal_code = c["postal_code"]
                 updated += 1
             else:
                 court = ImmigrationCourt(
@@ -902,6 +1059,15 @@ def scrape_trac_judge_names():
     return names_list
 
 
+def scrape_eoir_judges():
+    try:
+        _, judges = scrape_eoir_roster()
+    except Exception as e:
+        print(f"Could not download EOIR judge roster: {e}")
+        return []
+    return judges
+
+
 def import_judges():
     """
     Importa nombres de jueces desde TRAC y los guarda en la tabla Judge.
@@ -923,26 +1089,44 @@ def import_judges():
 
         print(f"Using Judge.{name_field} as the name field.")
 
-        names = scrape_trac_judge_names()
+        judges = scrape_eoir_judges()
+        if judges:
+            print(f"Using {len(judges)} judges from EOIR court/hearing roster.")
+        else:
+            print("EOIR judge roster returned no rows. Trying TRAC judge report as fallback...")
+            try:
+                judges = [{"name": name, "court_name": None} for name in scrape_trac_judge_names()]
+            except Exception as e:
+                print(f"Could not download TRAC judge report: {e}")
+                judges = []
 
         created = 0
-        skipped = 0
+        updated = 0
+        unchanged = 0
 
-        for full_name in names:
+        for judge_data in judges:
+            full_name = judge_data["name"]
+            court_name = judge_data.get("court_name")
             # Buscar por esa columna
             existing = Judge.query.filter(name_col == full_name).first()
             if existing:
-                skipped += 1
+                if hasattr(existing, "court_name") and court_name and existing.court_name != court_name:
+                    existing.court_name = court_name
+                    updated += 1
+                else:
+                    unchanged += 1
                 continue
 
             # Crear instancia y asignar el valor a la columna detectada
             judge = Judge()
             setattr(judge, name_field, full_name)
+            if hasattr(judge, "court_name"):
+                judge.court_name = court_name
             db.session.add(judge)
             created += 1
 
         db.session.commit()
-        print(f"Judges imported. Created: {created}, Existing skipped: {skipped}")
+        print(f"Judges imported. Created: {created}, Updated: {updated}, Existing unchanged: {unchanged}")
 
 
 
