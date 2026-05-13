@@ -287,12 +287,7 @@
         return "Eske se premye fwa ou aplike pou otorizasyon travay anba kategori sa a?";
       }
     }
-    if (
-      normalized.startsWith("what is your address") &&
-      normalized.includes("do not include city") &&
-      normalized.includes("state") &&
-      normalized.includes("zip code")
-    ) {
+    if (normalized.startsWith("what is your address")) {
       if (language === "es") {
         return "Cual es su direccion? (no incluya ciudad, estado ni codigo postal)";
       }

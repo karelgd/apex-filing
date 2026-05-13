@@ -22,7 +22,7 @@
         {% set existing = answers.get(question.id) %}
         <a class="question-map-link {{ 'active' if current_question and current_question.id == question.id else '' }} {{ 'answered' if existing and existing.answer_text else '' }}" href="{{ url_for('questionnaire', case_id=case.id, q=loop.index) }}">
           <span>{{ loop.index }}</span>
-          <b data-i18n-text="{{ question.prompt }}">{{ question.prompt }}</b>
+          <b data-i18n-text="{{ question.prompt }}" data-field-key="{{ question.field_key }}">{{ question.prompt }}</b>
         </a>
       {% endfor %}
       <a class="question-map-link {{ 'active' if document_step is defined else '' }}" href="{{ url_for('questionnaire', case_id=case.id, q='docs') }}" data-i18n="documents">Documents</a>
@@ -78,7 +78,7 @@
         <form method="post" class="question-card">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="question-meta"><span data-i18n="question">Question</span> {{ current_index }} <span data-i18n="of">of</span> {{ questions|length }}</div>
-          <label class="question-prompt" data-i18n-text="{{ current_question.prompt }}">{{ current_question.prompt }}</label>
+          <label class="question-prompt" data-i18n-text="{{ current_question.prompt }}" data-field-key="{{ current_question.field_key }}">{{ current_question.prompt }}</label>
           {% if current_question.input_type == 'checkbox' %}
             <div class="checkbox-answer-group">
               <label class="checkbox-answer-option">
@@ -136,6 +136,9 @@
 
     const translatePrompt = (text) => {
       const key = compact(text);
+      if (key.startsWith("whatisyouraddress")) {
+        return directTranslations[language]?.address_no_city;
+      }
       if (
         key.includes("whatisyouraddress") &&
         key.includes("donotinclude") &&
@@ -155,10 +158,26 @@
       return null;
     };
 
+    const translateField = (fieldKey) => {
+      const key = compact(fieldKey);
+      if (
+        key.includes("streetnumbername") ||
+        key.includes("streetaddress") ||
+        key.includes("physicaladdress") ||
+        key.includes("mailingaddress")
+      ) {
+        return directTranslations[language]?.address_no_city;
+      }
+      return null;
+    };
+
     const applyDirectTranslations = () => {
       document.querySelectorAll(".question-prompt, .question-map-link b, [data-i18n-text]").forEach((element) => {
         const sourceText = element.dataset.i18nText || element.dataset.originalText || element.textContent;
-        const translated = translatePrompt(sourceText) || translatePrompt(element.textContent);
+        const translated =
+          translateField(element.dataset.fieldKey || "") ||
+          translatePrompt(sourceText) ||
+          translatePrompt(element.textContent);
         if (translated && element.textContent !== translated) {
           element.textContent = translated;
         }
