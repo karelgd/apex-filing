@@ -788,7 +788,7 @@ def render_exhibits_text(exhibits):
     return "\n".join(f"Exhibit {exhibit_label(index)} - {description}" for index, description in enumerate(exhibits))
 
 
-def render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits=None):
+def render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits=None, detention_status="", next_hearing_date="", next_hearing_type=""):
     exhibits = exhibits or []
     lead = respondents[0] if respondents else {}
     respondent_lines = [
@@ -819,6 +819,9 @@ def render_motion_content(template, respondents, court, court_address, judge, op
         "law_firm_phone": law_firm_phone,
         "law_firm_address": law_firm_address,
         "exhibits": render_exhibits_text(exhibits),
+        "detention_status": detention_status,
+        "next_hearing_date": next_hearing_date,
+        "next_hearing_type": next_hearing_type,
         "today": datetime.utcnow().strftime("%B %d, %Y"),
     }
     rendered = template.content or ""
@@ -1394,10 +1397,16 @@ def register_routes(app):
             court = request.form["immigration_court"].strip()
             court_address = request.form.get("immigration_court_address", "").strip()
             judge = request.form["immigration_judge"].strip()
+            detention_status = request.form.get("detention_status", "").strip()
+            next_hearing_date = request.form.get("next_hearing_date", "").strip()
+            next_hearing_type = request.form.get("next_hearing_type", "").strip()
             opla = request.form.get("opla_office", "Office of the Principal Legal Advisor").strip() or "Office of the Principal Legal Advisor"
             opla_address = request.form.get("opla_address", "").strip()
             if not court or not court_address or not judge or not opla or not opla_address:
                 flash("Immigration Court, Court Address, Immigration Judge, OPLA Office, and OPLA Address are required.", "danger")
+                return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
+            if not detention_status or not next_hearing_date or not next_hearing_type:
+                flash("Detention classification, next hearing date, and next hearing type are required.", "danger")
                 return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
             lawyer_id = request.form.get("lawyer_id")
             law_firm_id = request.form.get("law_firm_id")
@@ -1423,8 +1432,11 @@ def register_routes(app):
                 law_firm_name=law_firm.name if law_firm else "",
                 law_firm_phone=law_firm.phone if law_firm else "",
                 law_firm_address=law_firm.address if law_firm else "",
+                detention_status=detention_status,
+                next_hearing_date=next_hearing_date,
+                next_hearing_type=next_hearing_type,
                 exhibits_text="\n".join(exhibits),
-                rendered_content=render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits),
+                rendered_content=render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits, detention_status, next_hearing_date, next_hearing_type),
             )
             db.session.add(motion)
             db.session.flush()
@@ -2520,43 +2532,64 @@ def motion_exhibits(motion):
 def respondent_caption_lines(motion):
     lines = []
     for person in motion.respondents:
-        name = f"{person.last_name.upper()}, {person.first_name} {person.middle_name or ''}".strip()
-        lines.append(f"{name}, A# {person.alien_number}")
+        lines.append(f"{person.last_name.upper()}, {person.first_name} {person.middle_name or ''}".strip())
     return lines or ["Respondent(s)"]
+
+
+def respondent_file_numbers(motion):
+    numbers = [f"A{person.alien_number}" for person in motion.respondents if person.alien_number]
+    return ", ".join(numbers) or "A"
+
+
+def display_motion_date(value):
+    if not value:
+        return ""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%m/%d/%Y")
+    except ValueError:
+        return value
 
 
 def draw_motion_caption(pdf, motion, y):
     width, _ = letter
     left = inch
     right = width - inch
-    middle = left + 300
+    paren_x = left + 320
+    file_x = left + 385
     top = y
-    bottom = y - 132
-    pdf.setLineWidth(1)
-    pdf.line(left, top, right, top)
-    pdf.line(left, bottom, right, bottom)
-    pdf.line(middle, top, middle, bottom)
-    y_left = top - 18
+    bottom = y - 138
+    pdf.setLineWidth(.8)
+    pdf.line(left, top, paren_x - 7, top)
+    pdf.line(left, bottom, paren_x - 7, bottom)
+
+    paren_y = top - 17
+    pdf.setFont("Times-Roman", 18)
+    while paren_y > bottom + 4:
+        pdf.drawString(paren_x, paren_y, ")")
+        paren_y -= 19
+
+    y_left = top - 17
     pdf.setFont("Times-Roman", 11)
-    pdf.drawString(left + 10, y_left, "In the Matter of:")
+    pdf.drawString(left, y_left, "In the Matter of:")
     y_left -= 18
     for line in respondent_caption_lines(motion):
-        pdf.drawString(left + 10, y_left, line)
-        y_left -= 15
-    y_left -= 5
-    pdf.drawString(left + 10, y_left, "Respondent(s).")
-    y_right = top - 18
-    pdf.setFont("Times-Bold", 11)
-    pdf.drawString(middle + 14, y_right, "IN REMOVAL PROCEEDINGS")
-    y_right -= 20
+        pdf.drawString(left, y_left, line)
+        y_left -= 17
+    y_left -= 6
+    pdf.drawString(left + 24, y_left, "Respondent,")
+    y_left -= 30
+    pdf.drawString(left, y_left, "In Removal Proceedings.")
+
     pdf.setFont("Times-Roman", 11)
-    pdf.drawString(middle + 14, y_right, f"Before: {motion.immigration_judge}")
-    y_right -= 16
-    pdf.drawString(middle + 14, y_right, "Immigration Judge")
-    return bottom - 24
+    pdf.drawString(file_x, top - 17, f"File No.: {respondent_file_numbers(motion)}")
+    y_detail = bottom - 24
+    pdf.drawString(left, y_detail, f"Before: {motion.immigration_judge}")
+    pdf.drawRightString(right, y_detail, f"Next {motion.next_hearing_type or ''} Hearing Date: {display_motion_date(motion.next_hearing_date)}")
+    return y_detail - 28
 
 
 def draw_motion_header(pdf, motion, y):
+    width, _ = letter
     representative_lines = []
     if motion.lawyer_name:
         representative_lines.append(motion.lawyer_name)
@@ -2570,6 +2603,8 @@ def draw_motion_header(pdf, motion, y):
         representative_lines.append(motion.law_firm_phone)
     if not representative_lines:
         representative_lines = ["Pro Se"]
+    pdf.setFont("Times-Bold", 11)
+    pdf.drawRightString(width - inch, y, (motion.detention_status or "").upper())
     y = draw_pdf_lines(pdf, representative_lines, inch, y, max_chars=52, font_size=10, leading=12)
     y -= 18
     y = draw_centered_pdf_line(pdf, "UNITED STATES DEPARTMENT OF JUSTICE", y, "Times-Bold", 11)
@@ -2756,6 +2791,9 @@ def ensure_sqlite_schema():
             "law_firm_phone": "VARCHAR(40)",
             "law_firm_address": "TEXT",
             "exhibits_text": "TEXT",
+            "detention_status": "VARCHAR(30)",
+            "next_hearing_date": "VARCHAR(20)",
+            "next_hearing_type": "VARCHAR(30)",
         }
         for column, ddl in motion_additions.items():
             if column not in existing_motion:

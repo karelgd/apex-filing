@@ -56,6 +56,28 @@
       </div>
     </div>
     <button class="btn motion-btn motion-btn-teal" type="button" id="add-respondent">Add Respondent</button>
+    <div class="motion-field-grid mt-3">
+      <div>
+        <label class="form-label">Detention Classification</label>
+        <select class="form-select" name="detention_status" required>
+          <option value="">Select one</option>
+          <option value="Detained">Detained</option>
+          <option value="Non-Detained">Non-Detained</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Next Hearing Date</label>
+        <input class="form-control" type="date" name="next_hearing_date" required>
+      </div>
+      <div>
+        <label class="form-label">Next Hearing Type</label>
+        <select class="form-select" name="next_hearing_type" required>
+          <option value="">Select one</option>
+          <option value="Master">Master</option>
+          <option value="Individual">Individual</option>
+        </select>
+      </div>
+    </div>
   </section>
 
   <section class="motion-section">
