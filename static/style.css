@@ -850,6 +850,45 @@ body {
   white-space: pre-wrap;
 }
 
+.autocomplete-wrap {
+  position: relative;
+}
+
+.autocomplete-menu {
+  background: #ffffff;
+  border: 1px solid #d7e4fb;
+  border-radius: 8px;
+  box-shadow: 0 16px 34px rgba(22, 32, 51, .14);
+  display: none;
+  left: 0;
+  max-height: 260px;
+  overflow: auto;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+}
+
+.autocomplete-menu.show {
+  display: block;
+}
+
+.autocomplete-menu button {
+  background: transparent;
+  border: 0;
+  color: var(--apex-ink);
+  display: block;
+  font-size: .92rem;
+  padding: .65rem .8rem;
+  text-align: left;
+  width: 100%;
+}
+
+.autocomplete-menu button:hover,
+.autocomplete-menu button:focus {
+  background: #eef4ff;
+}
+
 @media (max-width: 767.98px) {
   .agency-shell,
   .apex-shell,

@@ -42,12 +42,15 @@
   <div class="row g-3">
     <div class="col-md-6">
       <label class="form-label">Immigration Court</label>
-      <input class="form-control" name="immigration_court" list="court-options" placeholder="Search or type Court Name manually" required>
-      <datalist id="court-options">
-        {% for court in courts %}
-          <option value="{{ court.label }}" data-address="{{ court.address_text }}"></option>
-        {% endfor %}
-      </datalist>
+      <div class="autocomplete-wrap">
+        <input class="form-control motion-autocomplete" name="immigration_court" data-list="court-options" data-address-target="immigration_court_address" autocomplete="off" placeholder="Search or type Court Name manually" required>
+        <div class="autocomplete-menu" id="court-options">
+          {% for court in courts %}
+            <button type="button" data-value="{{ court.label }}" data-address="{{ court.address_text }}">{{ court.label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-text">{{ courts|length }} courts loaded. Manual entry is allowed.</div>
     </div>
     <div class="col-md-6">
       <label class="form-label">Immigration Court Address</label>
@@ -55,12 +58,15 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">Immigration Judge</label>
-      <input class="form-control" name="immigration_judge" list="judge-options" placeholder="Search or type manually" required>
-      <datalist id="judge-options">
-        {% for judge in judges %}
-          <option value="{{ judge.label }}"></option>
-        {% endfor %}
-      </datalist>
+      <div class="autocomplete-wrap">
+        <input class="form-control motion-autocomplete" name="immigration_judge" data-list="judge-options" autocomplete="off" placeholder="Search or type manually" required>
+        <div class="autocomplete-menu" id="judge-options">
+          {% for judge in judges %}
+            <button type="button" data-value="{{ judge.label }}">{{ judge.label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-text">{{ judges|length }} judges loaded. Manual entry is allowed.</div>
     </div>
     <div class="col-md-4">
       <label class="form-label">OPLA Office</label>
@@ -68,12 +74,15 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">OPLA Address Search</label>
-      <input class="form-control" name="opla_lookup" list="opla-options" placeholder="Search OPLA office or type address manually below">
-      <datalist id="opla-options">
-        {% for office in opla_offices %}
-          <option value="{{ office.label }}" data-address="{{ office.address_text }}"></option>
-        {% endfor %}
-      </datalist>
+      <div class="autocomplete-wrap">
+        <input class="form-control motion-autocomplete" name="opla_lookup" data-list="opla-options" data-address-target="opla_address" autocomplete="off" placeholder="Search OPLA office or type address manually below">
+        <div class="autocomplete-menu" id="opla-options">
+          {% for office in opla_offices %}
+            <button type="button" data-value="{{ office.label }}" data-address="{{ office.address_text }}">{{ office.label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-text">{{ opla_offices|length }} OPLA offices loaded. Manual address entry is allowed.</div>
     </div>
     <div class="col-md-4">
       <label class="form-label">OPLA Address</label>
@@ -136,18 +145,44 @@
   });
   updateRemoveButtons();
 
-  const hydrateAddressFromDatalist = (inputName, addressName, datalistId) => {
-    const input = document.querySelector(`[name="${inputName}"]`);
-    const address = document.querySelector(`[name="${addressName}"]`);
-    const datalist = document.getElementById(datalistId);
-    input?.addEventListener("change", () => {
-      const option = Array.from(datalist?.options || []).find((item) => item.value === input.value);
-      if (option && option.dataset.address && !address.value.trim()) {
-        address.value = option.dataset.address;
+  document.querySelectorAll(".motion-autocomplete").forEach((input) => {
+    const menu = document.getElementById(input.dataset.list);
+    const buttons = Array.from(menu?.querySelectorAll("button") || []);
+    const addressTarget = input.dataset.addressTarget ? document.querySelector(`[name="${input.dataset.addressTarget}"]`) : null;
+
+    const filterMenu = () => {
+      const query = input.value.trim().toLowerCase();
+      let visibleCount = 0;
+      buttons.forEach((button) => {
+        const visible = query && button.textContent.toLowerCase().includes(query);
+        button.hidden = !visible;
+        if (visible && visibleCount < 12) {
+          visibleCount += 1;
+        } else if (visible) {
+          button.hidden = true;
+        }
+      });
+      menu.classList.toggle("show", visibleCount > 0);
+    };
+
+    input.addEventListener("input", filterMenu);
+    input.addEventListener("focus", filterMenu);
+    menu?.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) {
+        return;
+      }
+      input.value = button.dataset.value;
+      if (addressTarget && button.dataset.address) {
+        addressTarget.value = button.dataset.address;
+      }
+      menu.classList.remove("show");
+    });
+    document.addEventListener("click", (event) => {
+      if (!input.closest(".autocomplete-wrap").contains(event.target)) {
+        menu.classList.remove("show");
       }
     });
-  };
-  hydrateAddressFromDatalist("immigration_court", "immigration_court_address", "court-options");
-  hydrateAddressFromDatalist("opla_lookup", "opla_address", "opla-options");
+  });
 </script>
 {% endblock %}
