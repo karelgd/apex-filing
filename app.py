@@ -2741,7 +2741,8 @@ def motion_pdf_response(motion):
 
     pdf.showPage()
     y = height - inch
-    y = draw_motion_page_intro(pdf, motion, "CERTIFICATE OF SERVICE", y)
+    y = draw_centered_pdf_line(pdf, "CERTIFICATE OF SERVICE", y, "Times-Bold", 12)
+    y -= 18
     service_lines = [
         f"I certify that on {datetime.utcnow().strftime('%B %d, %Y')}, a true and correct copy of the foregoing motion was served on:",
         "",
