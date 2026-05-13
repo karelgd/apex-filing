@@ -6,6 +6,12 @@ from bs4 import BeautifulSoup
 
 from app import app, db, ImmigrationCourt, OPLAOffice
 
+try:
+    from motion_reference_seed import SEEDED_COURTS, SEEDED_JUDGES
+except ImportError:
+    SEEDED_COURTS = []
+    SEEDED_JUDGES = []
+
 
 EOIR_COURT_LIST_URL = "https://www.justice.gov/eoir/find-immigration-court-and-access-internet-based-hearings"
 EOIR_BASE = "https://www.justice.gov"
@@ -204,12 +210,18 @@ def scrape_eoir_courts():
         roster_courts, _ = scrape_eoir_roster()
     except Exception as e:
         print(f"Could not download EOIR roster: {e}")
+        if SEEDED_COURTS:
+            print(f"Using bundled EOIR seed courts: {len(SEEDED_COURTS)}")
+            return SEEDED_COURTS
         print("Using bundled fallback courts.")
         return FALLBACK_COURTS
 
     if roster_courts:
         print(f"Found {len(roster_courts)} courts on the EOIR roster. Fetching address pages when available...")
         return [add_court_address_from_detail_page(court) for court in roster_courts]
+    if SEEDED_COURTS:
+        print(f"EOIR roster returned no courts. Using bundled EOIR seed courts: {len(SEEDED_COURTS)}")
+        return SEEDED_COURTS
 
     print("Downloading court list from EOIR...")
     soup = fetch_soup(EOIR_COURT_LIST_URL)
@@ -333,12 +345,17 @@ def import_courts():
             existing = ImmigrationCourt.query.filter_by(name=c["name"]).first()
 
             if existing:
-                existing.address_line1 = c["address_line1"]
-                existing.address_line2 = c["address_line2"]
-                existing.city = c["city"]
-                existing.state = c["state"]
-                existing.zip_code = c["postal_code"]
-                existing.postal_code = c["postal_code"]
+                if c["address_line1"]:
+                    existing.address_line1 = c["address_line1"]
+                if c["address_line2"]:
+                    existing.address_line2 = c["address_line2"]
+                if c["city"]:
+                    existing.city = c["city"]
+                if c["state"]:
+                    existing.state = c["state"]
+                if c["postal_code"]:
+                    existing.zip_code = c["postal_code"]
+                    existing.postal_code = c["postal_code"]
                 updated += 1
             else:
                 court = ImmigrationCourt(
@@ -1092,6 +1109,9 @@ def import_judges():
         judges = scrape_eoir_judges()
         if judges:
             print(f"Using {len(judges)} judges from EOIR court/hearing roster.")
+        elif SEEDED_JUDGES:
+            judges = SEEDED_JUDGES
+            print(f"Using bundled EOIR seed judges: {len(judges)}")
         else:
             print("EOIR judge roster returned no rows. Trying TRAC judge report as fallback...")
             try:
