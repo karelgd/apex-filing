@@ -1463,10 +1463,10 @@ def register_routes(app):
                 flash("Create a motion template before creating a motion.", "warning")
                 return redirect(url_for("motion_template_new"))
             motion = MotionDraft()
-            db.session.add(motion)
             if not update_motion_from_request(motion, agency):
                 db.session.rollback()
                 return render_motion_form_response(templates, lawyers, law_firms, references)
+            db.session.add(motion)
             db.session.commit()
             flash("Motion created.", "success")
             return redirect(url_for("motion_detail", motion_id=motion.id))
