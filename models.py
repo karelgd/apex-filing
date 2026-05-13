@@ -156,6 +156,102 @@ class AgencyPreparer(db.Model):
     agency = db.relationship("Agency", backref=db.backref("preparers", cascade="all, delete-orphan"))
 
 
+class MotionTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("motion_templates", cascade="all, delete-orphan"))
+
+    @property
+    def display_name(self):
+        first_line = next((line.strip() for line in (self.content or "").splitlines() if line.strip()), "")
+        return first_line[:80] or f"Motion Template #{self.id}"
+
+
+class ImmigrationCourt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(180), nullable=False)
+    city = db.Column(db.String(100))
+    state = db.Column(db.String(2))
+    address = db.Column(db.String(240))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    @property
+    def label(self):
+        location = ", ".join(part for part in [self.city, self.state] if part)
+        return f"{self.name} - {location}" if location else self.name
+
+
+class ImmigrationJudge(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(180), nullable=False)
+    court_name = db.Column(db.String(180))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    @property
+    def label(self):
+        return f"{self.name} - {self.court_name}" if self.court_name else self.name
+
+
+class OplaOffice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(180), nullable=False)
+    city = db.Column(db.String(100))
+    state = db.Column(db.String(2))
+    address = db.Column(db.String(240))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    @property
+    def label(self):
+        location = ", ".join(part for part in [self.city, self.state] if part)
+        return f"{self.name} - {location}" if location else self.name
+
+
+class MotionDraft(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    template_id = db.Column(db.Integer, db.ForeignKey("motion_template.id"), nullable=False)
+    immigration_court = db.Column(db.String(240), nullable=False)
+    immigration_judge = db.Column(db.String(240), nullable=False)
+    opla_office = db.Column(db.String(240), nullable=False)
+    lawyer_name = db.Column(db.String(160))
+    law_firm_name = db.Column(db.String(180))
+    rendered_content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("motion_drafts", cascade="all, delete-orphan"))
+    template = db.relationship("MotionTemplate")
+    respondents = db.relationship("MotionRespondent", back_populates="motion", cascade="all, delete-orphan", order_by="MotionRespondent.sort_order")
+
+    @property
+    def title(self):
+        if self.respondents:
+            lead = self.respondents[0]
+            return f"Motion for {lead.full_name}"
+        return f"Motion #{self.id}"
+
+
+class MotionRespondent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    motion_id = db.Column(db.Integer, db.ForeignKey("motion_draft.id"), nullable=False)
+    first_name = db.Column(db.String(80), nullable=False)
+    middle_name = db.Column(db.String(80))
+    last_name = db.Column(db.String(80), nullable=False)
+    alien_number = db.Column(db.String(40), nullable=False)
+    sort_order = db.Column(db.Integer, default=1, nullable=False)
+
+    motion = db.relationship("MotionDraft", back_populates="respondents")
+
+    @property
+    def full_name(self):
+        parts = [self.first_name, self.middle_name, self.last_name]
+        return " ".join(part for part in parts if part)
+
+
 class Client(UserMixin, PasswordMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)

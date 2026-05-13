@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ 'Edit' if template else 'Create' }} Motion Template</h1>
+    <p class="text-secondary mb-0">Templates belong only to your agency.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('agency_motions') }}">Back to Motion Creation</a>
+</div>
+
+<form class="card card-body" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3">
+    <label class="form-label">Motion content</label>
+    <textarea class="form-control font-monospace" name="content" rows="20" required>{{ template.content if template else '' }}</textarea>
+  </div>
+  <div class="text-secondary small mb-3">
+    Optional placeholders: {% raw %}{{ alien_full_name }}, {{ alien_number }}, {{ respondents }}, {{ immigration_court }}, {{ immigration_judge }}, {{ opla_office }}, {{ lawyer_name }}, {{ law_firm_name }}, {{ today }}{% endraw %}.
+  </div>
+  <button class="btn btn-primary">Save Template</button>
+</form>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <h1 class="h3 mb-1">Create Motion</h1>
+    <p class="text-secondary mb-0">Select an agency template and enter the motion details.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('agency_motions') }}">Back to Motion Creation</a>
+</div>
+
+{% if not templates %}
+  <div class="alert alert-warning">
+    Create a motion template before creating a motion.
+    <a href="{{ url_for('motion_template_new') }}">Create Template</a>
+  </div>
+{% else %}
+<form class="card card-body" method="post" id="motion-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3">
+    <label class="form-label">Template Motion</label>
+    <select class="form-select" name="template_id" required>
+      {% for template in templates %}
+        <option value="{{ template.id }}">{{ template.display_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <h2 class="h5 mt-3">Respondents</h2>
+  <div id="respondent-list">
+    <div class="respondent-row border rounded p-3 mb-3">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3"><label class="form-label">Alien Last Name</label><input class="form-control" name="respondent_last_name[]" required></div>
+        <div class="col-md-3"><label class="form-label">Alien Middle Name</label><input class="form-control" name="respondent_middle_name[]"></div>
+        <div class="col-md-3"><label class="form-label">Alien First Name</label><input class="form-control" name="respondent_first_name[]" required></div>
+        <div class="col-md-2"><label class="form-label">Alien Number</label><input class="form-control" name="respondent_alien_number[]" required></div>
+        <div class="col-md-1"><button class="btn btn-outline-danger remove-respondent w-100" type="button" disabled>Remove</button></div>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-outline-primary align-self-start mb-4" type="button" id="add-respondent">+ Add more respondents</button>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Immigration Court</label>
+      <input class="form-control" name="immigration_court" list="court-options" placeholder="Search or type manually" required>
+      <datalist id="court-options">
+        {% for court in courts %}
+          <option value="{{ court.label }}"></option>
+        {% endfor %}
+      </datalist>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Immigration Judge</label>
+      <input class="form-control" name="immigration_judge" list="judge-options" placeholder="Search or type manually" required>
+      <datalist id="judge-options">
+        {% for judge in judges %}
+          <option value="{{ judge.label }}"></option>
+        {% endfor %}
+      </datalist>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">OPLA Office</label>
+      <input class="form-control" name="opla_office" list="opla-options" placeholder="Search or type manually" required>
+      <datalist id="opla-options">
+        {% for office in opla_offices %}
+          <option value="{{ office.label }}"></option>
+        {% endfor %}
+      </datalist>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Lawyer Name</label>
+      <input class="form-control" name="lawyer_name" placeholder="Leave blank for pro se">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Law Firm Name</label>
+      <input class="form-control" name="law_firm_name" placeholder="Optional">
+    </div>
+  </div>
+
+  <button class="btn btn-primary mt-4">Create Motion</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const respondentList = document.getElementById("respondent-list");
+  const updateRemoveButtons = () => {
+    const rows = respondentList?.querySelectorAll(".respondent-row") || [];
+    rows.forEach((row) => {
+      row.querySelector(".remove-respondent").disabled = rows.length === 1;
+    });
+  };
+  document.getElementById("add-respondent")?.addEventListener("click", () => {
+    const firstRow = respondentList.querySelector(".respondent-row");
+    const clone = firstRow.cloneNode(true);
+    clone.querySelectorAll("input").forEach((input) => {
+      input.value = "";
+    });
+    respondentList.appendChild(clone);
+    updateRemoveButtons();
+  });
+  respondentList?.addEventListener("click", (event) => {
+    if (event.target.classList.contains("remove-respondent")) {
+      event.target.closest(".respondent-row").remove();
+      updateRemoveButtons();
+    }
+  });
+  updateRemoveButtons();
+</script>
+{% endblock %}

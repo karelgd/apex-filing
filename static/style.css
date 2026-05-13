@@ -836,6 +836,20 @@ body {
   max-width: 920px;
 }
 
+.motion-preview {
+  background: #f8fbff;
+  border: 1px solid #dce6f3;
+  border-radius: 8px;
+  color: #18233a;
+  font-family: "Courier New", monospace;
+  font-size: .92rem;
+  line-height: 1.55;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 1rem;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 767.98px) {
   .agency-shell,
   .apex-shell,

@@ -11,6 +11,7 @@ from flask import (
     flash,
     redirect,
     render_template,
+    Response,
     request,
     send_from_directory,
     url_for,
@@ -38,6 +39,12 @@ from models import (
     Client,
     FormTemplate,
     GeneratedForm,
+    ImmigrationCourt,
+    ImmigrationJudge,
+    MotionDraft,
+    MotionRespondent,
+    MotionTemplate,
+    OplaOffice,
     PdfField,
     SubscriptionTool,
     db,
@@ -661,6 +668,10 @@ def can_use_form_filler(agency):
     return bool(agency and agency.has_tool("Form Filler"))
 
 
+def can_use_motion_creation(agency):
+    return bool(agency and agency.has_tool("Motion Creation"))
+
+
 def available_form_templates(active_only=True):
     query = FormTemplate.query.order_by(FormTemplate.code)
     if active_only:
@@ -714,6 +725,59 @@ def save_form_template_from_request():
             seeded_count = seed_questions_from_pdf_text(code, pdf_path)
     db.session.commit()
     return seeded_count
+
+
+def render_motion_content(template, respondents, court, judge, opla, lawyer_name, law_firm_name):
+    lead = respondents[0] if respondents else {}
+    respondent_lines = [
+        f"{person.get('last_name', '').upper()}, {person.get('first_name', '')} {person.get('middle_name', '')}".strip()
+        + f" (A# {person.get('alien_number', '')})"
+        for person in respondents
+    ]
+    variables = {
+        "alien_first_name": lead.get("first_name", ""),
+        "alien_middle_name": lead.get("middle_name", ""),
+        "alien_last_name": lead.get("last_name", ""),
+        "alien_full_name": " ".join(part for part in [lead.get("first_name", ""), lead.get("middle_name", ""), lead.get("last_name", "")] if part),
+        "alien_number": lead.get("alien_number", ""),
+        "respondents": "\n".join(respondent_lines),
+        "immigration_court": court,
+        "immigration_judge": judge,
+        "opla_office": opla,
+        "lawyer_name": lawyer_name,
+        "law_firm_name": law_firm_name,
+        "today": datetime.utcnow().strftime("%B %d, %Y"),
+    }
+    rendered = template.content or ""
+    for key, value in variables.items():
+        rendered = rendered.replace(f"{{{{ {key} }}}}", value).replace(f"{{{{{key}}}}}", value)
+    header = "\n".join(
+        [
+            f"Immigration Court: {court}",
+            f"Immigration Judge: {judge}",
+            f"OPLA Office: {opla}",
+            f"Respondent(s): {variables['respondents']}",
+            f"Attorney/Representative: {lawyer_name or 'Pro Se'}",
+            f"Law Firm: {law_firm_name or 'N/A'}",
+        ]
+    )
+    return f"{header}\n\n{'-' * 72}\n\n{rendered}".strip()
+
+
+def motion_reference_lists():
+    return {
+        "courts": ImmigrationCourt.query.filter_by(is_active=True).order_by(ImmigrationCourt.name).all(),
+        "judges": ImmigrationJudge.query.filter_by(is_active=True).order_by(ImmigrationJudge.name).all(),
+        "opla_offices": OplaOffice.query.filter_by(is_active=True).order_by(OplaOffice.name).all(),
+    }
+
+
+def motion_for_agency(motion_id, agency_id):
+    return MotionDraft.query.filter_by(id=motion_id, agency_id=agency_id).first() or abort(404)
+
+
+def motion_template_for_agency(template_id, agency_id):
+    return MotionTemplate.query.filter_by(id=template_id, agency_id=agency_id).first() or abort(404)
 
 
 def agency_can_create_case_type(agency, case_type):
@@ -1060,6 +1124,169 @@ def register_routes(app):
             templates=templates,
             cases=cases,
         )
+
+    @app.route("/agency/tools/motions")
+    @role_required("agency")
+    def agency_motions():
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        return render_template(
+            "agency_motions.html",
+            agency=agency,
+            templates=MotionTemplate.query.filter_by(agency_id=agency.id).order_by(MotionTemplate.updated_at.desc()).all(),
+            motions=MotionDraft.query.filter_by(agency_id=agency.id).order_by(MotionDraft.updated_at.desc()).all(),
+        )
+
+    @app.route("/agency/tools/motions/templates/new", methods=["GET", "POST"])
+    @role_required("agency")
+    def motion_template_new():
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        if request.method == "POST":
+            content = request.form["content"].strip()
+            if not content:
+                flash("Motion template content is required.", "danger")
+                return render_template("motion_template_form.html", template=None)
+            template = MotionTemplate(agency_id=agency.id, content=content)
+            db.session.add(template)
+            db.session.commit()
+            flash("Motion template created.", "success")
+            return redirect(url_for("agency_motions"))
+        return render_template("motion_template_form.html", template=None)
+
+    @app.route("/agency/tools/motions/templates/<int:template_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def motion_template_edit(template_id):
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        template = motion_template_for_agency(template_id, agency.id)
+        if request.method == "POST":
+            template.content = request.form["content"].strip()
+            if not template.content:
+                flash("Motion template content is required.", "danger")
+                return render_template("motion_template_form.html", template=template)
+            db.session.commit()
+            flash("Motion template updated.", "success")
+            return redirect(url_for("agency_motions"))
+        return render_template("motion_template_form.html", template=template)
+
+    @app.route("/agency/tools/motions/templates/<int:template_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def motion_template_delete(template_id):
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        template = motion_template_for_agency(template_id, agency.id)
+        if MotionDraft.query.filter_by(template_id=template.id).first():
+            flash("This template already has created motions, so it cannot be deleted yet.", "warning")
+            return redirect(url_for("agency_motions"))
+        db.session.delete(template)
+        db.session.commit()
+        flash("Motion template deleted.", "info")
+        return redirect(url_for("agency_motions"))
+
+    @app.route("/agency/tools/motions/new", methods=["GET", "POST"])
+    @role_required("agency")
+    def motion_create():
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        templates = MotionTemplate.query.filter_by(agency_id=agency.id).order_by(MotionTemplate.updated_at.desc()).all()
+        references = motion_reference_lists()
+        if request.method == "POST":
+            if not templates:
+                flash("Create a motion template before creating a motion.", "warning")
+                return redirect(url_for("motion_template_new"))
+            template = motion_template_for_agency(int(request.form["template_id"]), agency.id)
+            first_names = request.form.getlist("respondent_first_name[]")
+            middle_names = request.form.getlist("respondent_middle_name[]")
+            last_names = request.form.getlist("respondent_last_name[]")
+            alien_numbers = request.form.getlist("respondent_alien_number[]")
+            respondents = []
+            for index, first_name in enumerate(first_names):
+                person = {
+                    "first_name": first_name.strip(),
+                    "middle_name": middle_names[index].strip() if index < len(middle_names) else "",
+                    "last_name": last_names[index].strip() if index < len(last_names) else "",
+                    "alien_number": alien_numbers[index].strip() if index < len(alien_numbers) else "",
+                }
+                if person["first_name"] or person["last_name"] or person["alien_number"]:
+                    respondents.append(person)
+            if not respondents or any(not person["first_name"] or not person["last_name"] or not person["alien_number"] for person in respondents):
+                flash("Each respondent needs first name, last name, and alien number.", "danger")
+                return render_template("motion_form.html", templates=templates, **references)
+            court = request.form["immigration_court"].strip()
+            judge = request.form["immigration_judge"].strip()
+            opla = request.form["opla_office"].strip()
+            if not court or not judge or not opla:
+                flash("Immigration Court, Immigration Judge, and OPLA Office are required.", "danger")
+                return render_template("motion_form.html", templates=templates, **references)
+            lawyer_name = request.form.get("lawyer_name", "").strip()
+            law_firm_name = request.form.get("law_firm_name", "").strip()
+            motion = MotionDraft(
+                agency_id=agency.id,
+                template_id=template.id,
+                immigration_court=court,
+                immigration_judge=judge,
+                opla_office=opla,
+                lawyer_name=lawyer_name,
+                law_firm_name=law_firm_name,
+                rendered_content=render_motion_content(template, respondents, court, judge, opla, lawyer_name, law_firm_name),
+            )
+            db.session.add(motion)
+            db.session.flush()
+            for index, person in enumerate(respondents, start=1):
+                db.session.add(MotionRespondent(motion_id=motion.id, sort_order=index, **person))
+            db.session.commit()
+            flash("Motion created.", "success")
+            return redirect(url_for("motion_detail", motion_id=motion.id))
+        return render_template("motion_form.html", templates=templates, **references)
+
+    @app.route("/agency/tools/motions/<int:motion_id>")
+    @role_required("agency")
+    def motion_detail(motion_id):
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        motion = motion_for_agency(motion_id, agency.id)
+        return render_template("motion_detail.html", motion=motion)
+
+    @app.route("/agency/tools/motions/<int:motion_id>/download")
+    @role_required("agency")
+    def motion_download(motion_id):
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        motion = motion_for_agency(motion_id, agency.id)
+        filename = f"motion-{motion.id}.txt"
+        return Response(
+            motion.rendered_content,
+            mimetype="text/plain",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    @app.route("/agency/tools/motions/<int:motion_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def motion_delete(motion_id):
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        motion = motion_for_agency(motion_id, agency.id)
+        db.session.delete(motion)
+        db.session.commit()
+        flash("Motion deleted.", "info")
+        return redirect(url_for("agency_motions"))
 
     @app.route("/agency/translators", methods=["GET", "POST"])
     @role_required("agency")

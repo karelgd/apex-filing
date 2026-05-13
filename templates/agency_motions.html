@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Motion Creation</h1>
+    <p class="text-secondary mb-0">Create agency-owned motion templates and generate motion drafts.</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="{{ url_for('motion_create') }}">+ Create Motion</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('motion_template_new') }}">+ Create Template</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header bg-white">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span class="fw-semibold">Agency Templates</span>
+          <input class="form-control form-control-sm motion-search" data-target="motion-template-row" placeholder="Search templates">
+        </div>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for template in templates %}
+          <div class="list-group-item motion-template-row" data-search="{{ template.display_name|lower }}">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <strong>{{ template.display_name }}</strong>
+                <div class="small text-secondary">Updated {{ template.updated_at.strftime('%b %d, %Y') }}</div>
+              </div>
+              <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('motion_template_edit', template_id=template.id) }}">Edit</a>
+                <form method="post" action="{{ url_for('motion_template_delete', template_id=template.id) }}" onsubmit="return confirm('Delete this template?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="list-group-item text-secondary">No motion templates yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header bg-white">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span class="fw-semibold">Created Motions</span>
+          <input class="form-control form-control-sm motion-search" data-target="motion-row" placeholder="Search motions">
+        </div>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for motion in motions %}
+          <a class="list-group-item list-group-item-action motion-row" href="{{ url_for('motion_detail', motion_id=motion.id) }}" data-search="{{ (motion.title ~ ' ' ~ motion.immigration_court ~ ' ' ~ motion.immigration_judge ~ ' ' ~ motion.opla_office)|lower }}">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                <strong>{{ motion.title }}</strong>
+                <div class="small text-secondary">{{ motion.immigration_court }} - {{ motion.immigration_judge }}</div>
+              </div>
+              <span class="badge text-bg-light border">{{ motion.created_at.strftime('%b %d, %Y') }}</span>
+            </div>
+          </a>
+        {% else %}
+          <div class="list-group-item text-secondary">No motions created yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".motion-search").forEach((input) => {
+    const rows = Array.from(document.querySelectorAll("." + input.dataset.target));
+    input.addEventListener("input", () => {
+      const query = input.value.trim().toLowerCase();
+      rows.forEach((row) => row.classList.toggle("d-none", query && !row.dataset.search.includes(query)));
+    });
+  });
+</script>
+{% endblock %}

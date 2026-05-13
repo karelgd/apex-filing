@@ -68,7 +68,7 @@
             <a class="tool-link {{ 'active' if request.endpoint in ['agency_form_filler', 'case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
           {% endif %}
           {% if current_user.agency.has_tool('Motion Creation') %}
-            <span class="tool-link muted">Motion Creation</span>
+            <a class="tool-link {{ 'active' if request.endpoint in ['agency_motions', 'motion_template_new', 'motion_template_edit', 'motion_template_delete', 'motion_create', 'motion_detail', 'motion_download', 'motion_delete'] else '' }}" href="{{ url_for('agency_motions') }}">Motion Creation</a>
           {% endif %}
           {% if current_user.agency.has_tool('Power of Attorney Creator') %}
             <span class="tool-link muted">Power of Attorney</span>
