@@ -113,7 +113,10 @@
 {% block scripts %}
 <script>
   (() => {
-    const language = localStorage.getItem("apexClientLanguage") || "en";
+    const language =
+      localStorage.getItem("apexClientLanguage") ||
+      document.getElementById("client-language-select")?.value ||
+      "en";
     if (language === "en") {
       return;
     }
@@ -152,12 +155,25 @@
       return null;
     };
 
-    document.querySelectorAll(".question-prompt, .question-map-link b, [data-i18n-text]").forEach((element) => {
-      const sourceText = element.dataset.i18nText || element.dataset.originalText || element.textContent;
-      const translated = translatePrompt(sourceText) || translatePrompt(element.textContent);
-      if (translated) {
-        element.textContent = translated;
-      }
+    const applyDirectTranslations = () => {
+      document.querySelectorAll(".question-prompt, .question-map-link b, [data-i18n-text]").forEach((element) => {
+        const sourceText = element.dataset.i18nText || element.dataset.originalText || element.textContent;
+        const translated = translatePrompt(sourceText) || translatePrompt(element.textContent);
+        if (translated && element.textContent !== translated) {
+          element.textContent = translated;
+        }
+      });
+    };
+
+    applyDirectTranslations();
+    window.addEventListener("load", applyDirectTranslations);
+    setTimeout(applyDirectTranslations, 50);
+    setTimeout(applyDirectTranslations, 250);
+    setTimeout(applyDirectTranslations, 750);
+    new MutationObserver(applyDirectTranslations).observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true
     });
   })();
 </script>
