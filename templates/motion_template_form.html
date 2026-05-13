@@ -13,6 +13,12 @@
   <div class="mb-3">
     <label class="form-label">Template Name</label>
     <input class="form-control" name="name" value="{{ template.name if template else '' }}" required>
+    <div class="form-text">Internal name used by the agency to find this template later.</div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Motion Title</label>
+    <input class="form-control" name="motion_title" value="{{ template.motion_title if template else '' }}" placeholder="Example: Motion to Reopen" required>
+    <div class="form-text">This title appears on the generated motion document in all caps.</div>
   </div>
   <div class="mb-3">
     <label class="form-label">Motion content</label>

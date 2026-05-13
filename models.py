@@ -190,6 +190,7 @@ class MotionTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     name = db.Column(db.String(180), nullable=False, default="Untitled Motion Template")
+    motion_title = db.Column(db.String(220), nullable=False, default="MOTION")
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -278,6 +279,7 @@ class MotionDraft(db.Model):
     law_firm_name = db.Column(db.String(180))
     law_firm_phone = db.Column(db.String(40))
     law_firm_address = db.Column(db.Text)
+    motion_title = db.Column(db.String(220))
     detention_status = db.Column(db.String(30))
     next_hearing_date = db.Column(db.String(20))
     next_hearing_type = db.Column(db.String(30))
@@ -294,8 +296,10 @@ class MotionDraft(db.Model):
 
     @property
     def title(self):
-        if self.template and self.template.display_name:
-            return self.template.display_name.upper()
+        if self.motion_title:
+            return self.motion_title.upper()
+        if self.template and self.template.motion_title:
+            return self.template.motion_title.upper()
         return f"Motion #{self.id}"
 
 

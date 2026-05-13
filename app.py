@@ -886,7 +886,7 @@ def render_motion_content(template, respondents, court, court_address, judge, op
     sections = [
         "PRESENTATION",
         caption,
-        template.display_name.upper(),
+        (template.motion_title or template.display_name).upper(),
         rendered,
         "EXHIBITS",
         render_exhibits_text(exhibits) or "No exhibits listed.",
@@ -912,6 +912,84 @@ def motion_for_agency(motion_id, agency_id):
 
 def motion_template_for_agency(template_id, agency_id):
     return MotionTemplate.query.filter_by(id=template_id, agency_id=agency_id).first() or abort(404)
+
+
+def render_motion_form_response(templates, lawyers, law_firms, references, motion=None):
+    return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, motion=motion, **references)
+
+
+def update_motion_from_request(motion, agency):
+    template = motion_template_for_agency(int(request.form["template_id"]), agency.id)
+    first_names = request.form.getlist("respondent_first_name[]")
+    middle_names = request.form.getlist("respondent_middle_name[]")
+    last_names = request.form.getlist("respondent_last_name[]")
+    alien_numbers = request.form.getlist("respondent_alien_number[]")
+    respondents = []
+    for index, first_name in enumerate(first_names):
+        person = {
+            "first_name": first_name.strip(),
+            "middle_name": middle_names[index].strip() if index < len(middle_names) else "",
+            "last_name": last_names[index].strip() if index < len(last_names) else "",
+            "alien_number": alien_numbers[index].strip() if index < len(alien_numbers) else "",
+        }
+        if person["first_name"] or person["last_name"] or person["alien_number"]:
+            respondents.append(person)
+    if not respondents or any(not person["first_name"] or not person["last_name"] or not person["alien_number"] for person in respondents):
+        flash("Each respondent needs first name, last name, and alien number.", "danger")
+        return False
+
+    court = request.form["immigration_court"].strip()
+    court_address = request.form.get("immigration_court_address", "").strip()
+    judge = request.form["immigration_judge"].strip()
+    detention_status = request.form.get("detention_status", "").strip()
+    next_hearing_date = request.form.get("next_hearing_date", "").strip()
+    next_hearing_type = request.form.get("next_hearing_type", "").strip()
+    opla = request.form.get("opla_office", "Office of the Principal Legal Advisor").strip() or "Office of the Principal Legal Advisor"
+    opla_address = request.form.get("opla_address", "").strip()
+    if not court or not court_address or not judge or not opla or not opla_address:
+        flash("Immigration Court, Court Address, Immigration Judge, OPLA Office, and OPLA Address are required.", "danger")
+        return False
+    if not detention_status or not next_hearing_date or not next_hearing_type:
+        flash("Detention classification, next hearing date, and next hearing type are required.", "danger")
+        return False
+
+    lawyer_id = request.form.get("lawyer_id")
+    law_firm_id = request.form.get("law_firm_id")
+    exhibits = normalize_exhibits(request.form.getlist("exhibit_description[]"))
+    lawyer = db.session.get(AgencyLawyer, int(lawyer_id)) if lawyer_id else None
+    law_firm = db.session.get(AgencyLawFirm, int(law_firm_id)) if law_firm_id else None
+    if lawyer and lawyer.agency_id != agency.id:
+        abort(403)
+    if law_firm and law_firm.agency_id != agency.id:
+        abort(403)
+
+    motion.agency_id = agency.id
+    motion.template_id = template.id
+    motion.motion_title = template.motion_title
+    motion.immigration_court = court
+    motion.immigration_court_address = court_address
+    motion.immigration_judge = judge
+    motion.opla_office = opla
+    motion.opla_address = opla_address
+    motion.lawyer_id = lawyer.id if lawyer else None
+    motion.law_firm_id = law_firm.id if law_firm else None
+    motion.lawyer_name = lawyer.full_name if lawyer else ""
+    motion.lawyer_bar_number = lawyer.bar_number if lawyer else ""
+    motion.law_firm_name = law_firm.name if law_firm else ""
+    motion.law_firm_phone = law_firm.phone if law_firm else ""
+    motion.law_firm_address = law_firm.address if law_firm else ""
+    motion.detention_status = detention_status
+    motion.next_hearing_date = next_hearing_date
+    motion.next_hearing_type = next_hearing_type
+    motion.exhibits_text = "\n".join(exhibits)
+    motion.rendered_content = render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits, detention_status, next_hearing_date, next_hearing_type)
+
+    if motion.id:
+        MotionRespondent.query.filter_by(motion_id=motion.id).delete()
+        db.session.flush()
+    for index, person in enumerate(respondents, start=1):
+        db.session.add(MotionRespondent(motion=motion, sort_order=index, **person))
+    return True
 
 
 def agency_can_create_case_type(agency, case_type):
@@ -1309,14 +1387,18 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         if request.method == "POST":
             name = request.form["name"].strip()
+            motion_title = request.form["motion_title"].strip()
             content = request.form["content"].strip()
             if not name:
                 flash("Template name is required.", "danger")
                 return render_template("motion_template_form.html", template=None)
+            if not motion_title:
+                flash("Motion title is required.", "danger")
+                return render_template("motion_template_form.html", template=None)
             if not content:
                 flash("Motion template content is required.", "danger")
                 return render_template("motion_template_form.html", template=None)
-            template = MotionTemplate(agency_id=agency.id, name=name, content=content)
+            template = MotionTemplate(agency_id=agency.id, name=name, motion_title=motion_title, content=content)
             db.session.add(template)
             db.session.commit()
             flash("Motion template created.", "success")
@@ -1333,9 +1415,13 @@ def register_routes(app):
         template = motion_template_for_agency(template_id, agency.id)
         if request.method == "POST":
             template.name = request.form["name"].strip()
+            template.motion_title = request.form["motion_title"].strip()
             template.content = request.form["content"].strip()
             if not template.name:
                 flash("Template name is required.", "danger")
+                return render_template("motion_template_form.html", template=template)
+            if not template.motion_title:
+                flash("Motion title is required.", "danger")
                 return render_template("motion_template_form.html", template=template)
             if not template.content:
                 flash("Motion template content is required.", "danger")
@@ -1376,76 +1462,36 @@ def register_routes(app):
             if not templates:
                 flash("Create a motion template before creating a motion.", "warning")
                 return redirect(url_for("motion_template_new"))
-            template = motion_template_for_agency(int(request.form["template_id"]), agency.id)
-            first_names = request.form.getlist("respondent_first_name[]")
-            middle_names = request.form.getlist("respondent_middle_name[]")
-            last_names = request.form.getlist("respondent_last_name[]")
-            alien_numbers = request.form.getlist("respondent_alien_number[]")
-            respondents = []
-            for index, first_name in enumerate(first_names):
-                person = {
-                    "first_name": first_name.strip(),
-                    "middle_name": middle_names[index].strip() if index < len(middle_names) else "",
-                    "last_name": last_names[index].strip() if index < len(last_names) else "",
-                    "alien_number": alien_numbers[index].strip() if index < len(alien_numbers) else "",
-                }
-                if person["first_name"] or person["last_name"] or person["alien_number"]:
-                    respondents.append(person)
-            if not respondents or any(not person["first_name"] or not person["last_name"] or not person["alien_number"] for person in respondents):
-                flash("Each respondent needs first name, last name, and alien number.", "danger")
-                return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
-            court = request.form["immigration_court"].strip()
-            court_address = request.form.get("immigration_court_address", "").strip()
-            judge = request.form["immigration_judge"].strip()
-            detention_status = request.form.get("detention_status", "").strip()
-            next_hearing_date = request.form.get("next_hearing_date", "").strip()
-            next_hearing_type = request.form.get("next_hearing_type", "").strip()
-            opla = request.form.get("opla_office", "Office of the Principal Legal Advisor").strip() or "Office of the Principal Legal Advisor"
-            opla_address = request.form.get("opla_address", "").strip()
-            if not court or not court_address or not judge or not opla or not opla_address:
-                flash("Immigration Court, Court Address, Immigration Judge, OPLA Office, and OPLA Address are required.", "danger")
-                return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
-            if not detention_status or not next_hearing_date or not next_hearing_type:
-                flash("Detention classification, next hearing date, and next hearing type are required.", "danger")
-                return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
-            lawyer_id = request.form.get("lawyer_id")
-            law_firm_id = request.form.get("law_firm_id")
-            exhibits = normalize_exhibits(request.form.getlist("exhibit_description[]"))
-            lawyer = db.session.get(AgencyLawyer, int(lawyer_id)) if lawyer_id else None
-            law_firm = db.session.get(AgencyLawFirm, int(law_firm_id)) if law_firm_id else None
-            if lawyer and lawyer.agency_id != agency.id:
-                abort(403)
-            if law_firm and law_firm.agency_id != agency.id:
-                abort(403)
-            motion = MotionDraft(
-                agency_id=agency.id,
-                template_id=template.id,
-                immigration_court=court,
-                immigration_court_address=court_address,
-                immigration_judge=judge,
-                opla_office=opla,
-                opla_address=opla_address,
-                lawyer_id=lawyer.id if lawyer else None,
-                law_firm_id=law_firm.id if law_firm else None,
-                lawyer_name=lawyer.full_name if lawyer else "",
-                lawyer_bar_number=lawyer.bar_number if lawyer else "",
-                law_firm_name=law_firm.name if law_firm else "",
-                law_firm_phone=law_firm.phone if law_firm else "",
-                law_firm_address=law_firm.address if law_firm else "",
-                detention_status=detention_status,
-                next_hearing_date=next_hearing_date,
-                next_hearing_type=next_hearing_type,
-                exhibits_text="\n".join(exhibits),
-                rendered_content=render_motion_content(template, respondents, court, court_address, judge, opla, opla_address, lawyer, law_firm, exhibits, detention_status, next_hearing_date, next_hearing_type),
-            )
+            motion = MotionDraft()
             db.session.add(motion)
-            db.session.flush()
-            for index, person in enumerate(respondents, start=1):
-                db.session.add(MotionRespondent(motion_id=motion.id, sort_order=index, **person))
+            if not update_motion_from_request(motion, agency):
+                db.session.rollback()
+                return render_motion_form_response(templates, lawyers, law_firms, references)
             db.session.commit()
             flash("Motion created.", "success")
             return redirect(url_for("motion_detail", motion_id=motion.id))
-        return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, **references)
+        return render_motion_form_response(templates, lawyers, law_firms, references)
+
+    @app.route("/agency/tools/motions/<int:motion_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def motion_edit(motion_id):
+        agency = current_user.agency
+        if not can_use_motion_creation(agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        motion = motion_for_agency(motion_id, agency.id)
+        templates = MotionTemplate.query.filter_by(agency_id=agency.id).order_by(MotionTemplate.updated_at.desc()).all()
+        references = motion_reference_lists()
+        lawyers = AgencyLawyer.query.filter_by(agency_id=agency.id).order_by(AgencyLawyer.last_name, AgencyLawyer.first_name).all()
+        law_firms = AgencyLawFirm.query.filter_by(agency_id=agency.id).order_by(AgencyLawFirm.name).all()
+        if request.method == "POST":
+            if not update_motion_from_request(motion, agency):
+                db.session.rollback()
+                return render_motion_form_response(templates, lawyers, law_firms, references, motion=motion)
+            db.session.commit()
+            flash("Motion updated.", "success")
+            return redirect(url_for("motion_detail", motion_id=motion.id))
+        return render_motion_form_response(templates, lawyers, law_firms, references, motion=motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>")
     @role_required("agency")
@@ -2776,6 +2822,7 @@ def ensure_sqlite_schema():
         existing_motion_template = {column["name"] for column in inspector.get_columns("motion_template")}
         motion_template_additions = {
             "name": "VARCHAR(180) DEFAULT 'Untitled Motion Template' NOT NULL",
+            "motion_title": "VARCHAR(220) DEFAULT 'MOTION' NOT NULL",
         }
         for column, ddl in motion_template_additions.items():
             if column not in existing_motion_template:
@@ -2790,6 +2837,7 @@ def ensure_sqlite_schema():
             "lawyer_bar_number": "VARCHAR(80)",
             "law_firm_phone": "VARCHAR(40)",
             "law_firm_address": "TEXT",
+            "motion_title": "VARCHAR(220)",
             "exhibits_text": "TEXT",
             "detention_status": "VARCHAR(30)",
             "next_hearing_date": "VARCHAR(20)",

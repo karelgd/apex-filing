@@ -6,6 +6,7 @@
     <p class="text-secondary mb-0">{{ motion.immigration_court }} - {{ motion.immigration_judge }}</p>
   </div>
   <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="{{ url_for('motion_edit', motion_id=motion.id) }}">Edit Motion</a>
     <a class="btn btn-primary" href="{{ url_for('motion_pdf', motion_id=motion.id) }}">Download PDF</a>
     <a class="btn btn-outline-primary" href="{{ url_for('motion_download', motion_id=motion.id) }}">Download TXT</a>
     <a class="btn btn-outline-secondary" href="{{ url_for('agency_motions') }}">Back</a>

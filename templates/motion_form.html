@@ -3,7 +3,7 @@
 <div class="motion-page">
 <div class="d-flex justify-content-between align-items-start gap-3 mb-4 motion-heading">
   <div>
-    <h1 class="h3 mb-1">Create Motion</h1>
+    <h1 class="h3 mb-1">{{ 'Edit Motion' if motion else 'Create Motion' }}</h1>
     <p class="text-secondary mb-0">Select an agency template and enter the motion details.</p>
   </div>
   <a class="btn motion-btn motion-btn-muted" href="{{ url_for('agency_motions') }}">Back to Motion Creation</a>
@@ -30,7 +30,7 @@
       <label class="form-label">Template Motion</label>
       <select class="form-select" name="template_id" required>
         {% for template in templates %}
-          <option value="{{ template.id }}">{{ template.display_name }}</option>
+          <option value="{{ template.id }}" {% if motion and motion.template_id == template.id %}selected{% endif %}>{{ template.display_name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -45,15 +45,18 @@
       </div>
     </div>
     <div id="respondent-list">
+      {% set respondent_rows = motion.respondents if motion else [None] %}
+      {% for respondent in respondent_rows %}
       <div class="respondent-row">
         <div class="motion-grid motion-grid-respondent">
-          <div><label class="form-label">Alien Last Name</label><input class="form-control" name="respondent_last_name[]" required></div>
-          <div><label class="form-label">Alien Middle Name</label><input class="form-control" name="respondent_middle_name[]"></div>
-          <div><label class="form-label">Alien First Name</label><input class="form-control" name="respondent_first_name[]" required></div>
-          <div><label class="form-label">Alien Number</label><input class="form-control" name="respondent_alien_number[]" required></div>
+          <div><label class="form-label">Alien First Name</label><input class="form-control" name="respondent_first_name[]" value="{{ respondent.first_name if respondent else '' }}" required></div>
+          <div><label class="form-label">Alien Middle Name</label><input class="form-control" name="respondent_middle_name[]" value="{{ respondent.middle_name if respondent else '' }}"></div>
+          <div><label class="form-label">Alien Last Name</label><input class="form-control" name="respondent_last_name[]" value="{{ respondent.last_name if respondent else '' }}" required></div>
+          <div><label class="form-label">Alien Number</label><input class="form-control" name="respondent_alien_number[]" value="{{ respondent.alien_number if respondent else '' }}" required></div>
           <div class="motion-row-action"><button class="btn motion-btn motion-btn-danger remove-respondent" type="button" disabled>Remove</button></div>
         </div>
       </div>
+      {% endfor %}
     </div>
     <button class="btn motion-btn motion-btn-teal" type="button" id="add-respondent">Add Respondent</button>
     <div class="motion-field-grid mt-3">
@@ -61,20 +64,20 @@
         <label class="form-label">Detention Classification</label>
         <select class="form-select" name="detention_status" required>
           <option value="">Select one</option>
-          <option value="Detained">Detained</option>
-          <option value="Non-Detained">Non-Detained</option>
+          <option value="Detained" {% if motion and motion.detention_status == 'Detained' %}selected{% endif %}>Detained</option>
+          <option value="Non-Detained" {% if motion and motion.detention_status == 'Non-Detained' %}selected{% endif %}>Non-Detained</option>
         </select>
       </div>
       <div>
         <label class="form-label">Next Hearing Date</label>
-        <input class="form-control" type="date" name="next_hearing_date" required>
+        <input class="form-control" type="date" name="next_hearing_date" value="{{ motion.next_hearing_date if motion else '' }}" required>
       </div>
       <div>
         <label class="form-label">Next Hearing Type</label>
         <select class="form-select" name="next_hearing_type" required>
           <option value="">Select one</option>
-          <option value="Master">Master</option>
-          <option value="Individual">Individual</option>
+          <option value="Master" {% if motion and motion.next_hearing_type == 'Master' %}selected{% endif %}>Master</option>
+          <option value="Individual" {% if motion and motion.next_hearing_type == 'Individual' %}selected{% endif %}>Individual</option>
         </select>
       </div>
     </div>
@@ -92,7 +95,7 @@
       <div>
         <label class="form-label">Immigration Court</label>
         <div class="autocomplete-wrap">
-          <input class="form-control motion-autocomplete" name="immigration_court" data-list="court-options" data-address-target="immigration_court_address" autocomplete="off" placeholder="Search court or type manually" required>
+          <input class="form-control motion-autocomplete" name="immigration_court" data-list="court-options" data-address-target="immigration_court_address" autocomplete="off" placeholder="Search court or type manually" value="{{ motion.immigration_court if motion else '' }}" required>
           <div class="autocomplete-menu" id="court-options">
             {% for court in courts %}
               <button type="button" data-value="{{ court.label }}" data-address="{{ court.address_text }}">{{ court.label }}</button>
@@ -103,7 +106,7 @@
       </div>
       <div>
         <label class="form-label">Court Address</label>
-        <textarea class="form-control" name="immigration_court_address" rows="2" placeholder="Required when entered manually"></textarea>
+        <textarea class="form-control" name="immigration_court_address" rows="2" placeholder="Required when entered manually">{{ motion.immigration_court_address if motion else '' }}</textarea>
       </div>
     </div>
   </section>
@@ -120,7 +123,7 @@
       <div>
         <label class="form-label">Immigration Judge</label>
         <div class="autocomplete-wrap">
-          <input class="form-control motion-autocomplete" name="immigration_judge" data-list="judge-options" autocomplete="off" placeholder="Search judge or type manually" required>
+          <input class="form-control motion-autocomplete" name="immigration_judge" data-list="judge-options" autocomplete="off" placeholder="Search judge or type manually" value="{{ motion.immigration_judge if motion else '' }}" required>
           <div class="autocomplete-menu" id="judge-options">
             {% for judge in judges %}
               <button type="button" data-value="{{ judge.label }}">{{ judge.label }}</button>
@@ -159,7 +162,7 @@
       </div>
       <div>
         <label class="form-label">OPLA Address</label>
-        <textarea class="form-control" name="opla_address" rows="2" placeholder="Required when entered manually"></textarea>
+        <textarea class="form-control" name="opla_address" rows="2" placeholder="Required when entered manually">{{ motion.opla_address if motion else '' }}</textarea>
       </div>
     </div>
   </section>
@@ -173,13 +176,16 @@
       </div>
     </div>
     <div id="exhibit-list">
+      {% set exhibit_rows = motion.exhibits_text.splitlines() if motion and motion.exhibits_text else [''] %}
+      {% for exhibit in exhibit_rows %}
       <div class="exhibit-row">
         <label class="form-label">Exhibit A</label>
         <div class="motion-exhibit-grid">
-          <input class="form-control" name="exhibit_description[]" placeholder="Example: Copy of prior removal order">
+          <input class="form-control" name="exhibit_description[]" value="{{ exhibit }}" placeholder="Example: Copy of prior removal order">
           <button class="btn motion-btn motion-btn-danger remove-exhibit" type="button" disabled>Remove</button>
         </div>
       </div>
+      {% endfor %}
     </div>
     <button class="btn motion-btn motion-btn-teal" type="button" id="add-exhibit">Add Exhibit</button>
   </section>
@@ -198,7 +204,7 @@
         <select class="form-select" name="lawyer_id">
           <option value="">Pro Se / no lawyer</option>
           {% for lawyer in lawyers %}
-            <option value="{{ lawyer.id }}">{{ lawyer.full_name }} - Bar {{ lawyer.bar_number }}</option>
+          <option value="{{ lawyer.id }}" {% if motion and motion.lawyer_id == lawyer.id %}selected{% endif %}>{{ lawyer.full_name }} - Bar {{ lawyer.bar_number }}</option>
           {% endfor %}
         </select>
         {% if not lawyers %}
@@ -210,7 +216,7 @@
         <select class="form-select" name="law_firm_id">
           <option value="">No law firm</option>
           {% for firm in law_firms %}
-            <option value="{{ firm.id }}">{{ firm.name }}</option>
+            <option value="{{ firm.id }}" {% if motion and motion.law_firm_id == firm.id %}selected{% endif %}>{{ firm.name }}</option>
           {% endfor %}
         </select>
         {% if not law_firms %}
@@ -222,7 +228,7 @@
 
   <div class="motion-submit-bar">
     <a class="btn motion-btn motion-btn-muted" href="{{ url_for('agency_motions') }}">Cancel</a>
-    <button class="btn motion-btn motion-btn-primary">Create Motion</button>
+    <button class="btn motion-btn motion-btn-primary">{{ 'Save Motion' if motion else 'Create Motion' }}</button>
   </div>
 </form>
 {% endif %}

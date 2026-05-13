@@ -53,15 +53,29 @@
       </div>
       <div class="list-group list-group-flush">
         {% for motion in motions %}
-          <a class="list-group-item list-group-item-action motion-row" href="{{ url_for('motion_detail', motion_id=motion.id) }}" data-search="{{ (motion.title ~ ' ' ~ motion.immigration_court ~ ' ' ~ motion.immigration_judge ~ ' ' ~ motion.opla_office)|lower }}">
-            <div class="d-flex justify-content-between gap-3">
+          {% set lead = motion.respondents[0] if motion.respondents else None %}
+          <div class="list-group-item motion-row" data-search="{{ (motion.title ~ ' ' ~ (lead.full_name if lead else '') ~ ' ' ~ (lead.alien_number if lead else '') ~ ' ' ~ motion.immigration_court ~ ' ' ~ motion.immigration_judge ~ ' ' ~ motion.opla_office)|lower }}">
+            <div class="d-flex justify-content-between align-items-start gap-3">
               <div>
                 <strong>{{ motion.title }}</strong>
+                <div class="small text-secondary">
+                  {% if lead %}
+                    {{ lead.full_name }} - A# {{ lead.alien_number }}
+                  {% else %}
+                    No respondent
+                  {% endif %}
+                </div>
                 <div class="small text-secondary">{{ motion.immigration_court }} - {{ motion.immigration_judge }}</div>
               </div>
-              <span class="badge text-bg-light border">{{ motion.created_at.strftime('%b %d, %Y') }}</span>
+              <div class="d-flex flex-wrap gap-2 justify-content-end motion-item-actions">
+                <a class="btn btn-sm motion-btn motion-btn-primary" href="{{ url_for('motion_edit', motion_id=motion.id) }}">Edit Motion</a>
+                <form method="post" action="{{ url_for('motion_delete', motion_id=motion.id) }}" onsubmit="return confirm('Delete this motion?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm motion-btn motion-btn-danger">Delete</button>
+                </form>
+              </div>
             </div>
-          </a>
+          </div>
         {% else %}
           <div class="list-group-item text-secondary">No motions created yet.</div>
         {% endfor %}
