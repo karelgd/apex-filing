@@ -552,6 +552,19 @@ body {
   opacity: .58;
 }
 
+.client-language-picker {
+  align-items: center;
+  color: rgba(255, 255, 255, .78);
+  display: flex;
+  font-size: .85rem;
+  font-weight: 700;
+  gap: .5rem;
+}
+
+.client-language-picker select {
+  min-width: 116px;
+}
+
 .question-card {
   background: #ffffff;
   border: 1px solid #dce6f3;

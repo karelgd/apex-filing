@@ -17,6 +17,18 @@
       <div class="collapse navbar-collapse" id="navMenu">
         <ul class="navbar-nav ms-auto">
           {% if current_user.is_authenticated %}
+            {% if current_user.role == 'client' %}
+              <li class="nav-item me-lg-3 mb-2 mb-lg-0">
+                <label class="client-language-picker">
+                  <span data-i18n="language_label">Language</span>
+                  <select class="form-select form-select-sm" id="client-language-select" aria-label="Client display language">
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="ht">Kreyòl</option>
+                  </select>
+                </label>
+              </li>
+            {% endif %}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
           {% endif %}
         </ul>
@@ -89,6 +101,9 @@
       });
     });
   </script>
+  {% if current_user.is_authenticated and current_user.role == 'client' %}
+    <script src="{{ url_for('static', filename='client_language.js') }}"></script>
+  {% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -6,7 +6,7 @@
       <div class="card-body">
         <h1 class="h4">{{ client.full_name }}</h1>
         <p class="text-secondary mb-3">{{ client.display_address }}</p>
-        <h2 class="h6">Agency</h2>
+        <h2 class="h6" data-i18n="agency">Agency</h2>
         <p class="mb-1 fw-semibold">{{ client.agency.agency_name }}</p>
         <p class="mb-1">{{ client.agency.agency_phone or client.agency.ceo_phone }}</p>
         <p class="mb-1">{{ client.agency.agency_email or client.agency.ceo_email }}</p>
@@ -15,23 +15,23 @@
     </div>
   </div>
   <div class="col-lg-8">
-    <h2 class="h4 mb-3">Your questionnaires</h2>
+    <h2 class="h4 mb-3" data-i18n="your_questionnaires">Your questionnaires</h2>
     <div class="list-group">
       {% for case in client.cases %}
         <a class="list-group-item list-group-item-action" href="{{ url_for('questionnaire', case_id=case.id) }}">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <strong>{{ case.case_type }}</strong>
-              <div class="text-secondary small">{{ case.status }}</div>
+              <div class="text-secondary small" data-i18n-text="{{ case.status }}">{{ case.status }}</div>
             </div>
             <div class="text-end" style="width: 160px">
               <div class="progress mb-1"><div class="progress-bar" style="width: {{ case.progress_percentage }}%"></div></div>
-              <small>{{ 'Continue' if case.progress_percentage else 'Start Questionnaire' }} · {{ case.progress_percentage }}%</small>
+              <small><span data-i18n="{{ 'continue' if case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.progress_percentage else 'Start Questionnaire' }}</span> &middot; {{ case.progress_percentage }}%</small>
             </div>
           </div>
         </a>
       {% else %}
-        <div class="list-group-item text-secondary">No cases have been assigned yet.</div>
+        <div class="list-group-item text-secondary" data-i18n="no_cases_assigned">No cases have been assigned yet.</div>
       {% endfor %}
     </div>
   </div>
