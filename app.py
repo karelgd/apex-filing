@@ -2530,7 +2530,7 @@ def split_pdf_lines(text, max_chars):
     return lines
 
 
-def draw_pdf_lines(pdf, lines, x, y, max_chars=90, font_name="Times-Roman", font_size=11, leading=14, bottom_margin=inch):
+def draw_pdf_lines(pdf, lines, x, y, max_chars=82, font_name="Times-Roman", font_size=11, leading=14, bottom_margin=inch):
     width, height = letter
     pdf.setFont(font_name, font_size)
     for paragraph in lines:
@@ -2545,6 +2545,59 @@ def draw_pdf_lines(pdf, lines, x, y, max_chars=90, font_name="Times-Roman", font
             pdf.drawString(x, y, line)
             y -= leading
     return y
+
+
+def principal_respondent(motion):
+    return motion.respondents[0] if motion.respondents else None
+
+
+def signature_lines(motion):
+    if motion.lawyer_name:
+        lines = [
+            "Respectfully submitted,",
+            "",
+            "________________________________________",
+            motion.lawyer_name,
+        ]
+        if motion.lawyer_bar_number:
+            lines.append(f"Bar No.: {motion.lawyer_bar_number}")
+        if motion.law_firm_name:
+            lines.append(motion.law_firm_name)
+        if motion.law_firm_address:
+            lines.extend(motion.law_firm_address.splitlines())
+        if motion.law_firm_phone:
+            lines.append(motion.law_firm_phone)
+        return lines
+    lead = principal_respondent(motion)
+    respondent_name = lead.full_name if lead else "Respondent"
+    alien_number = f"A# {lead.alien_number}" if lead and lead.alien_number else ""
+    return [
+        "Respectfully submitted,",
+        "",
+        "________________________________________",
+        respondent_name,
+        alien_number,
+        "Respondent, Pro Se",
+    ]
+
+
+def signer_name_lines(motion):
+    if motion.lawyer_name:
+        lines = [motion.lawyer_name]
+        if motion.law_firm_name:
+            lines.append(motion.law_firm_name)
+        return lines
+    lead = principal_respondent(motion)
+    if lead:
+        return [lead.full_name, f"A# {lead.alien_number}"]
+    return ["Respondent"]
+
+
+def draw_motion_page_intro(pdf, motion, title, y):
+    y = draw_motion_header(pdf, motion, y)
+    y = draw_motion_caption(pdf, motion, y)
+    y = draw_centered_pdf_line(pdf, title, y, "Times-Bold", 12)
+    return y - 8
 
 
 def draw_centered_pdf_line(pdf, text_value, y, font_name="Times-Bold", font_size=11):
@@ -2667,49 +2720,47 @@ def motion_pdf_response(motion):
     pdf = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     left = inch
+    body_max_chars = 82
     y = height - inch
     pdf.setTitle(motion.title)
 
-    y = draw_motion_header(pdf, motion, y)
-    y = draw_motion_caption(pdf, motion, y)
-    y = draw_centered_pdf_line(pdf, motion.title, y, "Times-Bold", 12)
-    y -= 8
-    y = draw_pdf_lines(pdf, motion_body_text(motion).splitlines(), left, y, max_chars=88, font_size=11, leading=15)
+    y = draw_motion_page_intro(pdf, motion, motion.title, y)
+    y = draw_pdf_lines(pdf, motion_body_text(motion).splitlines(), left, y, max_chars=body_max_chars, font_size=11, leading=15)
+    y -= 20
+    if y < 2.1 * inch:
+        pdf.showPage()
+        y = height - inch
+    y = draw_pdf_lines(pdf, signature_lines(motion), left, y, max_chars=body_max_chars, font_size=11, leading=15)
 
     pdf.showPage()
     y = height - inch
-    y = draw_centered_pdf_line(pdf, "EXHIBITS", y, "Times-Bold", 12)
-    y -= 10
+    y = draw_motion_page_intro(pdf, motion, "EXHIBITS", y)
     exhibits = motion_exhibits(motion)
     exhibit_lines = [f"Exhibit {exhibit_label(index)}: {description}" for index, description in enumerate(exhibits)] or ["No exhibits listed."]
-    y = draw_pdf_lines(pdf, exhibit_lines, left, y, max_chars=88, font_size=11, leading=16)
+    draw_pdf_lines(pdf, exhibit_lines, left, y, max_chars=body_max_chars, font_size=11, leading=16)
 
-    y -= 22
-    if y < 2 * inch:
-        pdf.showPage()
-        y = height - inch
-    y = draw_centered_pdf_line(pdf, "CERTIFICATE OF SERVICE", y, "Times-Bold", 12)
-    y -= 10
+    pdf.showPage()
+    y = height - inch
+    y = draw_motion_page_intro(pdf, motion, "CERTIFICATE OF SERVICE", y)
     service_lines = [
         f"I certify that on {datetime.utcnow().strftime('%B %d, %Y')}, a true and correct copy of the foregoing motion was served on:",
         "",
         motion.opla_office,
         *[line for line in (motion.opla_address or "").splitlines() if line.strip()],
         "",
-        "by the method required by the Immigration Court practice rules.",
+        "Delivery method:",
+        "[x] by regular mail",
         "",
-        "Respectfully submitted,",
+        "I declare under penalty of perjury that the foregoing is true and correct.",
         "",
         "________________________________________",
-        motion.lawyer_name or "Pro Se",
+        *signer_name_lines(motion),
     ]
-    y = draw_pdf_lines(pdf, service_lines, left, y, max_chars=88, font_size=11, leading=15)
+    y = draw_pdf_lines(pdf, service_lines, left, y, max_chars=body_max_chars, font_size=11, leading=15)
 
     pdf.showPage()
     y = height - inch
-    y = draw_motion_header(pdf, motion, y)
-    y = draw_motion_caption(pdf, motion, y)
-    y = draw_centered_pdf_line(pdf, "PROPOSED ORDER", y, "Times-Bold", 12)
+    y = draw_motion_page_intro(pdf, motion, "PROPOSED ORDER", y)
     y -= 16
     order_lines = [
         f"Upon consideration of Respondent's {motion.title}, it is hereby:",
@@ -2725,7 +2776,7 @@ def motion_pdf_response(motion):
         "____________________________________________",
         "Immigration Judge",
     ]
-    draw_pdf_lines(pdf, order_lines, left, y, max_chars=88, font_size=11, leading=17)
+    draw_pdf_lines(pdf, order_lines, left, y, max_chars=body_max_chars, font_size=11, leading=17)
     pdf.save()
     buffer.seek(0)
     filename = f"motion-{motion.id}.pdf"
