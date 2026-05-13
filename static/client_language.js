@@ -238,6 +238,19 @@
       return null;
     }
     const cleanText = text.trim();
+    const compactText = normalizePrompt(cleanText).replace(/[^a-z0-9]/g, "");
+    if (
+      compactText.includes("firsttime") &&
+      compactText.includes("workauthorization") &&
+      compactText.includes("category")
+    ) {
+      if (language === "es") {
+        return "Es la primera vez que solicita autorizacion de empleo bajo esta categoria?";
+      }
+      if (language === "ht") {
+        return "Eske se premye fwa ou aplike pou otorizasyon travay anba kategori sa a?";
+      }
+    }
     const prompts = promptTranslations[language] || {};
     if (prompts[cleanText]) {
       return prompts[cleanText];
@@ -460,7 +473,11 @@
       if (!element.dataset.originalText) {
         element.dataset.originalText = element.textContent;
       }
-      element.textContent = promptFor(language, element.dataset.i18nText) || element.dataset.originalText;
+      const translatedText =
+        promptFor(language, element.dataset.i18nText || "") ||
+        promptFor(language, element.dataset.originalText || "") ||
+        promptFor(language, element.textContent || "");
+      element.textContent = translatedText || element.dataset.originalText;
     });
   }
 
