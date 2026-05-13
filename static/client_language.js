@@ -107,6 +107,16 @@
       "Is this the first time you apply for work authorization under this category?": "Es la primera vez que solicita autorizacion de empleo bajo esta categoria?",
       "Are you applying because you lost or damage your work permit card?": "Esta solicitando porque perdio o se dano su permiso de trabajo?",
       "Are you trying to renew your work authorization?": "Esta tratando de renovar su autorizacion de empleo?",
+      "Are you trying to renew you work authorization?": "Esta tratando de renovar su autorizacion de empleo?",
+      "What is your address? (do not include city, state or zip code)?": "Cual es su direccion? (no incluya ciudad, estado ni codigo postal)",
+      "What is your apartment/suite/floor number? (or n/a)?": "Cual es su apartamento, suite o piso? (o N/A)",
+      "What is your current city?": "Cual es su ciudad actual?",
+      "What is your state? (ex: fl)?": "Cual es su estado? (ej.: FL)",
+      "What is your alien number? (or n/a)?": "Cual es su numero de extranjero? (o N/A)",
+      "What is your uscis account number? (or n/a)?": "Cual es su numero de cuenta de USCIS? (o N/A)",
+      "What Country Issued your passport? (or N/A)": "Que pais emitio su pasaporte? (o N/A)",
+      "What is your date of birth? (mm/dd/yyyy)?": "Cual es su fecha de nacimiento? (mm/dd/aaaa)",
+      "What is your social security number? (or n/a)?": "Cual es su numero de Seguro Social? (o N/A)",
       "What is your current address?": "Cual es su direccion actual?",
       "What is your phone number?": "Cual es su numero de telefono?",
       "What is your email address?": "Cual es su correo electronico?",
@@ -128,6 +138,7 @@
       "What was your Status when you last entered the United States?": "Cual era su estatus cuando entro por ultima vez a los Estados Unidos?",
       "What was your status when you last entered the United States?": "Cual era su estatus cuando entro por ultima vez a los Estados Unidos?",
       "Do you have any criminal history?": "Tiene algun antecedente penal?",
+      "Do you have any criminal record?": "Tiene algun antecedente penal?",
       "Select YES here to continue.": "Seleccione SI aqui para continuar.",
       "Applicant's First Name": "Nombre del solicitante",
       "Applicant's Middle Name": "Segundo nombre del solicitante",
@@ -151,6 +162,16 @@
       "Is this the first time you apply for work authorization under this category?": "Eske se premye fwa ou aplike pou otorizasyon travay anba kategori sa a?",
       "Are you applying because you lost or damage your work permit card?": "Eske w ap aplike paske ou pedi oswa domaje kat travay ou?",
       "Are you trying to renew your work authorization?": "Eske w ap eseye renouvle otorizasyon travay ou?",
+      "Are you trying to renew you work authorization?": "Eske w ap eseye renouvle otorizasyon travay ou?",
+      "What is your address? (do not include city, state or zip code)?": "Ki adres ou? (pa mete vil, eta, oswa kod postal)",
+      "What is your apartment/suite/floor number? (or n/a)?": "Ki apatman, suite, oswa etaj ou? (oswa N/A)",
+      "What is your current city?": "Ki vil ou ye kounye a?",
+      "What is your state? (ex: fl)?": "Ki eta ou? (egz.: FL)",
+      "What is your alien number? (or n/a)?": "Ki nimewo etranje ou? (oswa N/A)",
+      "What is your uscis account number? (or n/a)?": "Ki nimewo kont USCIS ou? (oswa N/A)",
+      "What Country Issued your passport? (or N/A)": "Ki peyi ki te bay paspo ou? (oswa N/A)",
+      "What is your date of birth? (mm/dd/yyyy)?": "Ki dat nesans ou? (mm/dd/aaaa)",
+      "What is your social security number? (or n/a)?": "Ki nimewo Sekirite Sosyal ou? (oswa N/A)",
       "What is your current address?": "Ki adres ou kounye a?",
       "What is your phone number?": "Ki nimewo telefon ou?",
       "What is your email address?": "Ki imel ou?",
@@ -172,6 +193,7 @@
       "What was your Status when you last entered the United States?": "Ki estati ou te genyen le ou te antre Ozetazini denye fwa?",
       "What was your status when you last entered the United States?": "Ki estati ou te genyen le ou te antre Ozetazini denye fwa?",
       "Do you have any criminal history?": "Eske ou gen antecedan penal?",
+      "Do you have any criminal record?": "Eske ou gen antecedan penal?",
       "Select YES here to continue.": "Chwazi WI isit la pou kontinye.",
       "Applicant's First Name": "Non aplikan an",
       "Applicant's Middle Name": "Dezyèm non aplikan an",
@@ -221,6 +243,9 @@
     const whatMatch = normalized.match(/^what is your (.+)$/);
     if (whatMatch) {
       const subject = fieldLabelFor(language, whatMatch[1]);
+      if (!subject) {
+        return null;
+      }
       if (language === "es") {
         return `Cual es su ${subject}?`;
       }
@@ -231,6 +256,9 @@
     const whatWasMatch = normalized.match(/^what was your (.+)$/);
     if (whatWasMatch) {
       const subject = fieldLabelFor(language, whatWasMatch[1]);
+      if (!subject) {
+        return null;
+      }
       if (language === "es") {
         return `Cual fue su ${subject}?`;
       }
@@ -241,6 +269,9 @@
     const doYouHaveMatch = normalized.match(/^do you have (.+)$/);
     if (doYouHaveMatch) {
       const subject = fieldLabelFor(language, doYouHaveMatch[1]);
+      if (!subject) {
+        return null;
+      }
       if (language === "es") {
         return `Tiene ${subject}?`;
       }
@@ -251,6 +282,9 @@
     const haveYouMatch = normalized.match(/^have you (.+)$/);
     if (haveYouMatch) {
       const subject = fieldLabelFor(language, haveYouMatch[1]);
+      if (!subject) {
+        return null;
+      }
       if (language === "es") {
         return `Ha ${subject}?`;
       }
@@ -261,6 +295,9 @@
     const whenDidMatch = normalized.match(/^when did you (.+)$/);
     if (whenDidMatch) {
       const subject = fieldLabelFor(language, whenDidMatch[1]);
+      if (!subject) {
+        return null;
+      }
       if (language === "es") {
         return `Cuando ${subject}?`;
       }
@@ -286,6 +323,11 @@
         "middle name": "segundo nombre",
         "last name": "apellido",
         "last name(s)": "apellido(s)",
+        "address": "direccion",
+        "address (do not include city, state or zip code)": "direccion (no incluya ciudad, estado ni codigo postal)",
+        "apartment/suite/floor number": "apartamento, suite o piso",
+        "current city": "ciudad actual",
+        "state": "estado",
         "current address": "direccion actual",
         "mailing address": "direccion postal",
         "phone number": "numero de telefono",
@@ -300,12 +342,15 @@
         "i-94 number": "numero I-94",
         "i94 number": "numero I-94",
         "uscis online account number": "numero de cuenta en linea de USCIS",
+        "uscis account number": "numero de cuenta de USCIS",
+        "alien number": "numero de extranjero",
         "place of entry into the usa": "lugar de entrada a los Estados Unidos",
         "place of entry into the usa (ex: el paso, tx)": "lugar de entrada a los Estados Unidos (Ej.: El Paso, TX)",
         "status when you last entered the united states": "estatus cuando entro por ultima vez a los Estados Unidos",
         "last enter the united states": "entro por ultima vez a los Estados Unidos",
         "filed for work authorization before": "solicitado autorizacion de empleo anteriormente",
         "any criminal history": "algun antecedente penal",
+        "any criminal record": "algun antecedente penal",
         "a-number": "A-Number",
         "social security number": "numero de Seguro Social"
       },
@@ -314,6 +359,11 @@
         "middle name": "dezyem non",
         "last name": "siyati",
         "last name(s)": "siyati",
+        "address": "adres",
+        "address (do not include city, state or zip code)": "adres (pa mete vil, eta, oswa kod postal)",
+        "apartment/suite/floor number": "apatman, suite, oswa etaj",
+        "current city": "vil ou ye kounye a",
+        "state": "eta",
         "current address": "adres aktyel",
         "mailing address": "adres postal",
         "phone number": "nimewo telefon",
@@ -328,17 +378,27 @@
         "i-94 number": "nimewo I-94",
         "i94 number": "nimewo I-94",
         "uscis online account number": "nimewo kont sou entenet USCIS",
+        "uscis account number": "nimewo kont USCIS",
+        "alien number": "nimewo etranje",
         "place of entry into the usa": "kote ou te antre Ozetazini",
         "place of entry into the usa (ex: el paso, tx)": "kote ou te antre Ozetazini (Egz.: El Paso, TX)",
         "status when you last entered the united states": "estati ou le ou te antre Ozetazini denye fwa",
         "last enter the united states": "antre Ozetazini denye fwa",
         "filed for work authorization before": "deja aplike pou otorizasyon travay",
         "any criminal history": "antecedan penal",
+        "any criminal record": "antecedan penal",
         "a-number": "A-Number",
         "social security number": "nimewo Sekirite Sosyal"
       }
     };
-    return labels[language]?.[subject] || subject;
+    const cleanSubject = subject
+      .replace(/\?/g, "")
+      .replace(/\s*\(or n\/a\)\s*$/i, "")
+      .replace(/\s*\(or n\/a\s*$/i, "")
+      .replace(/\s*\(mm\/dd\/yyyy\)\s*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return labels[language]?.[cleanSubject] || null;
   }
 
   function applyLanguage(language) {
