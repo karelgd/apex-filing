@@ -948,17 +948,17 @@ body {
 
 .motion-field-grid {
   display: grid;
-  gap: 1rem 1.1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  grid-template-columns: 1fr;
 }
 
 .motion-field-grid-compact {
-  max-width: 560px;
+  max-width: none;
 }
 
 .motion-grid-respondent {
-  align-items: end;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 118px;
+  align-items: stretch;
+  grid-template-columns: 1fr;
 }
 
 .respondent-row {
@@ -989,7 +989,7 @@ body {
 
 .motion-row-action {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .exhibit-row {
