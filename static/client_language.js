@@ -241,7 +241,6 @@
     const compactText = normalizePrompt(cleanText).replace(/[^a-z0-9]/g, "");
     if (
       compactText.includes("firsttime") &&
-      compactText.includes("workauthorization") &&
       compactText.includes("category")
     ) {
       if (language === "es") {
@@ -277,7 +276,6 @@
     const normalized = normalizePrompt(text);
     if (
       normalized.includes("first time") &&
-      normalized.includes("work authorization") &&
       normalized.includes("category")
     ) {
       if (language === "es") {
