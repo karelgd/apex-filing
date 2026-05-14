@@ -1523,7 +1523,7 @@ body {
   border-radius: 8px;
   display: grid;
   gap: .85rem;
-  grid-template-columns: minmax(180px, 1.25fr) minmax(110px, .7fr) minmax(120px, .7fr) minmax(200px, 1.2fr) auto;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(110px, .7fr) minmax(120px, .7fr) minmax(200px, 1.2fr) 112px;
   justify-items: start;
   padding: .9rem;
   text-align: left;
