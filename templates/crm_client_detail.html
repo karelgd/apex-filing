@@ -3,10 +3,15 @@
 <div class="crm-page">
   <div class="crm-client-header">
     <div class="crm-avatar big">{{ client.first_name[:1] }}{{ client.last_name[:1] }}</div>
-    <div>
+    <div class="crm-client-identity">
       <span class="crm-kicker">Client profile</span>
       <h1>{{ client.full_name }}</h1>
-      <p>{{ client.email }} · {{ client.phone }} · {{ client.display_address }}</p>
+      <div class="crm-client-facts">
+        <span>{{ client.display_address }}</span>
+        <span>{{ client.phone }}</span>
+        <span>{{ client.email }}</span>
+        <span>A-Number: {{ client.a_number or 'Not provided' }}</span>
+      </div>
     </div>
     <div class="crm-actions">
       <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_case_create', client_id=client.id) }}">Create Case</a>
@@ -15,13 +20,31 @@
     </div>
   </div>
 
-  <div class="crm-detail-grid">
-    <section class="crm-panel">
-      <div class="crm-panel-head"><div><h2>Cases</h2><p>Every appointment and invoice connects back to a case.</p></div></div>
+  <div class="crm-folder-workspace">
+    <div class="crm-folder-tabs" role="tablist" aria-label="Client CRM folders">
+      <button class="crm-folder-tab active" type="button" data-crm-tab="cases">
+        Cases <span>{{ cases|length }}</span>
+      </button>
+      <button class="crm-folder-tab" type="button" data-crm-tab="appointments">
+        Appointments <span>{{ appointments|length }}</span>
+      </button>
+      <button class="crm-folder-tab" type="button" data-crm-tab="invoices">
+        Invoices <span>{{ invoices|length }}</span>
+      </button>
+      <button class="crm-folder-tab" type="button" data-crm-tab="documents">
+        Documents <span>{{ documents|length }}</span>
+      </button>
+    </div>
+
+    <section class="crm-folder-panel active" data-crm-panel="cases">
+      <div class="crm-panel-head">
+        <div><h2>Cases</h2><p>Every appointment and invoice connects back to a case.</p></div>
+        <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_case_create', client_id=client.id) }}">Create Case</a>
+      </div>
       <div class="crm-stack">
         {% for case in cases %}
           <div class="crm-record">
-            <div><strong>{{ case.title }}</strong><small>{{ case.status }} · Updated {{ case.updated_at.strftime('%b %d, %Y') }}</small></div>
+            <div><strong>{{ case.title }}</strong><small>{{ case.status }} &middot; Updated {{ case.updated_at.strftime('%b %d, %Y') }}</small></div>
             <div class="crm-row-actions">
               <a class="btn btn-sm btn-primary" href="{{ url_for('crm_appointment_create', case_id=case.id) }}">Appointment</a>
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_case_edit', case_id=case.id) }}">Edit</a>
@@ -37,12 +60,37 @@
       </div>
     </section>
 
-    <section class="crm-panel">
-      <div class="crm-panel-head"><div><h2>Invoices</h2><p>Billing records for this client.</p></div></div>
+    <section class="crm-folder-panel" data-crm-panel="appointments">
+      <div class="crm-panel-head">
+        <div><h2>Appointments</h2><p>Always linked to a case.</p></div>
+      </div>
+      <div class="crm-stack">
+        {% for appointment in appointments %}
+          <div class="crm-record">
+            <div><strong>{{ appointment.title }}</strong><small>{{ appointment.case.title }} &middot; {{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }} &middot; {{ appointment.status }}</small></div>
+            <div class="crm-row-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_appointment_edit', appointment_id=appointment.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('crm_appointment_delete', appointment_id=appointment.id) }}" onsubmit="return confirm('Delete this appointment?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">No appointments yet. Add one from a case.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="crm-folder-panel" data-crm-panel="invoices">
+      <div class="crm-panel-head">
+        <div><h2>Invoices</h2><p>Billing records for this client.</p></div>
+        <a class="btn btn-info crm-action-btn" href="{{ url_for('crm_invoice_create', client_id=client.id) }}">Create Invoice</a>
+      </div>
       <div class="crm-stack">
         {% for invoice in invoices %}
           <div class="crm-record">
-            <div><strong>{{ invoice.invoice_number }}</strong><small>{{ invoice.case.title }} · ${{ '%.2f'|format(invoice.total or 0) }} · {{ invoice.status }}</small></div>
+            <div><strong>{{ invoice.invoice_number }}</strong><small>{{ invoice.case.title }} &middot; ${{ '%.2f'|format(invoice.total or 0) }} &middot; {{ invoice.status }}</small></div>
             <div class="crm-row-actions">
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_invoice_edit', invoice_id=invoice.id) }}">Edit</a>
               <form method="post" action="{{ url_for('crm_invoice_delete', invoice_id=invoice.id) }}" onsubmit="return confirm('Delete this invoice?')">
@@ -57,28 +105,10 @@
       </div>
     </section>
 
-    <section class="crm-panel">
-      <div class="crm-panel-head"><div><h2>Appointments</h2><p>Always linked to a case.</p></div></div>
-      <div class="crm-stack">
-        {% for appointment in appointments %}
-          <div class="crm-record">
-            <div><strong>{{ appointment.title }}</strong><small>{{ appointment.case.title }} · {{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }} · {{ appointment.status }}</small></div>
-            <div class="crm-row-actions">
-              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_appointment_edit', appointment_id=appointment.id) }}">Edit</a>
-              <form method="post" action="{{ url_for('crm_appointment_delete', appointment_id=appointment.id) }}" onsubmit="return confirm('Delete this appointment?')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-sm btn-outline-danger">Delete</button>
-              </form>
-            </div>
-          </div>
-        {% else %}
-          <p class="text-secondary mb-0">No appointments yet.</p>
-        {% endfor %}
+    <section class="crm-folder-panel" data-crm-panel="documents">
+      <div class="crm-panel-head">
+        <div><h2>Documents</h2><p>Client-level files, optionally linked to a case.</p></div>
       </div>
-    </section>
-
-    <section class="crm-panel">
-      <div class="crm-panel-head"><div><h2>Documents</h2><p>Client-level files, optionally linked to a case.</p></div></div>
       <form class="crm-upload" method="post" enctype="multipart/form-data" action="{{ url_for('crm_document_upload', client_id=client.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input class="form-control" type="file" name="document" required>
@@ -93,7 +123,7 @@
       <div class="crm-stack mt-3">
         {% for document in documents %}
           <div class="crm-record">
-            <div><strong><a href="{{ url_for('uploaded_file', filename=document.stored_filename) }}">{{ document.original_filename }}</a></strong><small>{{ document.document_type }}{% if document.case %} · {{ document.case.title }}{% endif %}</small></div>
+            <div><strong><a href="{{ url_for('uploaded_file', filename=document.stored_filename) }}">{{ document.original_filename }}</a></strong><small>{{ document.document_type }}{% if document.case %} &middot; {{ document.case.title }}{% endif %}</small></div>
             <form method="post" action="{{ url_for('crm_document_delete', document_id=document.id) }}" onsubmit="return confirm('Delete this document?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-sm btn-outline-danger">Delete</button>
@@ -106,4 +136,20 @@
     </section>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll("[data-crm-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const target = tab.dataset.crmTab;
+      document.querySelectorAll("[data-crm-tab]").forEach((button) => {
+        button.classList.toggle("active", button === tab);
+      });
+      document.querySelectorAll("[data-crm-panel]").forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.crmPanel === target);
+      });
+    });
+  });
+</script>
 {% endblock %}
