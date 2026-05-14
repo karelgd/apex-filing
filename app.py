@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from flask import (
@@ -669,13 +669,24 @@ def populate_crm_appointment_from_form(appointment):
     if not start_at:
         flash("Appointment date and time is required.", "danger")
         abort(400)
-    appointment.title = request.form["title"].strip()
+    appointment.title = appointment.case.title if appointment.case else request.form.get("case_title", "").strip()
     appointment.appointment_type = request.form.get("appointment_type", "").strip()
     appointment.start_at = start_at
-    appointment.end_at = datetime_from_form("end_at")
-    appointment.location = request.form.get("location", "").strip()
+    try:
+        duration_minutes = max(1, int(request.form.get("duration_minutes") or 30))
+    except ValueError:
+        duration_minutes = 30
+    appointment.end_at = start_at + timedelta(minutes=duration_minutes)
+    appointment.location = ""
     appointment.status = request.form.get("status") or "Scheduled"
     appointment.notes = request.form.get("notes", "").strip()
+
+
+def crm_appointment_duration_minutes(appointment):
+    if appointment and appointment.start_at and appointment.end_at:
+        minutes = int((appointment.end_at - appointment.start_at).total_seconds() / 60)
+        return minutes if minutes > 0 else 30
+    return 30
 
 
 def populate_crm_case_from_form(case):
@@ -2042,7 +2053,7 @@ def register_routes(app):
             db.session.commit()
             flash("Appointment created.", "success")
             return redirect(url_for("crm_client_detail", client_id=case.client_id))
-        return render_template("crm_appointment_form.html", case=case, appointment=None)
+        return render_template("crm_appointment_form.html", case=case, appointment=None, duration_minutes=30)
 
     @app.route("/agency/crm/appointments/<int:appointment_id>/edit", methods=["GET", "POST"])
     @role_required("agency")
@@ -2056,7 +2067,12 @@ def register_routes(app):
             db.session.commit()
             flash("Appointment updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=appointment.client_id))
-        return render_template("crm_appointment_form.html", case=appointment.case, appointment=appointment)
+        return render_template(
+            "crm_appointment_form.html",
+            case=appointment.case,
+            appointment=appointment,
+            duration_minutes=crm_appointment_duration_minutes(appointment),
+        )
 
     @app.route("/agency/crm/appointments/<int:appointment_id>/delete", methods=["POST"])
     @role_required("agency")

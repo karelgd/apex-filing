@@ -4,22 +4,28 @@
   <div class="crm-form-card">
     <span class="crm-kicker">{{ 'Edit' if appointment else 'Create' }} Appointment</span>
     <h1>{{ case.client.full_name }}</h1>
-    <p class="text-secondary">{{ case.title }} · {{ case.status }}</p>
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label class="form-label">Title</label>
-      <input class="form-control mb-3" name="title" value="{{ appointment.title if appointment else '' }}" placeholder="Example: Biometrics, Court hearing, Office visit" required>
+      <input type="hidden" name="case_title" value="{{ case.title }}">
+      <label class="form-label">Case Type</label>
+      <input class="form-control mb-3" value="{{ case.title }}" readonly>
       <label class="form-label">Appointment type</label>
-      <input class="form-control mb-3" name="appointment_type" value="{{ appointment.appointment_type if appointment else '' }}">
-      <label class="form-label">Starts</label>
+      <select class="form-select mb-3" name="appointment_type" required>
+        {% for type in ['By Phone', 'On-Site'] %}
+          <option value="{{ type }}" {% if appointment and appointment.appointment_type == type %}selected{% endif %}>{{ type }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Start</label>
       <input class="form-control mb-3" type="datetime-local" name="start_at" value="{{ appointment.start_at.strftime('%Y-%m-%dT%H:%M') if appointment else '' }}" required>
-      <label class="form-label">Ends</label>
-      <input class="form-control mb-3" type="datetime-local" name="end_at" value="{{ appointment.end_at.strftime('%Y-%m-%dT%H:%M') if appointment and appointment.end_at else '' }}">
-      <label class="form-label">Location</label>
-      <input class="form-control mb-3" name="location" value="{{ appointment.location if appointment else '' }}">
+      <label class="form-label">Duration</label>
+      <select class="form-select mb-3" name="duration_minutes">
+        {% for minutes in [15, 30, 45, 60, 90, 120] %}
+          <option value="{{ minutes }}" {% if duration_minutes == minutes %}selected{% endif %}>{{ minutes }} minutes</option>
+        {% endfor %}
+      </select>
       <label class="form-label">Status</label>
       <select class="form-select mb-3" name="status">
-        {% for status in ['Scheduled', 'Completed', 'Canceled', 'No Show'] %}
+        {% for status in ['Scheduled', 'Re-scheduled', 'Completed', 'Canceled', 'No Show'] %}
           <option value="{{ status }}" {% if appointment and appointment.status == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
       </select>
