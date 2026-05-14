@@ -1110,9 +1110,7 @@ body {
 .crm-hero,
 .crm-client-header {
   align-items: center;
-  background:
-    radial-gradient(circle at 88% 18%, rgba(35, 199, 183, .22), transparent 26%),
-    linear-gradient(135deg, #16233d 0%, #265dff 100%);
+  background: #17233d;
   border-radius: 8px;
   box-shadow: 0 22px 44px rgba(22, 35, 61, .18);
   color: #ffffff;
@@ -1150,6 +1148,11 @@ body {
 .crm-client-facts span {
   align-items: center;
   display: inline-flex;
+}
+
+.crm-client-facts strong {
+  color: #ffffff;
+  margin-right: .35rem;
 }
 
 .crm-client-facts span:not(:last-child)::after {
