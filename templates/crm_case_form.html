@@ -7,7 +7,13 @@
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="form-label">Case type or service</label>
-      <input class="form-control mb-3" name="title" value="{{ case.title if case else '' }}" placeholder="Example: Adjustment, Asylum, Consultation" required>
+      <select class="form-select mb-3" name="title" required>
+        <option value="">Select a form or service</option>
+        {% for code, purpose in crm_case_services %}
+          {% set label = code ~ ' - ' ~ purpose %}
+          <option value="{{ label }}" {% if case and case.title == label %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
       <label class="form-label">Status</label>
       <select class="form-select mb-3" name="status">
         {% for status in ['Open', 'Waiting for Client', 'In Preparation', 'Completed'] %}

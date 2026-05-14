@@ -16,6 +16,35 @@ SUBSCRIPTION_TOOLS = [
 
 CASE_TYPES = ["I-485", "I-765", "Motion"]
 
+CRM_CASE_SERVICES = [
+    ("I-130", "Petition for Alien Relative (family petition)"),
+    ("I-485", "Application to Register Permanent Residence / Adjustment of Status (Green Card)"),
+    ("I-765", "Application for Employment Authorization (work permit)"),
+    ("I-131", "Travel Document / Advance Parole"),
+    ("N-400", "Application for Naturalization (U.S. citizenship)"),
+    ("I-90", "Replace or renew Green Card"),
+    ("I-589", "Application for Asylum and Withholding of Removal"),
+    ("I-864", "Affidavit of Support"),
+    ("I-129F", "Fiance(e) Visa Petition (K-1 visa)"),
+    ("I-751", "Remove Conditions on Residence (2-year green card cases)"),
+    ("I-601", "Waiver of Grounds of Inadmissibility"),
+    ("I-821D", "DACA request"),
+    ("I-821", "Temporary Protected Status (TPS)"),
+    ("I-290B", "Motion to Reopen or Appeal"),
+    ("N-600", "Certificate of Citizenship"),
+    ("I-539", "Extend or Change Nonimmigrant Status"),
+    ("I-129", "Petition for Nonimmigrant Worker (H-1B, etc.)"),
+    ("I-140", "Employment-Based Immigrant Petition"),
+    ("I-918", "U Visa Petition"),
+    ("I-914", "T Visa Application"),
+    ("I-134", "Declaration of Financial Support"),
+    ("I-912", "Fee Waiver Request"),
+    ("AR-11", "Change of Address"),
+    ("G-28", "Notice of Attorney/Representative"),
+    ("G-1145", "E-Notification for USCIS filings"),
+    ("G-639", "FOIA Request for Immigration Records"),
+]
+
 FORM_TEMPLATES = [
     ("I-589", "Application for Asylum and for Withholding of Removal", "Asylum intake questionnaire foundation."),
     ("I-485", "Application to Register Permanent Residence or Adjust Status", "Adjustment of status intake questionnaire foundation."),

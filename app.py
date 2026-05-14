@@ -27,7 +27,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import inspect, text
 import click
 
-from forms import CASE_STATUSES, CASE_TYPES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
+from forms import CASE_STATUSES, CASE_TYPES, CRM_CASE_SERVICES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
 from models import (
     ActiveSession,
     Agency,
@@ -119,6 +119,7 @@ def create_app():
         return {
             "case_statuses": CASE_STATUSES,
             "case_types": available_case_types(),
+            "crm_case_services": CRM_CASE_SERVICES,
             "subscription_tools": SUBSCRIPTION_TOOLS,
             "states": US_STATES,
         }
