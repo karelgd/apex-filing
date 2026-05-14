@@ -1271,11 +1271,35 @@ body {
   position: relative;
 }
 
+.crm-folder-tab.crm-tab-cases {
+  background: #eaf1ff;
+  border-color: #bcd2ff;
+  color: #1c47a0;
+}
+
+.crm-folder-tab.crm-tab-appointments {
+  background: #e8fbf8;
+  border-color: #a8eee2;
+  color: #087d75;
+}
+
+.crm-folder-tab.crm-tab-invoices {
+  background: #fff5d8;
+  border-color: #ffe28a;
+  color: #8a6100;
+}
+
+.crm-folder-tab.crm-tab-documents {
+  background: #f2eaff;
+  border-color: #d7c3ff;
+  color: #5a36a3;
+}
+
 .crm-folder-tab span {
   align-items: center;
-  background: rgba(55, 125, 255, .1);
+  background: rgba(255, 255, 255, .78);
   border-radius: 999px;
-  color: var(--apex-accent);
+  color: inherit;
   display: inline-flex;
   font-size: .75rem;
   height: 24px;
@@ -1285,15 +1309,30 @@ body {
 }
 
 .crm-folder-tab.active {
-  background: #17233d;
-  border-color: #17233d;
+  border-color: transparent;
   color: #ffffff;
   padding-top: .95rem;
 }
 
+.crm-folder-tab.crm-tab-cases.active {
+  background: #2f6df6;
+}
+
+.crm-folder-tab.crm-tab-appointments.active {
+  background: #13b8a6;
+}
+
+.crm-folder-tab.crm-tab-invoices.active {
+  background: #f2a900;
+}
+
+.crm-folder-tab.crm-tab-documents.active {
+  background: #7b5cff;
+}
+
 .crm-folder-tab.active span {
   background: #ffffff;
-  color: #17233d;
+  color: var(--apex-ink);
 }
 
 .crm-folder-panel {
