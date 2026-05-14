@@ -10,11 +10,11 @@
         <span><strong>Address:</strong> {{ client.display_address }}</span>
         <span><strong>Phone:</strong> {{ client.phone }}</span>
         <span><strong>Email:</strong> {{ client.email }}</span>
-        <span>A-Number: {{ client.a_number or 'Not provided' }}</span>
+        <span><strong>A-Number:</strong> {{ client.a_number or 'Not provided' }}</span>
       </div>
     </div>
     <div class="crm-actions">
-      <a class="btn btn-warning crm-action-btn" href="{{ url_for('client_edit', client_id=client.id) }}">Edit Client</a>
+      <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('client_edit', client_id=client.id) }}">Edit Client</a>
     </div>
   </div>
 

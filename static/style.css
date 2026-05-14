@@ -1190,6 +1190,19 @@ body {
   padding: .68rem 1rem;
 }
 
+.crm-edit-client-btn {
+  background: #8cc5ff;
+  color: #10233a !important;
+  min-width: 116px;
+  white-space: nowrap;
+}
+
+.crm-edit-client-btn:hover,
+.crm-edit-client-btn:focus {
+  background: #acd6ff;
+  color: #10233a !important;
+}
+
 .crm-metrics {
   display: grid;
   gap: 1rem;
