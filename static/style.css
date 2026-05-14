@@ -1255,18 +1255,6 @@ body {
   position: relative;
 }
 
-.crm-folder-tab::after {
-  background: linear-gradient(90deg, transparent, rgba(22, 32, 51, .12));
-  bottom: 0;
-  content: "";
-  position: absolute;
-  right: -18px;
-  top: 8px;
-  transform: skewX(24deg);
-  width: 28px;
-  z-index: 0;
-}
-
 .crm-folder-tab span {
   align-items: center;
   background: rgba(55, 125, 255, .1);
