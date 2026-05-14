@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-client-header">
+    <div class="crm-avatar big">{{ appointment.client.first_name[:1] }}{{ appointment.client.last_name[:1] }}</div>
+    <div class="crm-client-identity">
+      <span class="crm-kicker">Appointment detail</span>
+      <h1>{{ appointment.client.full_name }}</h1>
+      <div class="crm-client-facts">
+        <span><strong>Case Type:</strong> {{ appointment.case.title }}</span>
+        <span><strong>Status:</strong> {{ appointment.status }}</span>
+        <span><strong>Type:</strong> {{ appointment.appointment_type or 'Not set' }}</span>
+      </div>
+    </div>
+    <div class="crm-actions">
+      <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('crm_appointment_edit', appointment_id=appointment.id) }}">Edit Appointment</a>
+    </div>
+  </div>
+
+  <section class="crm-folder-panel active">
+    <div class="crm-panel-head">
+      <div>
+        <h2>Appointment Information</h2>
+        <p>{{ appointment.case.title }}</p>
+      </div>
+      <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=appointment.client_id) }}">Back to Client</a>
+    </div>
+    <div class="crm-detail-list">
+      <div><strong>Client</strong><span>{{ appointment.client.full_name }}</span></div>
+      <div><strong>Case Type</strong><span>{{ appointment.case.title }}</span></div>
+      <div><strong>Appointment Type</strong><span>{{ appointment.appointment_type or 'Not set' }}</span></div>
+      <div><strong>Start</strong><span>{{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }}</span></div>
+      <div><strong>Duration</strong><span>{{ duration_minutes }} minutes</span></div>
+      <div><strong>Status</strong><span>{{ appointment.status }}</span></div>
+      <div class="crm-detail-notes"><strong>Notes</strong><span>{{ appointment.notes or 'No notes.' }}</span></div>
+    </div>
+  </section>
+</div>
+{% endblock %}

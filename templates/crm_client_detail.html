@@ -75,6 +75,7 @@
           <div class="crm-record">
             <div><strong>{{ appointment.title }}</strong><small>{{ appointment.case.title }} &middot; {{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }} &middot; {{ appointment.status }}</small></div>
             <div class="crm-row-actions">
+              <a class="btn btn-sm btn-primary" href="{{ url_for('crm_appointment_detail', appointment_id=appointment.id) }}">View</a>
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_appointment_edit', appointment_id=appointment.id) }}">Edit</a>
               <form method="post" action="{{ url_for('crm_appointment_delete', appointment_id=appointment.id) }}" onsubmit="return confirm('Delete this appointment?')">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

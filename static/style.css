@@ -1348,6 +1348,36 @@ body {
   display: block;
 }
 
+.crm-detail-list {
+  display: grid;
+  gap: .75rem;
+}
+
+.crm-detail-list > div {
+  background: #f8fbff;
+  border: 1px solid #e0e9f6;
+  border-radius: 8px;
+  display: grid;
+  gap: .35rem;
+  grid-template-columns: 180px minmax(0, 1fr);
+  padding: .85rem;
+}
+
+.crm-detail-list strong {
+  color: var(--apex-muted);
+  font-size: .82rem;
+  text-transform: uppercase;
+}
+
+.crm-detail-list span {
+  color: var(--apex-ink);
+  font-weight: 700;
+}
+
+.crm-detail-list .crm-detail-notes {
+  align-items: start;
+}
+
 .crm-panel {
   background: #ffffff;
   border: 1px solid #dce6f3;

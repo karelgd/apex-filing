@@ -2074,6 +2074,19 @@ def register_routes(app):
             duration_minutes=crm_appointment_duration_minutes(appointment),
         )
 
+    @app.route("/agency/crm/appointments/<int:appointment_id>")
+    @role_required("agency")
+    def crm_appointment_detail(appointment_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
+        return render_template(
+            "crm_appointment_detail.html",
+            appointment=appointment,
+            duration_minutes=crm_appointment_duration_minutes(appointment),
+        )
+
     @app.route("/agency/crm/appointments/<int:appointment_id>/delete", methods=["POST"])
     @role_required("agency")
     def crm_appointment_delete(appointment_id):
