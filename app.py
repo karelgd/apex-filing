@@ -1968,6 +1968,15 @@ def register_routes(app):
             form_preparers=AgencyCrmPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmPreparer.full_name).all(),
         )
 
+    @app.route("/agency/crm/cases/<int:case_id>")
+    @role_required("agency")
+    def crm_case_detail(case_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
+        return render_template("crm_case_detail.html", case=case)
+
     @app.route("/agency/crm/cases/<int:case_id>/delete", methods=["POST"])
     @role_required("agency")
     def crm_case_delete(case_id):

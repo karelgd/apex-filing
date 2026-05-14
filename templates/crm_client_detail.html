@@ -53,6 +53,7 @@
             </div>
             <div class="crm-row-actions">
               <a class="btn btn-sm btn-primary" href="{{ url_for('crm_appointment_create', case_id=case.id) }}">Appointment</a>
+              <a class="btn btn-sm btn-primary" href="{{ url_for('crm_case_detail', case_id=case.id) }}">View</a>
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_case_edit', case_id=case.id) }}">Edit</a>
               <form method="post" action="{{ url_for('crm_case_delete', case_id=case.id) }}" onsubmit="return confirm('Delete this case?')">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
