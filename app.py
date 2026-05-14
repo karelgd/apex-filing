@@ -31,6 +31,8 @@ from forms import CASE_STATUSES, CASE_TYPES, CRM_CASE_SERVICES, FORM_TEMPLATES, 
 from models import (
     ActiveSession,
     Agency,
+    AgencyCaseManager,
+    AgencyCrmPreparer,
     AgencyDocument,
     AgencyLawFirm,
     AgencyLawyer,
@@ -603,6 +605,13 @@ def populate_preparer_from_form(preparer):
     preparer.address = request.form.get("address", "").strip()
 
 
+def populate_crm_person_from_form(person):
+    person.full_name = request.form["full_name"].strip()
+    person.phone = request.form.get("phone", "").strip()
+    person.email = request.form.get("email", "").strip()
+    person.address = request.form.get("address", "").strip()
+
+
 def populate_lawyer_from_form(lawyer):
     lawyer.first_name = request.form["first_name"].strip()
     lawyer.middle_name = request.form.get("middle_name", "").strip()
@@ -672,7 +681,14 @@ def populate_crm_appointment_from_form(appointment):
 def populate_crm_case_from_form(case):
     case.title = request.form["title"].strip()
     case.status = request.form.get("status") or "Open"
+    case.price = decimal_from_form("price")
+    case.case_manager_id = int(request.form["case_manager_id"]) if request.form.get("case_manager_id") else None
+    case.form_preparer_id = int(request.form["form_preparer_id"]) if request.form.get("form_preparer_id") else None
     case.notes = request.form.get("notes", "").strip()
+    if case.case_manager_id and not AgencyCaseManager.query.filter_by(id=case.case_manager_id, agency_id=case.agency_id).first():
+        abort(403)
+    if case.form_preparer_id and not AgencyCrmPreparer.query.filter_by(id=case.form_preparer_id, agency_id=case.agency_id).first():
+        abort(403)
     if case.status == "Completed" and not case.completed_at:
         case.completed_at = datetime.utcnow()
     if case.status != "Completed":
@@ -1691,6 +1707,86 @@ def register_routes(app):
         flash("Form preparer deleted.", "info")
         return redirect(url_for("preparer_list"))
 
+    @app.route("/agency/case-managers", methods=["GET", "POST"])
+    @role_required("agency")
+    def case_manager_list():
+        agency = current_user.agency
+        if request.method == "POST":
+            manager = AgencyCaseManager(agency_id=agency.id)
+            populate_crm_person_from_form(manager)
+            db.session.add(manager)
+            db.session.commit()
+            flash("Case manager saved.", "success")
+            return redirect(url_for("case_manager_list"))
+        return render_template(
+            "people_list.html",
+            agency=agency,
+            people=AgencyCaseManager.query.filter_by(agency_id=agency.id).order_by(AgencyCaseManager.full_name).all(),
+            person_type="case_manager",
+            title="Case Managers",
+        )
+
+    @app.route("/agency/case-managers/<int:manager_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def case_manager_edit(manager_id):
+        manager = AgencyCaseManager.query.filter_by(id=manager_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_crm_person_from_form(manager)
+            db.session.commit()
+            flash("Case manager updated.", "success")
+            return redirect(url_for("case_manager_list"))
+        return render_template("person_form.html", agency=current_user.agency, person=manager, person_type="case_manager", title="Edit Case Manager")
+
+    @app.route("/agency/case-managers/<int:manager_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def case_manager_delete(manager_id):
+        manager = AgencyCaseManager.query.filter_by(id=manager_id, agency_id=current_user.agency_id).first() or abort(404)
+        CrmCase.query.filter_by(case_manager_id=manager.id).update({"case_manager_id": None})
+        db.session.delete(manager)
+        db.session.commit()
+        flash("Case manager deleted.", "info")
+        return redirect(url_for("case_manager_list"))
+
+    @app.route("/agency/crm-preparers", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_preparer_list():
+        agency = current_user.agency
+        if request.method == "POST":
+            preparer = AgencyCrmPreparer(agency_id=agency.id)
+            populate_crm_person_from_form(preparer)
+            db.session.add(preparer)
+            db.session.commit()
+            flash("CRM form preparer saved.", "success")
+            return redirect(url_for("crm_preparer_list"))
+        return render_template(
+            "people_list.html",
+            agency=agency,
+            people=AgencyCrmPreparer.query.filter_by(agency_id=agency.id).order_by(AgencyCrmPreparer.full_name).all(),
+            person_type="crm_preparer",
+            title="CRM Form Preparers",
+        )
+
+    @app.route("/agency/crm-preparers/<int:preparer_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_preparer_edit(preparer_id):
+        preparer = AgencyCrmPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_crm_person_from_form(preparer)
+            db.session.commit()
+            flash("CRM form preparer updated.", "success")
+            return redirect(url_for("crm_preparer_list"))
+        return render_template("person_form.html", agency=current_user.agency, person=preparer, person_type="crm_preparer", title="Edit CRM Form Preparer")
+
+    @app.route("/agency/crm-preparers/<int:preparer_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def crm_preparer_delete(preparer_id):
+        preparer = AgencyCrmPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
+        CrmCase.query.filter_by(form_preparer_id=preparer.id).update({"form_preparer_id": None})
+        db.session.delete(preparer)
+        db.session.commit()
+        flash("CRM form preparer deleted.", "info")
+        return redirect(url_for("crm_preparer_list"))
+
     @app.route("/agency/lawyers", methods=["GET", "POST"])
     @role_required("agency")
     def lawyer_list():
@@ -1833,7 +1929,13 @@ def register_routes(app):
             db.session.commit()
             flash("CRM case created.", "success")
             return redirect(url_for("crm_client_detail", client_id=client.id))
-        return render_template("crm_case_form.html", client=client, case=None)
+        return render_template(
+            "crm_case_form.html",
+            client=client,
+            case=None,
+            case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
+            form_preparers=AgencyCrmPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmPreparer.full_name).all(),
+        )
 
     @app.route("/agency/crm/cases/<int:case_id>/edit", methods=["GET", "POST"])
     @role_required("agency")
@@ -1847,7 +1949,13 @@ def register_routes(app):
             db.session.commit()
             flash("CRM case updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=case.client_id))
-        return render_template("crm_case_form.html", client=case.client, case=case)
+        return render_template(
+            "crm_case_form.html",
+            client=case.client,
+            case=case,
+            case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
+            form_preparers=AgencyCrmPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmPreparer.full_name).all(),
+        )
 
     @app.route("/agency/crm/cases/<int:case_id>/delete", methods=["POST"])
     @role_required("agency")
@@ -3249,6 +3357,16 @@ def ensure_sqlite_schema():
         for column, ddl in motion_additions.items():
             if column not in existing_motion:
                 db.session.execute(text(f"ALTER TABLE motion_draft ADD COLUMN {column} {ddl}"))
+    if "crm_case" in inspector.get_table_names():
+        existing_crm_case = {column["name"] for column in inspector.get_columns("crm_case")}
+        crm_case_additions = {
+            "price": "NUMERIC(10, 2) DEFAULT 0 NOT NULL",
+            "case_manager_id": "INTEGER",
+            "form_preparer_id": "INTEGER",
+        }
+        for column, ddl in crm_case_additions.items():
+            if column not in existing_crm_case:
+                db.session.execute(text(f"ALTER TABLE crm_case ADD COLUMN {column} {ddl}"))
     reference_table_additions = {
         "immigration_court": {
             "address_line1": "VARCHAR(180)",

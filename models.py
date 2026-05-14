@@ -156,6 +156,30 @@ class AgencyPreparer(db.Model):
     agency = db.relationship("Agency", backref=db.backref("preparers", cascade="all, delete-orphan"))
 
 
+class AgencyCaseManager(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    full_name = db.Column(db.String(160), nullable=False)
+    phone = db.Column(db.String(40))
+    email = db.Column(db.String(160))
+    address = db.Column(db.String(240))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("case_managers", cascade="all, delete-orphan"))
+
+
+class AgencyCrmPreparer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    full_name = db.Column(db.String(160), nullable=False)
+    phone = db.Column(db.String(40))
+    email = db.Column(db.String(160))
+    address = db.Column(db.String(240))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("crm_preparers", cascade="all, delete-orphan"))
+
+
 class AgencyLawyer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
@@ -455,6 +479,9 @@ class CrmCase(db.Model):
     client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
     title = db.Column(db.String(140), nullable=False)
     status = db.Column(db.String(60), default="Open", nullable=False)
+    price = db.Column(db.Numeric(10, 2), default=0, nullable=False)
+    case_manager_id = db.Column(db.Integer, db.ForeignKey("agency_case_manager.id"))
+    form_preparer_id = db.Column(db.Integer, db.ForeignKey("agency_crm_preparer.id"))
     opened_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     completed_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
@@ -463,6 +490,8 @@ class CrmCase(db.Model):
 
     agency = db.relationship("Agency", backref=db.backref("crm_cases", cascade="all, delete-orphan"))
     client = db.relationship("Client", back_populates="crm_cases")
+    case_manager = db.relationship("AgencyCaseManager")
+    form_preparer = db.relationship("AgencyCrmPreparer")
     invoices = db.relationship("CrmInvoice", back_populates="case", cascade="all, delete-orphan")
     appointments = db.relationship("CrmAppointment", back_populates="case", cascade="all, delete-orphan")
     documents = db.relationship("CrmClientDocument", back_populates="case")

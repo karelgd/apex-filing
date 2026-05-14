@@ -63,6 +63,8 @@
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['translator_list', 'translator_edit'] else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['preparer_list', 'preparer_edit'] else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['case_manager_list', 'case_manager_edit'] else '' }}" href="{{ url_for('case_manager_list') }}">Case Managers</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['crm_preparer_list', 'crm_preparer_edit'] else '' }}" href="{{ url_for('crm_preparer_list') }}">CRM Preparers</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['lawyer_list', 'lawyer_edit'] else '' }}" href="{{ url_for('lawyer_list') }}">Lawyers</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['law_firm_list', 'law_firm_edit'] else '' }}" href="{{ url_for('law_firm_list') }}">Law Firms</a>
           <span class="sidebar-label mt-4">Subscriptions</span>

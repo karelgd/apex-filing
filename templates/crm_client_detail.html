@@ -44,7 +44,15 @@
       <div class="crm-stack">
         {% for case in cases %}
           <div class="crm-record">
-            <div><strong>{{ case.title }}</strong><small>{{ case.status }} &middot; Updated {{ case.updated_at.strftime('%b %d, %Y') }}</small></div>
+            <div>
+              <strong>{{ case.title }}</strong>
+              <small>
+                {{ case.status }} &middot; ${{ '%.2f'|format(case.price or 0) }}
+                {% if case.case_manager %} &middot; Manager: {{ case.case_manager.full_name }}{% endif %}
+                {% if case.form_preparer %} &middot; Preparer: {{ case.form_preparer.full_name }}{% endif %}
+                &middot; Updated {{ case.updated_at.strftime('%b %d, %Y') }}
+              </small>
+            </div>
             <div class="crm-row-actions">
               <a class="btn btn-sm btn-primary" href="{{ url_for('crm_appointment_create', case_id=case.id) }}">Appointment</a>
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_case_edit', case_id=case.id) }}">Edit</a>

@@ -1,70 +1,82 @@
 {% extends "base.html" %}
 {% block content %}
+{% set person_label = {
+  'translator': 'translator',
+  'preparer': 'form preparer',
+  'case_manager': 'case manager',
+  'crm_preparer': 'CRM form preparer'
+}.get(person_type, 'person') %}
 <h1 class="h3 mb-3">{{ title }}</h1>
 <div class="row g-4">
-      <div class="col-lg-5">
-        <form method="post" class="card card-body">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <h2 class="h5 mb-3">Create {{ 'translator' if person_type == 'translator' else 'form preparer' }}</h2>
-          <div class="mb-3">
-            <label class="form-label">Full name</label>
-            <input class="form-control" name="full_name" required>
-          </div>
-          {% if person_type == 'translator' %}
-            <div class="mb-3">
-              <label class="form-label">Language</label>
-              <input class="form-control" name="language" required>
-            </div>
-          {% endif %}
-          <div class="mb-3">
-            <label class="form-label">Phone</label>
-            <input class="form-control" name="phone">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input class="form-control" type="email" name="email">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Address</label>
-            <textarea class="form-control" name="address" rows="3"></textarea>
-          </div>
-          <button class="btn btn-primary">Save</button>
-        </form>
+  <div class="col-lg-5">
+    <form method="post" class="card card-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h2 class="h5 mb-3">Create {{ person_label }}</h2>
+      <div class="mb-3">
+        <label class="form-label">Full name</label>
+        <input class="form-control" name="full_name" required>
       </div>
-      <div class="col-lg-7">
-        <div class="card">
-          <div class="card-header bg-white fw-semibold">{{ title }}</div>
-          <div class="list-group list-group-flush">
-            {% for person in people %}
-              <div class="list-group-item">
-                <div class="d-flex justify-content-between gap-3">
-                  <div>
-                    <strong>{{ person.full_name }}</strong>
-                    <div class="text-secondary small">
-                      {% if person_type == 'translator' %}{{ person.language }}{% else %}Form preparer{% endif %}
-                      {% if person.email %} · {{ person.email }}{% endif %}
-                      {% if person.phone %} · {{ person.phone }}{% endif %}
-                    </div>
-                  </div>
-                  <div class="text-end">
-                    {% if person_type == 'translator' %}
-                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('translator_edit', translator_id=person.id) }}">Edit</a>
-                      <form class="d-inline" method="post" action="{{ url_for('translator_delete', translator_id=person.id) }}" onsubmit="return confirm('Delete this translator?')">
-                    {% else %}
-                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('preparer_edit', preparer_id=person.id) }}">Edit</a>
-                      <form class="d-inline" method="post" action="{{ url_for('preparer_delete', preparer_id=person.id) }}" onsubmit="return confirm('Delete this form preparer?')">
-                    {% endif %}
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button class="btn btn-sm btn-outline-danger">Delete</button>
-                      </form>
-                  </div>
+      {% if person_type == 'translator' %}
+        <div class="mb-3">
+          <label class="form-label">Language</label>
+          <input class="form-control" name="language" required>
+        </div>
+      {% endif %}
+      <div class="mb-3">
+        <label class="form-label">Phone</label>
+        <input class="form-control" name="phone">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input class="form-control" type="email" name="email">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Address</label>
+        <textarea class="form-control" name="address" rows="3"></textarea>
+      </div>
+      <button class="btn btn-primary">Save</button>
+    </form>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">{{ title }}</div>
+      <div class="list-group list-group-flush">
+        {% for person in people %}
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                <strong>{{ person.full_name }}</strong>
+                <div class="text-secondary small">
+                  {% if person_type == 'translator' %}{{ person.language }}{% else %}{{ person_label|title }}{% endif %}
+                  {% if person.email %} &middot; {{ person.email }}{% endif %}
+                  {% if person.phone %} &middot; {{ person.phone }}{% endif %}
                 </div>
               </div>
-            {% else %}
-              <div class="list-group-item text-secondary">No records yet.</div>
-            {% endfor %}
+              <div class="text-end">
+                {% if person_type == 'translator' %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('translator_edit', translator_id=person.id) }}">Edit</a>
+                  <form class="d-inline" method="post" action="{{ url_for('translator_delete', translator_id=person.id) }}" onsubmit="return confirm('Delete this translator?')">
+                {% elif person_type == 'preparer' %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('preparer_edit', preparer_id=person.id) }}">Edit</a>
+                  <form class="d-inline" method="post" action="{{ url_for('preparer_delete', preparer_id=person.id) }}" onsubmit="return confirm('Delete this form preparer?')">
+                {% elif person_type == 'case_manager' %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('case_manager_edit', manager_id=person.id) }}">Edit</a>
+                  <form class="d-inline" method="post" action="{{ url_for('case_manager_delete', manager_id=person.id) }}" onsubmit="return confirm('Delete this case manager?')">
+                {% else %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_preparer_edit', preparer_id=person.id) }}">Edit</a>
+                  <form class="d-inline" method="post" action="{{ url_for('crm_preparer_delete', preparer_id=person.id) }}" onsubmit="return confirm('Delete this CRM form preparer?')">
+                {% endif %}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                  </form>
+              </div>
+            </div>
           </div>
-        </div>
+        {% else %}
+          <div class="list-group-item text-secondary">No records yet.</div>
+        {% endfor %}
       </div>
+    </div>
   </div>
+</div>
 {% endblock %}

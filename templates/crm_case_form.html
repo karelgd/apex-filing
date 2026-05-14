@@ -14,9 +14,25 @@
           <option value="{{ label }}" {% if case and case.title == label %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      <label class="form-label">Price</label>
+      <input class="form-control mb-3" type="number" step="0.01" min="0" name="price" value="{{ case.price if case else '0.00' }}" required>
+      <label class="form-label">Case manager</label>
+      <select class="form-select mb-3" name="case_manager_id">
+        <option value="">No case manager selected</option>
+        {% for manager in case_managers %}
+          <option value="{{ manager.id }}" {% if case and case.case_manager_id == manager.id %}selected{% endif %}>{{ manager.full_name }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Form preparer</label>
+      <select class="form-select mb-3" name="form_preparer_id">
+        <option value="">No form preparer selected</option>
+        {% for preparer in form_preparers %}
+          <option value="{{ preparer.id }}" {% if case and case.form_preparer_id == preparer.id %}selected{% endif %}>{{ preparer.full_name }}</option>
+        {% endfor %}
+      </select>
       <label class="form-label">Status</label>
       <select class="form-select mb-3" name="status">
-        {% for status in ['Open', 'Waiting for Client', 'In Preparation', 'Completed'] %}
+        {% for status in ['Open', 'Documents Received', 'Documents Needed', 'Documents Ready', 'Completed'] %}
           <option value="{{ status }}" {% if case and case.status == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
       </select>
