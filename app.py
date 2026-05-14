@@ -46,9 +46,12 @@ from models import (
     CaseQuestion,
     Client,
     CrmAppointment,
+    CrmAppointmentNote,
     CrmCase,
+    CrmCaseNote,
     CrmClientDocument,
     CrmInvoice,
+    CrmInvoiceActivity,
     FormTemplate,
     GeneratedForm,
     ImmigrationCourt,
@@ -648,8 +651,12 @@ def datetime_from_form(name):
 
 
 def next_crm_invoice_number():
-    count = CrmInvoice.query.filter_by(agency_id=current_user.agency_id).count() + 1
-    return f"CRM-{current_user.agency_id:03d}-{count:05d}"
+    return next_crm_invoice_number_for_agency(current_user.agency_id)
+
+
+def next_crm_invoice_number_for_agency(agency_id):
+    count = CrmInvoice.query.filter_by(agency_id=agency_id).count() + 1
+    return f"CRM-{agency_id:03d}-{count:05d}"
 
 
 def populate_crm_invoice_from_form(invoice):
@@ -662,6 +669,58 @@ def populate_crm_invoice_from_form(invoice):
     invoice.paid_amount = decimal_from_form("paid_amount")
     invoice.status = request.form.get("status") or "Unpaid"
     invoice.notes = request.form.get("notes", "").strip()
+
+
+def crm_invoice_for_case(case):
+    invoice = CrmInvoice.query.filter_by(case_id=case.id, agency_id=case.agency_id).order_by(CrmInvoice.created_at.asc()).first()
+    if not invoice:
+        invoice = CrmInvoice(
+            agency_id=case.agency_id,
+            client_id=case.client_id,
+            case_id=case.id,
+            invoice_number=next_crm_invoice_number_for_agency(case.agency_id),
+            issue_date=datetime.utcnow().date(),
+            description=case.title,
+        )
+        db.session.add(invoice)
+        db.session.flush()
+    return invoice
+
+
+def sync_case_invoice(case):
+    invoice = crm_invoice_for_case(case)
+    invoice.client_id = case.client_id
+    invoice.description = case.title
+    invoice.subtotal = case.price or Decimal("0")
+    recalc_crm_invoice(invoice)
+    return invoice
+
+
+def recalc_crm_invoice(invoice):
+    activities = CrmInvoiceActivity.query.filter_by(invoice_id=invoice.id).all() if invoice.id else invoice.activities
+    discounts = sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Discount")
+    payments = sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Payment")
+    refunds = sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund")
+    invoice.subtotal = invoice.case.price or invoice.subtotal or Decimal("0")
+    invoice.discount = discounts
+    invoice.total = invoice.subtotal - discounts
+    invoice.paid_amount = payments - refunds
+    balance = invoice.total - invoice.paid_amount
+    if invoice.status != "Void":
+        if invoice.paid_amount <= 0:
+            invoice.status = "Unpaid"
+        elif balance <= 0:
+            invoice.status = "Paid"
+        else:
+            invoice.status = "Partial"
+    return balance
+
+
+def populate_invoice_activity_from_form(activity):
+    activity.activity_type = request.form["activity_type"].strip()
+    activity.amount = decimal_from_form("amount")
+    activity.activity_date = date_from_form("activity_date") or datetime.utcnow().date()
+    activity.description = request.form.get("description", "").strip()
 
 
 def populate_crm_appointment_from_form(appointment):
@@ -1914,6 +1973,9 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        for case in client.crm_cases:
+            sync_case_invoice(case)
+        db.session.commit()
         return render_template(
             "crm_client_detail.html",
             client=client,
@@ -1937,6 +1999,11 @@ def register_routes(app):
             )
             populate_crm_case_from_form(case)
             db.session.add(case)
+            db.session.flush()
+            if case.notes:
+                db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
+                case.notes = ""
+            sync_case_invoice(case)
             db.session.commit()
             flash("CRM case created.", "success")
             return redirect(url_for("crm_client_detail", client_id=client.id))
@@ -1956,7 +2023,12 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
+            existing_note = case.notes
             populate_crm_case_from_form(case)
+            if case.notes and case.notes != existing_note:
+                db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
+                case.notes = ""
+            sync_case_invoice(case)
             db.session.commit()
             flash("CRM case updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=case.client_id))
@@ -1975,7 +2047,23 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
+        sync_case_invoice(case)
+        db.session.commit()
         return render_template("crm_case_detail.html", case=case)
+
+    @app.route("/agency/crm/cases/<int:case_id>/notes", methods=["POST"])
+    @role_required("agency")
+    def crm_case_note_create(case_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
+        note_text = request.form.get("note_text", "").strip()
+        if note_text:
+            db.session.add(CrmCaseNote(agency_id=current_user.agency_id, case_id=case.id, note_text=note_text))
+            db.session.commit()
+            flash("Case note added.", "success")
+        return redirect(url_for("crm_case_detail", case_id=case.id))
 
     @app.route("/agency/crm/cases/<int:case_id>/delete", methods=["POST"])
     @role_required("agency")
@@ -2031,6 +2119,75 @@ def register_routes(app):
             return redirect(url_for("crm_client_detail", client_id=invoice.client_id))
         return render_template("crm_invoice_form.html", client=invoice.client, invoice=invoice, cases=cases)
 
+    @app.route("/agency/crm/invoices/<int:invoice_id>")
+    @role_required("agency")
+    def crm_invoice_detail(invoice_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
+        sync_case_invoice(invoice.case)
+        db.session.commit()
+        return render_template("crm_invoice_detail.html", invoice=invoice, balance_due=invoice.balance_due)
+
+    @app.route("/agency/crm/invoices/<int:invoice_id>/activities/new", methods=["POST"])
+    @role_required("agency")
+    def crm_invoice_activity_create(invoice_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
+        activity = CrmInvoiceActivity(agency_id=current_user.agency_id, invoice_id=invoice.id)
+        populate_invoice_activity_from_form(activity)
+        db.session.add(activity)
+        db.session.flush()
+        recalc_crm_invoice(invoice)
+        db.session.commit()
+        flash(f"{activity.activity_type} added.", "success")
+        return redirect(url_for("crm_invoice_detail", invoice_id=invoice.id))
+
+    @app.route("/agency/crm/invoice-activities/<int:activity_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_invoice_activity_edit(activity_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        activity = CrmInvoiceActivity.query.filter_by(id=activity_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_invoice_activity_from_form(activity)
+            recalc_crm_invoice(activity.invoice)
+            db.session.commit()
+            flash("Invoice activity updated.", "success")
+            return redirect(url_for("crm_invoice_detail", invoice_id=activity.invoice_id))
+        return render_template("crm_invoice_activity_form.html", activity=activity)
+
+    @app.route("/agency/crm/invoice-activities/<int:activity_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def crm_invoice_activity_delete(activity_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        activity = CrmInvoiceActivity.query.filter_by(id=activity_id, agency_id=current_user.agency_id).first() or abort(404)
+        invoice = activity.invoice
+        invoice_id = invoice.id
+        db.session.delete(activity)
+        db.session.flush()
+        recalc_crm_invoice(invoice)
+        db.session.commit()
+        flash("Invoice activity deleted.", "info")
+        return redirect(url_for("crm_invoice_detail", invoice_id=invoice_id))
+
+    @app.route("/agency/crm/invoices/<int:invoice_id>/pdf")
+    @role_required("agency")
+    def crm_invoice_pdf(invoice_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
+        sync_case_invoice(invoice.case)
+        db.session.commit()
+        return generate_crm_invoice_pdf(invoice)
+
     @app.route("/agency/crm/invoices/<int:invoice_id>/delete", methods=["POST"])
     @role_required("agency")
     def crm_invoice_delete(invoice_id):
@@ -2059,6 +2216,10 @@ def register_routes(app):
             )
             populate_crm_appointment_from_form(appointment)
             db.session.add(appointment)
+            db.session.flush()
+            if appointment.notes:
+                db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes))
+                appointment.notes = ""
             db.session.commit()
             flash("Appointment created.", "success")
             return redirect(url_for("crm_client_detail", client_id=case.client_id))
@@ -2072,7 +2233,11 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
+            existing_note = appointment.notes
             populate_crm_appointment_from_form(appointment)
+            if appointment.notes and appointment.notes != existing_note:
+                db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes))
+                appointment.notes = ""
             db.session.commit()
             flash("Appointment updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=appointment.client_id))
@@ -2095,6 +2260,20 @@ def register_routes(app):
             appointment=appointment,
             duration_minutes=crm_appointment_duration_minutes(appointment),
         )
+
+    @app.route("/agency/crm/appointments/<int:appointment_id>/notes", methods=["POST"])
+    @role_required("agency")
+    def crm_appointment_note_create(appointment_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
+        note_text = request.form.get("note_text", "").strip()
+        if note_text:
+            db.session.add(CrmAppointmentNote(agency_id=current_user.agency_id, appointment_id=appointment.id, note_text=note_text))
+            db.session.commit()
+            flash("Appointment note added.", "success")
+        return redirect(url_for("crm_appointment_detail", appointment_id=appointment.id))
 
     @app.route("/agency/crm/appointments/<int:appointment_id>/delete", methods=["POST"])
     @role_required("agency")
@@ -2523,6 +2702,85 @@ def render_person_details(pdf, x, y, label, person):
         pdf.drawString(x + 12, y, line[:100])
         y -= 12
     return y - 6
+
+
+def generate_crm_invoice_pdf(invoice):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 55
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(50, y, f"Invoice {invoice.invoice_number}")
+    pdf.setFont("Helvetica", 10)
+    if invoice.issue_date:
+        pdf.drawRightString(width - 50, y, invoice.issue_date.strftime("%m/%d/%Y"))
+    y -= 32
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(50, y, invoice.agency.agency_name)
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    for line in [invoice.agency.display_address, invoice.agency.agency_phone or invoice.agency.ceo_phone, invoice.agency.agency_email or invoice.agency.ceo_email]:
+        if line:
+            pdf.drawString(50, y, line[:95])
+            y -= 13
+    y -= 12
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(50, y, "Bill To")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    for line in [invoice.client.full_name, invoice.client.display_address, invoice.client.phone, invoice.client.email]:
+        if line:
+            pdf.drawString(50, y, line[:95])
+            y -= 13
+    y -= 10
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(50, y, "Case")
+    y -= 16
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(50, y, invoice.case.title[:70])
+    pdf.drawRightString(width - 50, y, f"Service price: ${float(invoice.subtotal or 0):,.2f}")
+    y -= 28
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(50, y, "Activity")
+    y -= 16
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(50, y, "Date")
+    pdf.drawString(125, y, "Type")
+    pdf.drawString(225, y, "Description")
+    pdf.drawRightString(width - 50, y, "Amount")
+    y -= 12
+    pdf.line(50, y, width - 50, y)
+    y -= 14
+    pdf.setFont("Helvetica", 9)
+    for activity in sorted(invoice.activities, key=lambda row: (row.activity_date, row.created_at), reverse=True):
+        if y < 90:
+            pdf.showPage()
+            y = height - 55
+            pdf.setFont("Helvetica", 9)
+        pdf.drawString(50, y, activity.activity_date.strftime("%m/%d/%Y") if activity.activity_date else "")
+        pdf.drawString(125, y, activity.activity_type)
+        pdf.drawString(225, y, (activity.description or "")[:46])
+        pdf.drawRightString(width - 50, y, f"${float(activity.amount or 0):,.2f}")
+        y -= 14
+    y -= 12
+    pdf.setFont("Helvetica-Bold", 10)
+    for label, amount in [
+        ("Subtotal", invoice.subtotal or 0),
+        ("Discounts", invoice.discount or 0),
+        ("Total", invoice.total or 0),
+        ("Paid minus refunds", invoice.paid_amount or 0),
+        ("Balance due", invoice.balance_due),
+    ]:
+        pdf.drawRightString(width - 140, y, label)
+        pdf.drawRightString(width - 50, y, f"${float(amount):,.2f}")
+        y -= 15
+    pdf.save()
+    buffer.seek(0)
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"},
+    )
 
 
 def save_agency_documents(agency):

@@ -32,7 +32,33 @@
       <div><strong>Start</strong><span>{{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }}</span></div>
       <div><strong>Duration</strong><span>{{ duration_minutes }} minutes</span></div>
       <div><strong>Status</strong><span>{{ appointment.status }}</span></div>
-      <div class="crm-detail-notes"><strong>Notes</strong><span>{{ appointment.notes or 'No notes.' }}</span></div>
+    </div>
+  </section>
+
+  <section class="crm-panel">
+    <div class="crm-panel-head">
+      <div><h2>Notes</h2><p>Newest notes are shown first.</p></div>
+    </div>
+    <form method="post" action="{{ url_for('crm_appointment_note_create', appointment_id=appointment.id) }}" class="mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <textarea class="form-control mb-2" name="note_text" rows="3" placeholder="Add an appointment note"></textarea>
+      <button class="btn btn-primary crm-action-btn">Add Note</button>
+    </form>
+    <div class="crm-stack">
+      {% if appointment.notes %}
+        <div class="crm-record">
+          <div><strong>Legacy note</strong><small>{{ appointment.notes }}</small></div>
+        </div>
+      {% endif %}
+      {% for note in appointment.note_entries %}
+        <div class="crm-record">
+          <div><strong>{{ note.created_at.strftime('%b %d, %Y %I:%M %p') }}</strong><small>{{ note.note_text }}</small></div>
+        </div>
+      {% else %}
+        {% if not appointment.notes %}
+        <p class="text-secondary mb-0">No appointment notes yet.</p>
+        {% endif %}
+      {% endfor %}
     </div>
   </section>
 </div>

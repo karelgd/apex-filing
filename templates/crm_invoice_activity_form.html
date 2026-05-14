@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-form-page">
+  <div class="crm-form-card">
+    <span class="crm-kicker">Edit Invoice Activity</span>
+    <h1>{{ activity.invoice.invoice_number }}</h1>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label">Type</label>
+      <select class="form-select mb-3" name="activity_type">
+        {% for type in ['Payment', 'Discount', 'Refund'] %}
+          <option value="{{ type }}" {% if activity.activity_type == type %}selected{% endif %}>{{ type }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Amount</label>
+      <input class="form-control mb-3" type="number" step="0.01" min="0" name="amount" value="{{ activity.amount }}" required>
+      <label class="form-label">Date</label>
+      <input class="form-control mb-3" type="date" name="activity_date" value="{{ activity.activity_date }}">
+      <label class="form-label">Description</label>
+      <input class="form-control mb-4" name="description" value="{{ activity.description or '' }}">
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary crm-action-btn">Save Activity</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('crm_invoice_detail', invoice_id=activity.invoice_id) }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

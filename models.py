@@ -495,6 +495,7 @@ class CrmCase(db.Model):
     invoices = db.relationship("CrmInvoice", back_populates="case", cascade="all, delete-orphan")
     appointments = db.relationship("CrmAppointment", back_populates="case", cascade="all, delete-orphan")
     documents = db.relationship("CrmClientDocument", back_populates="case")
+    note_entries = db.relationship("CrmCaseNote", back_populates="case", cascade="all, delete-orphan", order_by="CrmCaseNote.created_at.desc()")
 
 
 class CrmInvoice(db.Model):
@@ -518,6 +519,7 @@ class CrmInvoice(db.Model):
     agency = db.relationship("Agency", backref=db.backref("crm_invoices", cascade="all, delete-orphan"))
     client = db.relationship("Client", back_populates="crm_invoices")
     case = db.relationship("CrmCase", back_populates="invoices")
+    activities = db.relationship("CrmInvoiceActivity", back_populates="invoice", cascade="all, delete-orphan", order_by="CrmInvoiceActivity.activity_date.desc(), CrmInvoiceActivity.created_at.desc()")
 
     @property
     def balance_due(self):
@@ -542,6 +544,44 @@ class CrmAppointment(db.Model):
     agency = db.relationship("Agency", backref=db.backref("crm_appointments", cascade="all, delete-orphan"))
     client = db.relationship("Client", back_populates="crm_appointments")
     case = db.relationship("CrmCase", back_populates="appointments")
+    note_entries = db.relationship("CrmAppointmentNote", back_populates="appointment", cascade="all, delete-orphan", order_by="CrmAppointmentNote.created_at.desc()")
+
+
+class CrmCaseNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False)
+    note_text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    case = db.relationship("CrmCase", back_populates="note_entries")
+
+
+class CrmAppointmentNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey("crm_appointment.id"), nullable=False)
+    note_text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    appointment = db.relationship("CrmAppointment", back_populates="note_entries")
+
+
+class CrmInvoiceActivity(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    invoice_id = db.Column(db.Integer, db.ForeignKey("crm_invoice.id"), nullable=False)
+    activity_type = db.Column(db.String(30), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), default=0, nullable=False)
+    activity_date = db.Column(db.Date, default=date.today, nullable=False)
+    description = db.Column(db.String(240))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    invoice = db.relationship("CrmInvoice", back_populates="activities")
 
 
 class CrmClientDocument(db.Model):

@@ -29,8 +29,8 @@
           <option value="{{ status }}" {% if appointment and appointment.status == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
       </select>
-      <label class="form-label">Notes</label>
-      <textarea class="form-control mb-4" name="notes" rows="4">{{ appointment.notes if appointment else '' }}</textarea>
+      <label class="form-label">{{ 'Add note' if appointment else 'Initial note' }}</label>
+      <textarea class="form-control mb-4" name="notes" rows="4" placeholder="This will be added to the appointment note history."></textarea>
       <div class="d-flex gap-2">
         <button class="btn btn-primary crm-action-btn">Save Appointment</button>
         <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=case.client_id) }}">Cancel</a>

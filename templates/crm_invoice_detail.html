@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-client-header">
+    <div class="crm-avatar big">{{ invoice.client.first_name[:1] }}{{ invoice.client.last_name[:1] }}</div>
+    <div class="crm-client-identity">
+      <span class="crm-kicker">Invoice detail</span>
+      <h1>{{ invoice.invoice_number }}</h1>
+      <div class="crm-client-facts">
+        <span><strong>Client:</strong> {{ invoice.client.full_name }}</span>
+        <span><strong>Case:</strong> {{ invoice.case.title }}</span>
+        <span><strong>Status:</strong> {{ invoice.status }}</span>
+        <span><strong>Balance:</strong> ${{ '%.2f'|format(balance_due or 0) }}</span>
+      </div>
+    </div>
+    <div class="crm-actions">
+      <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('crm_invoice_pdf', invoice_id=invoice.id) }}">Download PDF</a>
+    </div>
+  </div>
+
+  <section class="crm-folder-panel active">
+    <div class="crm-panel-head">
+      <div><h2>Invoice Summary</h2><p>This invoice follows the latest case price and service name.</p></div>
+      <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=invoice.client_id) }}">Back to Client</a>
+    </div>
+    <div class="crm-detail-list">
+      <div><strong>Agency</strong><span>{{ invoice.agency.agency_name }}</span></div>
+      <div><strong>Client</strong><span>{{ invoice.client.full_name }}</span></div>
+      <div><strong>Case Type</strong><span>{{ invoice.case.title }}</span></div>
+      <div><strong>Service Price</strong><span>${{ '%.2f'|format(invoice.subtotal or 0) }}</span></div>
+      <div><strong>Discounts</strong><span>${{ '%.2f'|format(invoice.discount or 0) }}</span></div>
+      <div><strong>Total</strong><span>${{ '%.2f'|format(invoice.total or 0) }}</span></div>
+      <div><strong>Paid Minus Refunds</strong><span>${{ '%.2f'|format(invoice.paid_amount or 0) }}</span></div>
+      <div><strong>Balance Due</strong><span>${{ '%.2f'|format(balance_due or 0) }}</span></div>
+    </div>
+  </section>
+
+  <section class="crm-panel">
+    <div class="crm-panel-head">
+      <div><h2>Add Activity</h2><p>Payments, discounts, and refunds become part of the invoice history.</p></div>
+    </div>
+    <form method="post" action="{{ url_for('crm_invoice_activity_create', invoice_id=invoice.id) }}" class="crm-form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label class="form-label">Type</label>
+        <select class="form-select" name="activity_type">
+          {% for type in ['Payment', 'Discount', 'Refund'] %}<option value="{{ type }}">{{ type }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Amount</label>
+        <input class="form-control" type="number" step="0.01" min="0" name="amount" required>
+      </div>
+      <div>
+        <label class="form-label">Date</label>
+        <input class="form-control" type="date" name="activity_date">
+      </div>
+      <div>
+        <label class="form-label">Description</label>
+        <input class="form-control" name="description">
+      </div>
+      <button class="btn btn-primary crm-action-btn">Add Activity</button>
+    </form>
+  </section>
+
+  <section class="crm-panel">
+    <div class="crm-panel-head">
+      <div><h2>Invoice History</h2><p>Newest activity appears first.</p></div>
+    </div>
+    <div class="crm-stack">
+      {% for activity in invoice.activities %}
+        <div class="crm-record">
+          <div><strong>{{ activity.activity_type }} - ${{ '%.2f'|format(activity.amount or 0) }}</strong><small>{{ activity.activity_date.strftime('%b %d, %Y') }}{% if activity.description %} &middot; {{ activity.description }}{% endif %}</small></div>
+          <div class="crm-row-actions">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_invoice_activity_edit', activity_id=activity.id) }}">Edit</a>
+            <form method="post" action="{{ url_for('crm_invoice_activity_delete', activity_id=activity.id) }}" onsubmit="return confirm('Delete this invoice activity?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-secondary mb-0">No invoice activity yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

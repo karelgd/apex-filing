@@ -93,18 +93,13 @@
     <section class="crm-folder-panel" data-crm-panel="invoices">
       <div class="crm-panel-head">
         <div><h2>Invoices</h2><p>Billing records for this client.</p></div>
-        <a class="btn btn-info crm-action-btn" href="{{ url_for('crm_invoice_create', client_id=client.id) }}">Create Invoice</a>
       </div>
       <div class="crm-stack">
         {% for invoice in invoices %}
           <div class="crm-record">
             <div><strong>{{ invoice.invoice_number }}</strong><small>{{ invoice.case.title }} &middot; ${{ '%.2f'|format(invoice.total or 0) }} &middot; {{ invoice.status }}</small></div>
             <div class="crm-row-actions">
-              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_invoice_edit', invoice_id=invoice.id) }}">Edit</a>
-              <form method="post" action="{{ url_for('crm_invoice_delete', invoice_id=invoice.id) }}" onsubmit="return confirm('Delete this invoice?')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-sm btn-outline-danger">Delete</button>
-              </form>
+              <a class="btn btn-sm btn-primary" href="{{ url_for('crm_invoice_detail', invoice_id=invoice.id) }}">View</a>
             </div>
           </div>
         {% else %}
