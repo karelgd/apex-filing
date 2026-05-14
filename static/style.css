@@ -1209,6 +1209,68 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.crm-summary-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.crm-summary-card {
+  background: #ffffff;
+  border: 1px solid #dce6f3;
+  border-radius: 8px;
+  box-shadow: 0 14px 30px rgba(22, 32, 51, .08);
+  min-height: 156px;
+  padding: 1rem;
+}
+
+.crm-summary-card > strong {
+  color: var(--apex-accent);
+  display: block;
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1;
+  margin-top: .75rem;
+}
+
+.crm-summary-card > small {
+  color: var(--apex-muted);
+  display: block;
+  font-weight: 800;
+  margin-top: .35rem;
+}
+
+.crm-summary-lines {
+  display: grid;
+  gap: .5rem;
+  margin-top: .75rem;
+}
+
+.crm-summary-lines div {
+  align-items: center;
+  border-bottom: 1px solid #edf2f8;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-bottom: .45rem;
+}
+
+.crm-summary-lines div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.crm-summary-lines span {
+  color: var(--apex-muted);
+  font-size: .9rem;
+  font-weight: 800;
+}
+
+.crm-summary-lines strong {
+  color: var(--apex-ink);
+  font-weight: 900;
+}
+
 .crm-metric {
   background: #ffffff;
   border: 1px solid #dce6f3;
@@ -1438,6 +1500,44 @@ body {
   background: #edf4ff;
 }
 
+.crm-filter-bar {
+  align-items: end;
+  display: grid;
+  gap: .85rem;
+  grid-template-columns: minmax(240px, 1.4fr) repeat(5, minmax(150px, 1fr)) auto;
+}
+
+.crm-filter-main {
+  min-width: 0;
+}
+
+.crm-filter-actions {
+  display: flex;
+  gap: .5rem;
+}
+
+.crm-client-result {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #e0e9f6;
+  border-radius: 8px;
+  display: grid;
+  gap: .85rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: .9rem;
+}
+
+.crm-client-result strong {
+  display: block;
+  font-weight: 900;
+}
+
+.crm-client-result small {
+  color: var(--apex-muted);
+  display: block;
+  font-size: .88rem;
+}
+
 .crm-client-row span:nth-child(2),
 .crm-record > div:first-child,
 .crm-mini-card {
@@ -1559,10 +1659,13 @@ body {
   .motion-field-grid,
   .motion-grid-respondent,
   .crm-metrics,
+  .crm-summary-grid,
   .crm-board,
   .crm-detail-grid,
   .crm-form-grid,
-  .crm-upload {
+  .crm-upload,
+  .crm-filter-bar,
+  .crm-client-result {
     grid-template-columns: 1fr;
   }
 

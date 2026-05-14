@@ -24,7 +24,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from werkzeug.utils import secure_filename
-from sqlalchemy import inspect, text
+from sqlalchemy import func, inspect, or_, text
 import click
 
 from forms import CASE_STATUSES, CASE_TYPES, CRM_CASE_SERVICES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
@@ -1937,33 +1937,69 @@ def register_routes(app):
         if not can_use_crm(current_user.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
-        search = request.args.get("q", "").strip().lower()
-        clients_query = Client.query.filter_by(agency_id=current_user.agency_id).order_by(Client.last_name, Client.first_name)
-        clients = clients_query.all()
-        if search:
-            clients = [
-                client for client in clients
-                if search in " ".join(
-                    [
-                        client.full_name,
-                        client.email or "",
-                        client.phone or "",
-                        client.a_number or "",
-                    ]
-                ).lower()
-            ]
         cases = CrmCase.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCase.updated_at.desc()).all()
+        for case in cases:
+            sync_case_invoice(case)
+        db.session.commit()
         invoices = CrmInvoice.query.filter_by(agency_id=current_user.agency_id).order_by(CrmInvoice.updated_at.desc()).all()
-        appointments = CrmAppointment.query.filter_by(agency_id=current_user.agency_id).order_by(CrmAppointment.start_at.asc()).all()
+        search = request.args.get("q", "").strip()
+        manager_id = request.args.get("case_manager_id", "").strip()
+        preparer_id = request.args.get("form_preparer_id", "").strip()
+        created_on = request.args.get("created_on", "").strip()
+        created_from = request.args.get("created_from", "").strip()
+        created_to = request.args.get("created_to", "").strip()
+        searched = request.args.get("searched") == "1"
+        clients = []
+        if searched:
+            clients_query = Client.query.filter_by(agency_id=current_user.agency_id)
+            if search:
+                lowered_search = f"%{search.lower()}%"
+                clients_query = clients_query.filter(
+                    or_(
+                        func.lower(Client.first_name + " " + Client.last_name).like(lowered_search),
+                        func.lower(Client.email).like(lowered_search),
+                        func.lower(Client.phone).like(lowered_search),
+                        func.lower(Client.a_number).like(lowered_search),
+                    )
+                )
+            if created_on:
+                date_value = datetime.strptime(created_on, "%Y-%m-%d").date()
+                clients_query = clients_query.filter(func.date(Client.created_at) == date_value)
+            else:
+                if created_from:
+                    clients_query = clients_query.filter(func.date(Client.created_at) >= datetime.strptime(created_from, "%Y-%m-%d").date())
+                if created_to:
+                    clients_query = clients_query.filter(func.date(Client.created_at) <= datetime.strptime(created_to, "%Y-%m-%d").date())
+            if manager_id or preparer_id:
+                clients_query = clients_query.join(CrmCase, CrmCase.client_id == Client.id)
+                if manager_id:
+                    clients_query = clients_query.filter(CrmCase.case_manager_id == int(manager_id))
+                if preparer_id:
+                    clients_query = clients_query.filter(CrmCase.form_preparer_id == int(preparer_id))
+                clients_query = clients_query.distinct()
+            clients = clients_query.order_by(Client.last_name, Client.first_name).all()
+        case_statuses = ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed"]
+        case_status_counts = {status: len([case for case in cases if case.status == status]) for status in case_statuses}
+        open_balance_total = sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid")
         return render_template(
             "agency_crm.html",
             clients=clients,
             cases=cases,
             invoices=invoices,
-            appointments=appointments,
-            open_invoice_count=len([invoice for invoice in invoices if invoice.status != "Paid"]),
-            scheduled_appointment_count=len([appointment for appointment in appointments if appointment.status == "Scheduled"]),
+            case_status_counts=case_status_counts,
+            total_clients=Client.query.filter_by(agency_id=current_user.agency_id).count(),
+            total_discounts=sum((invoice.discount or Decimal("0")) for invoice in invoices),
+            total_refunds=sum((activity.amount or Decimal("0")) for activity in CrmInvoiceActivity.query.filter_by(agency_id=current_user.agency_id, activity_type="Refund").all()),
+            open_balance_total=open_balance_total,
+            searched=searched,
+            case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
+            form_preparers=AgencyCrmPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmPreparer.full_name).all(),
             search=search,
+            manager_id=manager_id,
+            preparer_id=preparer_id,
+            created_on=created_on,
+            created_from=created_from,
+            created_to=created_to,
         )
 
     @app.route("/agency/crm/clients/<int:client_id>")

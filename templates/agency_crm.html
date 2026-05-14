@@ -5,83 +5,109 @@
     <div>
       <span class="crm-kicker">Client Relationship Manager</span>
       <h1>CRM Workspace</h1>
-      <p>Clients, cases, invoices, documents, and appointments in one agency view.</p>
+      <p>Search clients, review case volume, and track invoice activity.</p>
     </div>
     <div class="crm-actions">
       <a class="btn btn-primary crm-action-btn" href="{{ url_for('client_create') }}">Create Client</a>
-      {% if clients %}
-        <a class="btn btn-success crm-action-btn" href="{{ url_for('crm_client_detail', client_id=clients[0].id) }}">Open Latest Client</a>
-      {% endif %}
     </div>
   </div>
 
-  <div class="crm-metrics">
-    <div class="crm-metric"><span>{{ clients|length }}</span><small>Clients shown</small></div>
-    <div class="crm-metric"><span>{{ cases|length }}</span><small>Cases</small></div>
-    <div class="crm-metric"><span>{{ open_invoice_count }}</span><small>Open invoices</small></div>
-    <div class="crm-metric"><span>{{ scheduled_appointment_count }}</span><small>Scheduled</small></div>
+  <div class="crm-summary-grid">
+    <section class="crm-summary-card">
+      <span class="crm-kicker">Clients</span>
+      <strong>{{ total_clients }}</strong>
+      <small>Total clients</small>
+    </section>
+
+    <section class="crm-summary-card">
+      <span class="crm-kicker">Cases</span>
+      <div class="crm-summary-lines">
+        {% for status, total in case_status_counts.items() %}
+          <div><span>{{ status }}</span><strong>{{ total }}</strong></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="crm-summary-card">
+      <span class="crm-kicker">Invoices</span>
+      <div class="crm-summary-lines">
+        <div><span>Total discounts</span><strong>${{ '%.2f'|format(total_discounts or 0) }}</strong></div>
+        <div><span>Total refunds</span><strong>${{ '%.2f'|format(total_refunds or 0) }}</strong></div>
+        <div><span>Open balances</span><strong>${{ '%.2f'|format(open_balance_total or 0) }}</strong></div>
+      </div>
+    </section>
   </div>
 
-  <div class="crm-board">
-    <section class="crm-panel crm-panel-wide">
-      <div class="crm-panel-head">
-        <div>
-          <h2>Clients</h2>
-          <p>Search by name, email, phone, or A-number.</p>
-        </div>
-        <form class="crm-search" method="get">
-          <input class="form-control" name="q" value="{{ search }}" placeholder="Search CRM">
-        </form>
+  <section class="crm-panel crm-panel-wide">
+    <div class="crm-panel-head">
+      <div>
+        <h2>Client Search</h2>
+        <p>Results appear after you search or apply a filter.</p>
       </div>
-      <div class="crm-list">
+    </div>
+    <form class="crm-filter-bar" method="get">
+      <input type="hidden" name="searched" value="1">
+      <div class="crm-filter-main">
+        <label class="form-label">Search</label>
+        <input class="form-control" name="q" value="{{ search }}" placeholder="Name, A-number, email, or phone">
+      </div>
+      <div>
+        <label class="form-label">Case manager</label>
+        <select class="form-select" name="case_manager_id">
+          <option value="">Any manager</option>
+          {% for manager in case_managers %}
+            <option value="{{ manager.id }}" {% if manager_id == manager.id|string %}selected{% endif %}>{{ manager.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Form preparer</label>
+        <select class="form-select" name="form_preparer_id">
+          <option value="">Any preparer</option>
+          {% for preparer in form_preparers %}
+            <option value="{{ preparer.id }}" {% if preparer_id == preparer.id|string %}selected{% endif %}>{{ preparer.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Created on</label>
+        <input class="form-control" type="date" name="created_on" value="{{ created_on }}">
+      </div>
+      <div>
+        <label class="form-label">From</label>
+        <input class="form-control" type="date" name="created_from" value="{{ created_from }}">
+      </div>
+      <div>
+        <label class="form-label">To</label>
+        <input class="form-control" type="date" name="created_to" value="{{ created_to }}">
+      </div>
+      <div class="crm-filter-actions">
+        <button class="btn btn-primary crm-action-btn">Search</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('agency_crm') }}">Clear</a>
+      </div>
+    </form>
+
+    <div class="crm-list mt-3">
+      {% if not searched %}
+        <p class="text-secondary mb-0">Use the search or filters above to load matching clients.</p>
+      {% else %}
         {% for client in clients %}
-          <a class="crm-client-row" href="{{ url_for('crm_client_detail', client_id=client.id) }}">
+          <div class="crm-client-result">
             <span class="crm-avatar">{{ client.first_name[:1] }}{{ client.last_name[:1] }}</span>
-            <span>
+            <div>
               <strong>{{ client.full_name }}</strong>
-              <small>{{ client.email }} · {{ client.phone }}</small>
-            </span>
-            <span class="crm-pill blue">{{ client.crm_cases|length }} cases</span>
-          </a>
-        {% else %}
-          <p class="text-secondary mb-0">No clients match this search.</p>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="crm-panel">
-      <div class="crm-panel-head">
-        <div><h2>Upcoming</h2><p>Appointments tied to cases.</p></div>
-      </div>
-      <div class="crm-stack">
-        {% for appointment in appointments[:6] %}
-          <div class="crm-mini-card">
-            <strong>{{ appointment.title }}</strong>
-            <small>{{ appointment.client.full_name }} · {{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }}</small>
-            <span>{{ appointment.case.title }}</span>
+              <small>A-Number: {{ client.a_number or 'Not provided' }} &middot; {{ client.phone }} &middot; {{ client.email }}</small>
+            </div>
+            <div class="crm-row-actions">
+              <a class="btn btn-sm btn-primary" href="{{ url_for('crm_client_detail', client_id=client.id) }}">View</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('client_edit', client_id=client.id) }}">Edit</a>
+            </div>
           </div>
         {% else %}
-          <p class="text-secondary mb-0">No appointments yet.</p>
+          <p class="text-secondary mb-0">No clients match those criteria.</p>
         {% endfor %}
-      </div>
-    </section>
-
-    <section class="crm-panel">
-      <div class="crm-panel-head">
-        <div><h2>Invoices</h2><p>Recent billing activity.</p></div>
-      </div>
-      <div class="crm-stack">
-        {% for invoice in invoices[:6] %}
-          <div class="crm-mini-card">
-            <strong>{{ invoice.invoice_number }}</strong>
-            <small>{{ invoice.client.full_name }} · ${{ '%.2f'|format(invoice.total or 0) }}</small>
-            <span class="crm-pill {{ 'green' if invoice.status == 'Paid' else 'gold' }}">{{ invoice.status }}</span>
-          </div>
-        {% else %}
-          <p class="text-secondary mb-0">No invoices yet.</p>
-        {% endfor %}
-      </div>
-    </section>
-  </div>
+      {% endif %}
+    </div>
+  </section>
 </div>
 {% endblock %}
