@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-form-page">
+  <div class="crm-form-card">
+    <span class="crm-kicker">{{ 'Edit' if case else 'Create' }} Case</span>
+    <h1>{{ client.full_name }}</h1>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label">Case type or service</label>
+      <input class="form-control mb-3" name="title" value="{{ case.title if case else '' }}" placeholder="Example: Adjustment, Asylum, Consultation" required>
+      <label class="form-label">Status</label>
+      <select class="form-select mb-3" name="status">
+        {% for status in ['Open', 'Waiting for Client', 'In Preparation', 'Completed'] %}
+          <option value="{{ status }}" {% if case and case.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Notes</label>
+      <textarea class="form-control mb-4" name="notes" rows="5">{{ case.notes if case else '' }}</textarea>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary crm-action-btn">Save Case</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=client.id) }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-form-page">
+  <div class="crm-form-card">
+    <span class="crm-kicker">{{ 'Edit' if invoice else 'Create' }} Invoice</span>
+    <h1>{{ client.full_name }}</h1>
+    {% if not cases %}
+      <div class="alert alert-warning">Create a case before creating an invoice.</div>
+    {% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label">Case</label>
+      <select class="form-select mb-3" name="case_id" required>
+        {% for case in cases %}
+          <option value="{{ case.id }}" {% if invoice and invoice.case_id == case.id %}selected{% endif %}>{{ case.title }} - {{ case.status }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Invoice number</label>
+      <input class="form-control mb-3" name="invoice_number" value="{{ invoice.invoice_number if invoice else '' }}" placeholder="Auto-generated if blank">
+      <label class="form-label">Description</label>
+      <textarea class="form-control mb-3" name="description" rows="3">{{ invoice.description if invoice else '' }}</textarea>
+      <div class="crm-form-grid">
+        <div><label class="form-label">Issue date</label><input class="form-control" type="date" name="issue_date" value="{{ invoice.issue_date if invoice else '' }}"></div>
+        <div><label class="form-label">Due date</label><input class="form-control" type="date" name="due_date" value="{{ invoice.due_date if invoice and invoice.due_date else '' }}"></div>
+        <div><label class="form-label">Subtotal</label><input class="form-control" type="number" step="0.01" name="subtotal" value="{{ invoice.subtotal if invoice else '0.00' }}"></div>
+        <div><label class="form-label">Discount</label><input class="form-control" type="number" step="0.01" name="discount" value="{{ invoice.discount if invoice else '0.00' }}"></div>
+        <div><label class="form-label">Paid amount</label><input class="form-control" type="number" step="0.01" name="paid_amount" value="{{ invoice.paid_amount if invoice else '0.00' }}"></div>
+        <div><label class="form-label">Status</label><select class="form-select" name="status">{% for status in ['Unpaid', 'Partial', 'Paid', 'Void'] %}<option value="{{ status }}" {% if invoice and invoice.status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></div>
+      </div>
+      <label class="form-label mt-3">Notes</label>
+      <textarea class="form-control mb-4" name="notes" rows="3">{{ invoice.notes if invoice else '' }}</textarea>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary crm-action-btn" {% if not cases %}disabled{% endif %}>Save Invoice</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=client.id) }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

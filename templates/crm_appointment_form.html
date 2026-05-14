@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-form-page">
+  <div class="crm-form-card">
+    <span class="crm-kicker">{{ 'Edit' if appointment else 'Create' }} Appointment</span>
+    <h1>{{ case.client.full_name }}</h1>
+    <p class="text-secondary">{{ case.title }} · {{ case.status }}</p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label">Title</label>
+      <input class="form-control mb-3" name="title" value="{{ appointment.title if appointment else '' }}" placeholder="Example: Biometrics, Court hearing, Office visit" required>
+      <label class="form-label">Appointment type</label>
+      <input class="form-control mb-3" name="appointment_type" value="{{ appointment.appointment_type if appointment else '' }}">
+      <label class="form-label">Starts</label>
+      <input class="form-control mb-3" type="datetime-local" name="start_at" value="{{ appointment.start_at.strftime('%Y-%m-%dT%H:%M') if appointment else '' }}" required>
+      <label class="form-label">Ends</label>
+      <input class="form-control mb-3" type="datetime-local" name="end_at" value="{{ appointment.end_at.strftime('%Y-%m-%dT%H:%M') if appointment and appointment.end_at else '' }}">
+      <label class="form-label">Location</label>
+      <input class="form-control mb-3" name="location" value="{{ appointment.location if appointment else '' }}">
+      <label class="form-label">Status</label>
+      <select class="form-select mb-3" name="status">
+        {% for status in ['Scheduled', 'Completed', 'Canceled', 'No Show'] %}
+          <option value="{{ status }}" {% if appointment and appointment.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Notes</label>
+      <textarea class="form-control mb-4" name="notes" rows="4">{{ appointment.notes if appointment else '' }}</textarea>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary crm-action-btn">Save Appointment</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=case.client_id) }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

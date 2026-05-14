@@ -43,6 +43,10 @@ from models import (
     CaseDocument,
     CaseQuestion,
     Client,
+    CrmAppointment,
+    CrmCase,
+    CrmClientDocument,
+    CrmInvoice,
     FormTemplate,
     GeneratedForm,
     ImmigrationCourt,
@@ -613,6 +617,67 @@ def populate_law_firm_from_form(firm):
     firm.address = request.form["address"].strip()
 
 
+def date_from_form(name):
+    raw = request.form.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def datetime_from_form(name):
+    raw = request.form.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        return None
+
+
+def next_crm_invoice_number():
+    count = CrmInvoice.query.filter_by(agency_id=current_user.agency_id).count() + 1
+    return f"CRM-{current_user.agency_id:03d}-{count:05d}"
+
+
+def populate_crm_invoice_from_form(invoice):
+    invoice.issue_date = date_from_form("issue_date") or invoice.issue_date or datetime.utcnow().date()
+    invoice.due_date = date_from_form("due_date")
+    invoice.description = request.form.get("description", "").strip()
+    invoice.subtotal = decimal_from_form("subtotal")
+    invoice.discount = decimal_from_form("discount")
+    invoice.total = max(Decimal("0"), invoice.subtotal - invoice.discount)
+    invoice.paid_amount = decimal_from_form("paid_amount")
+    invoice.status = request.form.get("status") or "Unpaid"
+    invoice.notes = request.form.get("notes", "").strip()
+
+
+def populate_crm_appointment_from_form(appointment):
+    start_at = datetime_from_form("start_at")
+    if not start_at:
+        flash("Appointment date and time is required.", "danger")
+        abort(400)
+    appointment.title = request.form["title"].strip()
+    appointment.appointment_type = request.form.get("appointment_type", "").strip()
+    appointment.start_at = start_at
+    appointment.end_at = datetime_from_form("end_at")
+    appointment.location = request.form.get("location", "").strip()
+    appointment.status = request.form.get("status") or "Scheduled"
+    appointment.notes = request.form.get("notes", "").strip()
+
+
+def populate_crm_case_from_form(case):
+    case.title = request.form["title"].strip()
+    case.status = request.form.get("status") or "Open"
+    case.notes = request.form.get("notes", "").strip()
+    if case.status == "Completed" and not case.completed_at:
+        case.completed_at = datetime.utcnow()
+    if case.status != "Completed":
+        case.completed_at = None
+
+
 def query_case_for_role(case_id):
     case = db.session.get(Case, case_id) or abort(404)
     if current_user.role == "apex":
@@ -694,6 +759,10 @@ def can_use_form_filler(agency):
 
 def can_use_motion_creation(agency):
     return bool(agency and agency.has_tool("Motion Creation"))
+
+
+def can_use_crm(agency):
+    return bool(agency and agency.has_tool("CRM"))
 
 
 def available_form_templates(active_only=True):
@@ -1695,6 +1764,253 @@ def register_routes(app):
         flash("Law firm deleted.", "info")
         return redirect(url_for("law_firm_list"))
 
+    @app.route("/agency/crm")
+    @role_required("agency")
+    def agency_crm():
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        search = request.args.get("q", "").strip().lower()
+        clients_query = Client.query.filter_by(agency_id=current_user.agency_id).order_by(Client.last_name, Client.first_name)
+        clients = clients_query.all()
+        if search:
+            clients = [
+                client for client in clients
+                if search in " ".join(
+                    [
+                        client.full_name,
+                        client.email or "",
+                        client.phone or "",
+                        client.a_number or "",
+                    ]
+                ).lower()
+            ]
+        cases = CrmCase.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCase.updated_at.desc()).all()
+        invoices = CrmInvoice.query.filter_by(agency_id=current_user.agency_id).order_by(CrmInvoice.updated_at.desc()).all()
+        appointments = CrmAppointment.query.filter_by(agency_id=current_user.agency_id).order_by(CrmAppointment.start_at.asc()).all()
+        return render_template(
+            "agency_crm.html",
+            clients=clients,
+            cases=cases,
+            invoices=invoices,
+            appointments=appointments,
+            open_invoice_count=len([invoice for invoice in invoices if invoice.status != "Paid"]),
+            scheduled_appointment_count=len([appointment for appointment in appointments if appointment.status == "Scheduled"]),
+            search=search,
+        )
+
+    @app.route("/agency/crm/clients/<int:client_id>")
+    @role_required("agency")
+    def crm_client_detail(client_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        return render_template(
+            "crm_client_detail.html",
+            client=client,
+            cases=CrmCase.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmCase.updated_at.desc()).all(),
+            invoices=CrmInvoice.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmInvoice.updated_at.desc()).all(),
+            appointments=CrmAppointment.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmAppointment.start_at.desc()).all(),
+            documents=CrmClientDocument.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientDocument.uploaded_at.desc()).all(),
+        )
+
+    @app.route("/agency/crm/clients/<int:client_id>/cases/new", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_case_create(client_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            case = CrmCase(
+                agency_id=current_user.agency_id,
+                client_id=client.id,
+            )
+            populate_crm_case_from_form(case)
+            db.session.add(case)
+            db.session.commit()
+            flash("CRM case created.", "success")
+            return redirect(url_for("crm_client_detail", client_id=client.id))
+        return render_template("crm_case_form.html", client=client, case=None)
+
+    @app.route("/agency/crm/cases/<int:case_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_case_edit(case_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_crm_case_from_form(case)
+            db.session.commit()
+            flash("CRM case updated.", "success")
+            return redirect(url_for("crm_client_detail", client_id=case.client_id))
+        return render_template("crm_case_form.html", client=case.client, case=case)
+
+    @app.route("/agency/crm/cases/<int:case_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def crm_case_delete(case_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
+        client_id = case.client_id
+        db.session.delete(case)
+        db.session.commit()
+        flash("CRM case deleted.", "info")
+        return redirect(url_for("crm_client_detail", client_id=client_id))
+
+    @app.route("/agency/crm/clients/<int:client_id>/invoices/new", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_invoice_create(client_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        cases = CrmCase.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmCase.updated_at.desc()).all()
+        if request.method == "POST":
+            case = CrmCase.query.filter_by(id=int(request.form["case_id"]), client_id=client.id, agency_id=current_user.agency_id).first() or abort(404)
+            invoice = CrmInvoice(
+                agency_id=current_user.agency_id,
+                client_id=client.id,
+                case_id=case.id,
+                invoice_number=request.form.get("invoice_number", "").strip() or next_crm_invoice_number(),
+            )
+            populate_crm_invoice_from_form(invoice)
+            db.session.add(invoice)
+            db.session.commit()
+            flash("Invoice created.", "success")
+            return redirect(url_for("crm_client_detail", client_id=client.id))
+        return render_template("crm_invoice_form.html", client=client, invoice=None, cases=cases)
+
+    @app.route("/agency/crm/invoices/<int:invoice_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_invoice_edit(invoice_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
+        cases = CrmCase.query.filter_by(client_id=invoice.client_id, agency_id=current_user.agency_id).order_by(CrmCase.updated_at.desc()).all()
+        if request.method == "POST":
+            case = CrmCase.query.filter_by(id=int(request.form["case_id"]), client_id=invoice.client_id, agency_id=current_user.agency_id).first() or abort(404)
+            invoice.case_id = case.id
+            invoice.invoice_number = request.form.get("invoice_number", "").strip() or invoice.invoice_number
+            populate_crm_invoice_from_form(invoice)
+            db.session.commit()
+            flash("Invoice updated.", "success")
+            return redirect(url_for("crm_client_detail", client_id=invoice.client_id))
+        return render_template("crm_invoice_form.html", client=invoice.client, invoice=invoice, cases=cases)
+
+    @app.route("/agency/crm/invoices/<int:invoice_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def crm_invoice_delete(invoice_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
+        client_id = invoice.client_id
+        db.session.delete(invoice)
+        db.session.commit()
+        flash("Invoice deleted.", "info")
+        return redirect(url_for("crm_client_detail", client_id=client_id))
+
+    @app.route("/agency/crm/cases/<int:case_id>/appointments/new", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_appointment_create(case_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            appointment = CrmAppointment(
+                agency_id=current_user.agency_id,
+                client_id=case.client_id,
+                case_id=case.id,
+            )
+            populate_crm_appointment_from_form(appointment)
+            db.session.add(appointment)
+            db.session.commit()
+            flash("Appointment created.", "success")
+            return redirect(url_for("crm_client_detail", client_id=case.client_id))
+        return render_template("crm_appointment_form.html", case=case, appointment=None)
+
+    @app.route("/agency/crm/appointments/<int:appointment_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_appointment_edit(appointment_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.method == "POST":
+            populate_crm_appointment_from_form(appointment)
+            db.session.commit()
+            flash("Appointment updated.", "success")
+            return redirect(url_for("crm_client_detail", client_id=appointment.client_id))
+        return render_template("crm_appointment_form.html", case=appointment.case, appointment=appointment)
+
+    @app.route("/agency/crm/appointments/<int:appointment_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def crm_appointment_delete(appointment_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
+        client_id = appointment.client_id
+        db.session.delete(appointment)
+        db.session.commit()
+        flash("Appointment deleted.", "info")
+        return redirect(url_for("crm_client_detail", client_id=client_id))
+
+    @app.route("/agency/crm/clients/<int:client_id>/documents", methods=["POST"])
+    @role_required("agency")
+    def crm_document_upload(client_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        file_storage = request.files.get("document")
+        try:
+            saved = save_upload(file_storage, f"crm/clients/{client.id}")
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return redirect(url_for("crm_client_detail", client_id=client.id))
+        if not saved:
+            flash("Choose a document to upload.", "warning")
+            return redirect(url_for("crm_client_detail", client_id=client.id))
+        original, stored = saved
+        case_id = request.form.get("case_id")
+        linked_case = None
+        if case_id:
+            linked_case = CrmCase.query.filter_by(id=int(case_id), client_id=client.id, agency_id=current_user.agency_id).first() or abort(404)
+        db.session.add(
+            CrmClientDocument(
+                agency_id=current_user.agency_id,
+                client_id=client.id,
+                case_id=linked_case.id if linked_case else None,
+                original_filename=original,
+                stored_filename=stored,
+                document_type=request.form.get("document_type", "").strip() or "Client document",
+                description=request.form.get("description", "").strip(),
+            )
+        )
+        db.session.commit()
+        flash("Document uploaded.", "success")
+        return redirect(url_for("crm_client_detail", client_id=client.id))
+
+    @app.route("/agency/crm/documents/<int:document_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def crm_document_delete(document_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
+        client_id = document.client_id
+        db.session.delete(document)
+        db.session.commit()
+        flash("Document deleted.", "info")
+        return redirect(url_for("crm_client_detail", client_id=client_id))
+
     @app.route("/clients")
     @role_required("apex", "agency")
     def client_list():
@@ -2017,6 +2333,19 @@ def authorize_upload_access(filename):
             abort(403)
         query_case_for_role(case_id)
         return
+    if parts[0] == "crm" and len(parts) >= 3 and parts[1] == "clients":
+        try:
+            client_id = int(parts[2])
+        except ValueError:
+            abort(403)
+        client = db.session.get(Client, client_id) or abort(403)
+        if current_user.role == "apex":
+            return
+        if current_user.role == "agency" and client.agency_id == current_user.agency_id:
+            return
+        if current_user.role == "client" and client.id == current_user.id:
+            return
+        abort(403)
     abort(403)
 
 

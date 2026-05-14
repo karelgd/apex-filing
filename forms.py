@@ -8,6 +8,7 @@ US_STATES = [
 SUBSCRIPTION_TOOLS = [
     "Form Filler",
     "Motion Creation",
+    "CRM",
     "Power of Attorney Creator",
     "Contract Generator",
     "Other future tools",

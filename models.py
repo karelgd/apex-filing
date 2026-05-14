@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
@@ -340,6 +340,10 @@ class Client(UserMixin, PasswordMixin, db.Model):
 
     agency = db.relationship("Agency", back_populates="clients")
     cases = db.relationship("Case", back_populates="client", cascade="all, delete-orphan")
+    crm_cases = db.relationship("CrmCase", back_populates="client", cascade="all, delete-orphan")
+    crm_invoices = db.relationship("CrmInvoice", back_populates="client", cascade="all, delete-orphan")
+    crm_appointments = db.relationship("CrmAppointment", back_populates="client", cascade="all, delete-orphan")
+    crm_documents = db.relationship("CrmClientDocument", back_populates="client", cascade="all, delete-orphan")
 
     @property
     def role(self):
@@ -443,6 +447,88 @@ class GeneratedForm(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     case = db.relationship("Case", back_populates="generated_forms")
+
+
+class CrmCase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
+    title = db.Column(db.String(140), nullable=False)
+    status = db.Column(db.String(60), default="Open", nullable=False)
+    opened_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("crm_cases", cascade="all, delete-orphan"))
+    client = db.relationship("Client", back_populates="crm_cases")
+    invoices = db.relationship("CrmInvoice", back_populates="case", cascade="all, delete-orphan")
+    appointments = db.relationship("CrmAppointment", back_populates="case", cascade="all, delete-orphan")
+    documents = db.relationship("CrmClientDocument", back_populates="case")
+
+
+class CrmInvoice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False)
+    invoice_number = db.Column(db.String(32), nullable=False, index=True)
+    issue_date = db.Column(db.Date, default=date.today, nullable=False)
+    due_date = db.Column(db.Date)
+    description = db.Column(db.Text)
+    subtotal = db.Column(db.Numeric(10, 2), default=0, nullable=False)
+    discount = db.Column(db.Numeric(10, 2), default=0, nullable=False)
+    total = db.Column(db.Numeric(10, 2), default=0, nullable=False)
+    paid_amount = db.Column(db.Numeric(10, 2), default=0, nullable=False)
+    status = db.Column(db.String(30), default="Unpaid", nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("crm_invoices", cascade="all, delete-orphan"))
+    client = db.relationship("Client", back_populates="crm_invoices")
+    case = db.relationship("CrmCase", back_populates="invoices")
+
+    @property
+    def balance_due(self):
+        return (self.total or 0) - (self.paid_amount or 0)
+
+
+class CrmAppointment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    appointment_type = db.Column(db.String(80))
+    start_at = db.Column(db.DateTime, nullable=False)
+    end_at = db.Column(db.DateTime)
+    location = db.Column(db.String(240))
+    status = db.Column(db.String(40), default="Scheduled", nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("crm_appointments", cascade="all, delete-orphan"))
+    client = db.relationship("Client", back_populates="crm_appointments")
+    case = db.relationship("CrmCase", back_populates="appointments")
+
+
+class CrmClientDocument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"))
+    original_filename = db.Column(db.String(255), nullable=False)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    document_type = db.Column(db.String(80), default="Client document", nullable=False)
+    description = db.Column(db.String(240))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("crm_documents", cascade="all, delete-orphan"))
+    client = db.relationship("Client", back_populates="crm_documents")
+    case = db.relationship("CrmCase", back_populates="documents")
 
 
 class ActiveSession(db.Model):

@@ -66,6 +66,9 @@
           <a class="tool-link {{ 'active' if request.endpoint in ['lawyer_list', 'lawyer_edit'] else '' }}" href="{{ url_for('lawyer_list') }}">Lawyers</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['law_firm_list', 'law_firm_edit'] else '' }}" href="{{ url_for('law_firm_list') }}">Law Firms</a>
           <span class="sidebar-label mt-4">Subscriptions</span>
+          {% if current_user.agency.has_tool('CRM') %}
+            <a class="tool-link {{ 'active' if request.endpoint in ['agency_crm', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_invoice_create', 'crm_invoice_edit', 'crm_appointment_create', 'crm_appointment_edit'] else '' }}" href="{{ url_for('agency_crm') }}">CRM</a>
+          {% endif %}
           {% if current_user.agency.has_tool('Form Filler') %}
             <a class="tool-link {{ 'active' if request.endpoint in ['agency_form_filler', 'case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
           {% endif %}
