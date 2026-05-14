@@ -1523,13 +1523,31 @@ body {
   border-radius: 8px;
   display: grid;
   gap: .85rem;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(110px, .7fr) minmax(120px, .7fr) minmax(200px, 1.2fr) auto;
   padding: .9rem;
+}
+
+.crm-client-result-head {
+  background: #ffffff;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--apex-muted);
+  font-size: .78rem;
+  font-weight: 900;
+  padding-bottom: .25rem;
+  padding-top: .25rem;
+  text-transform: uppercase;
 }
 
 .crm-client-result strong {
   display: block;
   font-weight: 900;
+  min-width: 0;
+}
+
+.crm-client-result span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .crm-client-result small {

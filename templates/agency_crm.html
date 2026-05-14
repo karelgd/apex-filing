@@ -91,13 +91,21 @@
       {% if not searched %}
         <p class="text-secondary mb-0">Use the search or filters above to load matching clients.</p>
       {% else %}
+        {% if clients %}
+          <div class="crm-client-result crm-client-result-head">
+            <span>Full Name</span>
+            <span>Alien #</span>
+            <span>Phone</span>
+            <span>Email</span>
+            <span></span>
+          </div>
+        {% endif %}
         {% for client in clients %}
           <div class="crm-client-result">
-            <span class="crm-avatar">{{ client.first_name[:1] }}{{ client.last_name[:1] }}</span>
-            <div>
-              <strong>{{ client.full_name }}</strong>
-              <small>A-Number: {{ client.a_number or 'Not provided' }} &middot; {{ client.phone }} &middot; {{ client.email }}</small>
-            </div>
+            <strong>{{ client.full_name }}</strong>
+            <span>{{ client.a_number or 'Not provided' }}</span>
+            <span>{{ client.phone }}</span>
+            <span>{{ client.email }}</span>
             <div class="crm-row-actions">
               <a class="btn btn-sm btn-primary" href="{{ url_for('crm_client_detail', client_id=client.id) }}">View</a>
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('client_edit', client_id=client.id) }}">Edit</a>
