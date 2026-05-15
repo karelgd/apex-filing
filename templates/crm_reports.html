@@ -47,12 +47,12 @@
       </div>
       <div>
         <label class="form-label">Case type</label>
-        <input class="form-control" list="crm-case-type-options" name="case_type" value="{{ filters.case_type }}" placeholder="Example: I-130">
-        <datalist id="crm-case-type-options">
+        <select class="form-select" name="case_type">
+          <option value="">All case types</option>
           {% for option in case_type_options %}
-            <option value="{{ option }}"></option>
+            <option value="{{ option }}" {% if filters.case_type == option %}selected{% endif %}>{{ option }}</option>
           {% endfor %}
-        </datalist>
+        </select>
       </div>
       <div>
         <label class="form-label">Case status</label>

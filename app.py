@@ -2120,7 +2120,7 @@ def register_routes(app):
         if preparer_id.isdigit():
             cases_query = cases_query.filter(CrmCase.form_preparer_id == int(preparer_id))
         if case_type:
-            cases_query = cases_query.filter(CrmCase.title.ilike(f"%{case_type}%"))
+            cases_query = cases_query.filter(CrmCase.title == case_type)
         if case_status:
             cases_query = cases_query.filter(CrmCase.status == case_status)
         try:
@@ -2213,7 +2213,7 @@ def register_routes(app):
         if manager_id.isdigit() and int(manager_id) in manager_lookup:
             active_filters.append(f'case manager "{manager_lookup[int(manager_id)]}"')
         if case_type:
-            active_filters.append(f'case type containing "{case_type}"')
+            active_filters.append(f'case type "{case_type}"')
         if invoice_status and report_type == "invoices":
             active_filters.append(f'invoice status "{invoice_status}"')
         if created_from and created_to:
