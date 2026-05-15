@@ -1442,6 +1442,19 @@ body {
   font-weight: 700;
 }
 
+.crm-appointment-detail-list {
+  border-top: 1px solid #dfe8f5;
+  gap: 0;
+}
+
+.crm-appointment-detail-list > div {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #dfe8f5;
+  border-radius: 0;
+  padding: 1rem 0;
+}
+
 .crm-detail-list .crm-detail-notes {
   align-items: start;
 }

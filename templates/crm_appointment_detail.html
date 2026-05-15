@@ -25,7 +25,7 @@
       </div>
       <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=appointment.client_id) }}">Back to Client</a>
     </div>
-    <div class="crm-detail-list">
+    <div class="crm-detail-list crm-appointment-detail-list">
       <div><strong>Client</strong><span>{{ appointment.client.full_name }}</span></div>
       <div><strong>Case Type</strong><span>{{ appointment.case.title }}</span></div>
       <div><strong>Appointment Type</strong><span>{{ appointment.appointment_type or 'Not set' }}</span></div>
