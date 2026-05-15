@@ -3,8 +3,7 @@
 {% set person_label = {
   'translator': 'translator',
   'preparer': 'form preparer',
-  'case_manager': 'case manager',
-  'crm_preparer': 'CRM form preparer'
+  'case_manager': 'case manager'
 }.get(person_type, 'person') %}
 <h1 class="h3 mb-3">{{ title }}</h1>
 <div class="row g-4">
@@ -59,12 +58,9 @@
                 {% elif person_type == 'preparer' %}
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('preparer_edit', preparer_id=person.id) }}">Edit</a>
                   <form class="d-inline" method="post" action="{{ url_for('preparer_delete', preparer_id=person.id) }}" onsubmit="return confirm('Delete this form preparer?')">
-                {% elif person_type == 'case_manager' %}
+                {% else %}
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('case_manager_edit', manager_id=person.id) }}">Edit</a>
                   <form class="d-inline" method="post" action="{{ url_for('case_manager_delete', manager_id=person.id) }}" onsubmit="return confirm('Delete this case manager?')">
-                {% else %}
-                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_preparer_edit', preparer_id=person.id) }}">Edit</a>
-                  <form class="d-inline" method="post" action="{{ url_for('crm_preparer_delete', preparer_id=person.id) }}" onsubmit="return confirm('Delete this CRM form preparer?')">
                 {% endif %}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm btn-outline-danger">Delete</button>

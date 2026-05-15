@@ -758,7 +758,7 @@ def populate_crm_case_from_form(case):
     case.notes = request.form.get("notes", "").strip()
     if case.case_manager_id and not AgencyCaseManager.query.filter_by(id=case.case_manager_id, agency_id=case.agency_id).first():
         abort(403)
-    if case.form_preparer_id and not AgencyCrmPreparer.query.filter_by(id=case.form_preparer_id, agency_id=case.agency_id).first():
+    if case.form_preparer_id and not AgencyPreparer.query.filter_by(id=case.form_preparer_id, agency_id=case.agency_id).first():
         abort(403)
     if case.status == "Completed" and not case.completed_at:
         case.completed_at = datetime.utcnow()
@@ -1773,6 +1773,7 @@ def register_routes(app):
     def preparer_delete(preparer_id):
         preparer = AgencyPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
         Case.query.filter_by(preparer_id=preparer.id).update({"preparer_id": None})
+        CrmCase.query.filter_by(form_preparer_id=preparer.id).update({"form_preparer_id": None})
         db.session.delete(preparer)
         db.session.commit()
         flash("Form preparer deleted.", "info")
@@ -1821,42 +1822,17 @@ def register_routes(app):
     @app.route("/agency/crm-preparers", methods=["GET", "POST"])
     @role_required("agency")
     def crm_preparer_list():
-        agency = current_user.agency
-        if request.method == "POST":
-            preparer = AgencyCrmPreparer(agency_id=agency.id)
-            populate_crm_person_from_form(preparer)
-            db.session.add(preparer)
-            db.session.commit()
-            flash("CRM form preparer saved.", "success")
-            return redirect(url_for("crm_preparer_list"))
-        return render_template(
-            "people_list.html",
-            agency=agency,
-            people=AgencyCrmPreparer.query.filter_by(agency_id=agency.id).order_by(AgencyCrmPreparer.full_name).all(),
-            person_type="crm_preparer",
-            title="CRM Form Preparers",
-        )
+        return redirect(url_for("preparer_list"))
 
     @app.route("/agency/crm-preparers/<int:preparer_id>/edit", methods=["GET", "POST"])
     @role_required("agency")
     def crm_preparer_edit(preparer_id):
-        preparer = AgencyCrmPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
-        if request.method == "POST":
-            populate_crm_person_from_form(preparer)
-            db.session.commit()
-            flash("CRM form preparer updated.", "success")
-            return redirect(url_for("crm_preparer_list"))
-        return render_template("person_form.html", agency=current_user.agency, person=preparer, person_type="crm_preparer", title="Edit CRM Form Preparer")
+        return redirect(url_for("preparer_list"))
 
     @app.route("/agency/crm-preparers/<int:preparer_id>/delete", methods=["POST"])
     @role_required("agency")
     def crm_preparer_delete(preparer_id):
-        preparer = AgencyCrmPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
-        CrmCase.query.filter_by(form_preparer_id=preparer.id).update({"form_preparer_id": None})
-        db.session.delete(preparer)
-        db.session.commit()
-        flash("CRM form preparer deleted.", "info")
-        return redirect(url_for("crm_preparer_list"))
+        return redirect(url_for("preparer_list"))
 
     @app.route("/agency/lawyers", methods=["GET", "POST"])
     @role_required("agency")
@@ -1994,7 +1970,7 @@ def register_routes(app):
             open_balance_total=open_balance_total,
             searched=searched,
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
-            form_preparers=AgencyCrmPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmPreparer.full_name).all(),
+            form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             search=search,
             manager_id=manager_id,
             preparer_id=preparer_id,
@@ -2139,7 +2115,7 @@ def register_routes(app):
             client=client,
             case=None,
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
-            form_preparers=AgencyCrmPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmPreparer.full_name).all(),
+            form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>/edit", methods=["GET", "POST"])
@@ -2164,7 +2140,7 @@ def register_routes(app):
             client=case.client,
             case=case,
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
-            form_preparers=AgencyCrmPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmPreparer.full_name).all(),
+            form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>")
@@ -3673,6 +3649,7 @@ def motion_pdf_response(motion):
 def init_database():
     db.create_all()
     ensure_sqlite_schema()
+    migrate_crm_preparers_to_unified_preparers()
     for name in SUBSCRIPTION_TOOLS:
         if not SubscriptionTool.query.filter_by(name=name).first():
             db.session.add(SubscriptionTool(name=name))
@@ -3682,6 +3659,46 @@ def init_database():
         apex = ApexUser(username="apexadmin")
         apex.set_password("ChangeMe123!")
         db.session.add(apex)
+    db.session.commit()
+
+
+def migrate_crm_preparers_to_unified_preparers():
+    db.session.execute(text("CREATE TABLE IF NOT EXISTS schema_migration (name VARCHAR(120) PRIMARY KEY)"))
+    already_done = db.session.execute(
+        text("SELECT name FROM schema_migration WHERE name = 'crm_preparers_unified'")
+    ).first()
+    if already_done:
+        return
+
+    mapping = {}
+    old_preparers = AgencyCrmPreparer.query.order_by(AgencyCrmPreparer.id).all()
+    for old_preparer in old_preparers:
+        unified = AgencyPreparer.query.filter_by(
+            agency_id=old_preparer.agency_id,
+            full_name=old_preparer.full_name,
+            email=old_preparer.email,
+            phone=old_preparer.phone,
+            address=old_preparer.address,
+        ).first()
+        if not unified:
+            unified = AgencyPreparer(
+                agency_id=old_preparer.agency_id,
+                full_name=old_preparer.full_name,
+                title="",
+                phone=old_preparer.phone,
+                email=old_preparer.email,
+                address=old_preparer.address,
+            )
+            db.session.add(unified)
+            db.session.flush()
+        mapping[old_preparer.id] = unified.id
+
+    for old_id, unified_id in mapping.items():
+        CrmCase.query.filter_by(form_preparer_id=old_id).update({"form_preparer_id": -unified_id})
+    for unified_id in set(mapping.values()):
+        CrmCase.query.filter_by(form_preparer_id=-unified_id).update({"form_preparer_id": unified_id})
+
+    db.session.execute(text("INSERT INTO schema_migration (name) VALUES ('crm_preparers_unified')"))
     db.session.commit()
 
 

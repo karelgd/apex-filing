@@ -3,8 +3,7 @@
 {% set cancel_endpoint = {
   'translator': 'translator_list',
   'preparer': 'preparer_list',
-  'case_manager': 'case_manager_list',
-  'crm_preparer': 'crm_preparer_list'
+  'case_manager': 'case_manager_list'
 }.get(person_type, 'agency_dashboard') %}
 <h1 class="h3 mb-3">{{ title }}</h1>
 <form method="post" class="card card-body">
