@@ -38,7 +38,7 @@
             </div>
             <div class="crm-calendar-events">
               {% for appointment in day.appointments %}
-                <a class="crm-calendar-event" href="{{ url_for('crm_appointment_detail', appointment_id=appointment.id) }}">
+                <a class="crm-calendar-event status-{{ (appointment.status or 'scheduled')|lower|replace(' ', '-')|replace('_', '-') }}" href="{{ url_for('crm_appointment_detail', appointment_id=appointment.id) }}">
                   <strong>{{ appointment.start_at.strftime('%I:%M %p') }}</strong>
                   <span>{{ appointment.appointment_type or 'Appointment' }}</span>
                   <small>{{ appointment.client.full_name }} - {{ appointment.case.title }}</small>

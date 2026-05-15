@@ -1669,7 +1669,9 @@ body {
   border-radius: 8px;
   color: #087d75;
   display: block;
-  padding: .5rem;
+  font-size: .78rem;
+  line-height: 1.15;
+  padding: .35rem .45rem;
   text-decoration: none;
 }
 
@@ -1682,6 +1684,9 @@ body {
 .crm-calendar-event span,
 .crm-calendar-event small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .crm-calendar-event span {
@@ -1690,7 +1695,39 @@ body {
 
 .crm-calendar-event small {
   color: #38635f;
-  font-size: .78rem;
+  font-size: .7rem;
+}
+
+.crm-calendar-event.status-scheduled {
+  background: #e8fbf8;
+  border-color: #a8eee2;
+  color: #087d75;
+}
+
+.crm-calendar-event.status-re-scheduled,
+.crm-calendar-event.status-rescheduled {
+  background: #eaf1ff;
+  border-color: #bcd2ff;
+  color: #1c47a0;
+}
+
+.crm-calendar-event.status-completed {
+  background: #e9f8ef;
+  border-color: #b7e7c7;
+  color: #12703a;
+}
+
+.crm-calendar-event.status-canceled,
+.crm-calendar-event.status-cancelled {
+  background: #ffe8e8;
+  border-color: #ffb4b4;
+  color: #b42318;
+}
+
+.crm-calendar-event.status-no-show {
+  background: #fff1df;
+  border-color: #ffc680;
+  color: #a15c00;
 }
 
 .crm-calendar-week .crm-calendar-row,
