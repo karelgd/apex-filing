@@ -853,6 +853,32 @@ def can_use_crm(agency):
     return bool(agency and agency.has_tool("CRM"))
 
 
+def build_crm_chart(title, counts):
+    palette = ["#1f73ff", "#12b8a6", "#f5a623", "#7157e8", "#f45d6c", "#4aa3df", "#38c977", "#ff8a4c"]
+    cleaned = []
+    for label, value in counts.items():
+        numeric_value = float(value or 0)
+        if numeric_value > 0:
+            cleaned.append((label, numeric_value))
+    cleaned.sort(key=lambda item: item[1], reverse=True)
+    total = sum(value for _, value in cleaned)
+    rows = []
+    segments = []
+    cursor = 0
+    for index, (label, value) in enumerate(cleaned):
+        percent = (value / total * 100) if total else 0
+        color = palette[index % len(palette)]
+        rows.append({"label": label, "value": value, "percent": percent, "color": color})
+        segments.append(f"{color} {cursor:.2f}% {cursor + percent:.2f}%")
+        cursor += percent
+    return {
+        "title": title,
+        "total": total,
+        "rows": rows,
+        "gradient": ", ".join(segments) if segments else "#e9eff8 0% 100%",
+    }
+
+
 def available_form_templates(active_only=True):
     query = FormTemplate.query.order_by(FormTemplate.code)
     if active_only:
@@ -2067,6 +2093,123 @@ def register_routes(app):
             next_date=next_date,
             calendar_weeks=calendar_weeks,
             appointment_count=len(appointments),
+        )
+
+    @app.route("/agency/crm/reports")
+    @role_required("agency")
+    def crm_reports():
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+
+        agency_id = current_user.agency_id
+        manager_id = request.args.get("case_manager_id", "").strip()
+        preparer_id = request.args.get("form_preparer_id", "").strip()
+        case_type = request.args.get("case_type", "").strip()
+        created_from = request.args.get("created_from", "").strip()
+        created_to = request.args.get("created_to", "").strip()
+
+        cases_query = CrmCase.query.filter_by(agency_id=agency_id)
+        if manager_id.isdigit():
+            cases_query = cases_query.filter(CrmCase.case_manager_id == int(manager_id))
+        if preparer_id.isdigit():
+            cases_query = cases_query.filter(CrmCase.form_preparer_id == int(preparer_id))
+        if case_type:
+            cases_query = cases_query.filter(CrmCase.title == case_type)
+        try:
+            if created_from:
+                cases_query = cases_query.filter(CrmCase.created_at >= datetime.strptime(created_from, "%Y-%m-%d"))
+            if created_to:
+                cases_query = cases_query.filter(CrmCase.created_at < datetime.strptime(created_to, "%Y-%m-%d") + timedelta(days=1))
+        except ValueError:
+            flash("One of the report dates was invalid and was ignored.", "warning")
+
+        cases = cases_query.order_by(CrmCase.created_at.desc()).all()
+        case_ids = [case.id for case in cases]
+        invoices = (
+            CrmInvoice.query.filter(CrmInvoice.agency_id == agency_id, CrmInvoice.case_id.in_(case_ids)).all()
+            if case_ids
+            else []
+        )
+        invoice_ids = [invoice.id for invoice in invoices]
+        activities = (
+            CrmInvoiceActivity.query.filter(CrmInvoiceActivity.agency_id == agency_id, CrmInvoiceActivity.invoice_id.in_(invoice_ids)).all()
+            if invoice_ids
+            else []
+        )
+
+        def service_code(title):
+            return (title or "No case type").split(" - ", 1)[0]
+
+        def manager_label(case):
+            return case.case_manager.full_name if case.case_manager else "No case manager"
+
+        def preparer_label(case):
+            return case.form_preparer.full_name if case.form_preparer else "No form preparer"
+
+        def count_chart(title, items, label_func):
+            counts = {}
+            for item in items:
+                label = label_func(item) or "Unassigned"
+                counts[label] = counts.get(label, 0) + 1
+            return build_crm_chart(title, counts)
+
+        total_billed = sum((invoice.total or Decimal("0")) for invoice in invoices)
+        total_paid = sum((invoice.paid_amount or Decimal("0")) for invoice in invoices)
+        total_discounts = sum((invoice.discount or Decimal("0")) for invoice in invoices)
+        total_refunds = sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund")
+        open_balance = sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid")
+
+        all_case_types = [f"{code} - {purpose}" for code, purpose in CRM_CASE_SERVICES]
+        existing_case_types = [
+            row[0]
+            for row in db.session.query(CrmCase.title)
+            .filter_by(agency_id=agency_id)
+            .distinct()
+            .order_by(CrmCase.title)
+            .all()
+        ]
+        case_type_options = sorted(set(all_case_types + existing_case_types))
+
+        return render_template(
+            "crm_reports.html",
+            cases=cases,
+            invoices=invoices,
+            case_managers=AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all(),
+            form_preparers=AgencyPreparer.query.filter_by(agency_id=agency_id).order_by(AgencyPreparer.full_name).all(),
+            case_type_options=case_type_options,
+            filters={
+                "manager_id": manager_id,
+                "preparer_id": preparer_id,
+                "case_type": case_type,
+                "created_from": created_from,
+                "created_to": created_to,
+            },
+            summary={
+                "case_count": len(cases),
+                "invoice_count": len(invoices),
+                "total_billed": total_billed,
+                "total_paid": total_paid,
+                "total_discounts": total_discounts,
+                "total_refunds": total_refunds,
+                "open_balance": open_balance,
+            },
+            case_charts=[
+                count_chart("Cases by Status", cases, lambda case: case.status),
+                count_chart("Cases by Case Type", cases, lambda case: service_code(case.title)),
+                count_chart("Cases by Case Manager", cases, manager_label),
+                count_chart("Cases by Form Preparer", cases, preparer_label),
+            ],
+            invoice_charts=[
+                count_chart("Invoices by Status", invoices, lambda invoice: invoice.status),
+                build_crm_chart("Invoice Money", {
+                    "Billed": total_billed,
+                    "Paid": total_paid,
+                    "Discounts": total_discounts,
+                    "Refunds": total_refunds,
+                    "Open Balance": open_balance,
+                }),
+            ],
         )
 
     @app.route("/agency/crm/clients/<int:client_id>")

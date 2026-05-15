@@ -1,0 +1,21 @@
+<article class="crm-chart-card">
+  <div class="crm-chart-top">
+    <div>
+      <h3>{{ chart.title }}</h3>
+      <p>{{ '%g'|format(chart.total) }} total</p>
+    </div>
+    <div class="crm-donut" style="--crm-chart: {{ chart.gradient }}"></div>
+  </div>
+  <div class="crm-chart-legend">
+    {% for row in chart.rows %}
+      <div class="crm-chart-line">
+        <span class="crm-chart-swatch" style="background: {{ row.color }}"></span>
+        <strong>{{ row.label }}</strong>
+        <em>{{ '%g'|format(row.value) }}</em>
+        <small>{{ row.percent|round(1) }}%</small>
+      </div>
+    {% else %}
+      <p class="text-secondary mb-0">No data for this report.</p>
+    {% endfor %}
+  </div>
+</article>

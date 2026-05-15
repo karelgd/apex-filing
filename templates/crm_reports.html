@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">CRM Reports</span>
+      <h1>Reports</h1>
+      <p>Case and invoice performance for this agency only.</p>
+    </div>
+    <div class="crm-actions">
+      <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_reports') }}">Clear Filters</a>
+    </div>
+  </div>
+
+  <section class="crm-panel crm-panel-wide">
+    <div class="crm-panel-head">
+      <div>
+        <h2>Report Filters</h2>
+        <p>Filter by assigned team members, service type, and case creation date.</p>
+      </div>
+    </div>
+    <form class="crm-report-filters" method="get">
+      <div>
+        <label class="form-label">Case manager</label>
+        <select class="form-select" name="case_manager_id">
+          <option value="">All case managers</option>
+          {% for manager in case_managers %}
+            <option value="{{ manager.id }}" {% if filters.manager_id == manager.id|string %}selected{% endif %}>{{ manager.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Form preparer</label>
+        <select class="form-select" name="form_preparer_id">
+          <option value="">All form preparers</option>
+          {% for preparer in form_preparers %}
+            <option value="{{ preparer.id }}" {% if filters.preparer_id == preparer.id|string %}selected{% endif %}>{{ preparer.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Case type</label>
+        <select class="form-select" name="case_type">
+          <option value="">All case types</option>
+          {% for option in case_type_options %}
+            <option value="{{ option }}" {% if filters.case_type == option %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Created from</label>
+        <input class="form-control" type="date" name="created_from" value="{{ filters.created_from }}">
+      </div>
+      <div>
+        <label class="form-label">Created to</label>
+        <input class="form-control" type="date" name="created_to" value="{{ filters.created_to }}">
+      </div>
+      <div class="crm-report-filter-actions">
+        <button class="btn btn-primary crm-action-btn">Run Reports</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="crm-report-summary">
+    <section class="crm-summary-card">
+      <span class="crm-kicker">Cases</span>
+      <strong>{{ summary.case_count }}</strong>
+      <small>Filtered cases</small>
+    </section>
+    <section class="crm-summary-card">
+      <span class="crm-kicker">Invoices</span>
+      <strong>{{ summary.invoice_count }}</strong>
+      <small>Related invoices</small>
+    </section>
+    <section class="crm-summary-card">
+      <span class="crm-kicker">Billed</span>
+      <strong>${{ '%.2f'|format(summary.total_billed or 0) }}</strong>
+      <small>Total invoice value</small>
+    </section>
+    <section class="crm-summary-card">
+      <span class="crm-kicker">Open Balance</span>
+      <strong>${{ '%.2f'|format(summary.open_balance or 0) }}</strong>
+      <small>Outstanding balance</small>
+    </section>
+  </div>
+
+  <section class="crm-report-section">
+    <div class="crm-panel-head">
+      <div>
+        <h2>Case Reports</h2>
+        <p>Quantities based on the filtered CRM cases.</p>
+      </div>
+    </div>
+    <div class="crm-report-grid">
+      {% for chart in case_charts %}
+        {% include "partials/crm_chart_card.html" %}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="crm-report-section">
+    <div class="crm-panel-head">
+      <div>
+        <h2>Invoice Reports</h2>
+        <p>Invoice quantities and money totals for the same filtered case set.</p>
+      </div>
+    </div>
+    <div class="crm-report-money-grid">
+      <div class="crm-report-money-card">
+        <span>Paid</span>
+        <strong>${{ '%.2f'|format(summary.total_paid or 0) }}</strong>
+      </div>
+      <div class="crm-report-money-card">
+        <span>Discounts</span>
+        <strong>${{ '%.2f'|format(summary.total_discounts or 0) }}</strong>
+      </div>
+      <div class="crm-report-money-card">
+        <span>Refunds</span>
+        <strong>${{ '%.2f'|format(summary.total_refunds or 0) }}</strong>
+      </div>
+    </div>
+    <div class="crm-report-grid mt-3">
+      {% for chart in invoice_charts %}
+        {% include "partials/crm_chart_card.html" %}
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -3302,3 +3302,176 @@ textarea.form-control {
 .home-page .app-brand-mark {
   box-shadow: 0 10px 20px rgba(31, 115, 255, .16);
 }
+
+.crm-report-filters {
+  background: #fbfcff;
+  border: 1px solid #e5edf7;
+  border-radius: 14px;
+  display: grid;
+  gap: .85rem;
+  grid-template-columns: repeat(5, minmax(150px, 1fr)) auto;
+  padding: 1rem;
+}
+
+.crm-report-filter-actions {
+  align-self: end;
+}
+
+.crm-report-summary {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.crm-report-section {
+  background: #ffffff;
+  border: 1px solid var(--apex-border);
+  border-radius: 16px;
+  box-shadow: var(--apex-shadow);
+  overflow: hidden;
+  padding: 1rem;
+}
+
+.crm-report-section .crm-panel-head {
+  margin: -1rem -1rem 1rem;
+}
+
+.crm-report-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.crm-chart-card {
+  background: #fbfdff;
+  border: 1px solid #e1eaf5;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.crm-chart-top {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.crm-chart-top h3 {
+  font-size: 1rem;
+  font-weight: 900;
+  margin: 0;
+}
+
+.crm-chart-top p {
+  color: var(--apex-muted);
+  font-size: .88rem;
+  font-weight: 800;
+  margin: .2rem 0 0;
+}
+
+.crm-donut {
+  align-items: center;
+  background: conic-gradient(var(--crm-chart));
+  border-radius: 999px;
+  display: flex;
+  flex: 0 0 auto;
+  height: 112px;
+  justify-content: center;
+  position: relative;
+  width: 112px;
+}
+
+.crm-donut::after {
+  background: #fbfdff;
+  border-radius: 999px;
+  content: "";
+  height: 66px;
+  width: 66px;
+}
+
+.crm-chart-legend {
+  display: grid;
+  gap: .45rem;
+  margin-top: 1rem;
+}
+
+.crm-chart-line {
+  align-items: center;
+  border-top: 1px solid #e8eff8;
+  display: grid;
+  gap: .5rem;
+  grid-template-columns: 14px minmax(0, 1fr) auto auto;
+  padding-top: .45rem;
+}
+
+.crm-chart-swatch {
+  border-radius: 999px;
+  height: 10px;
+  width: 10px;
+}
+
+.crm-chart-line strong {
+  color: #27364f;
+  font-size: .9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-chart-line em {
+  color: #152033;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.crm-chart-line small {
+  color: var(--apex-muted);
+  font-weight: 800;
+}
+
+.crm-report-money-grid {
+  display: grid;
+  gap: .85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.crm-report-money-card {
+  background: #fbfdff;
+  border: 1px solid #e1eaf5;
+  border-left: 4px solid var(--apex-accent);
+  border-radius: 12px;
+  padding: .95rem;
+}
+
+.crm-report-money-card:nth-child(2) {
+  border-left-color: var(--apex-gold);
+}
+
+.crm-report-money-card:nth-child(3) {
+  border-left-color: var(--apex-coral);
+}
+
+.crm-report-money-card span {
+  color: var(--apex-muted);
+  display: block;
+  font-size: .8rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.crm-report-money-card strong {
+  color: #152033;
+  display: block;
+  font-size: 1.55rem;
+  font-weight: 900;
+  margin-top: .2rem;
+}
+
+@media (max-width: 991.98px) {
+  .crm-report-filters,
+  .crm-report-summary,
+  .crm-report-grid,
+  .crm-report-money-grid {
+    grid-template-columns: 1fr;
+  }
+}
