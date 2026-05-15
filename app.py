@@ -2106,6 +2106,7 @@ def register_routes(app):
         manager_id = request.args.get("case_manager_id", "").strip()
         preparer_id = request.args.get("form_preparer_id", "").strip()
         case_type = request.args.get("case_type", "").strip()
+        case_status = request.args.get("case_status", "").strip()
         created_from = request.args.get("created_from", "").strip()
         created_to = request.args.get("created_to", "").strip()
 
@@ -2115,7 +2116,9 @@ def register_routes(app):
         if preparer_id.isdigit():
             cases_query = cases_query.filter(CrmCase.form_preparer_id == int(preparer_id))
         if case_type:
-            cases_query = cases_query.filter(CrmCase.title == case_type)
+            cases_query = cases_query.filter(CrmCase.title.ilike(f"%{case_type}%"))
+        if case_status:
+            cases_query = cases_query.filter(CrmCase.status == case_status)
         try:
             if created_from:
                 cases_query = cases_query.filter(CrmCase.created_at >= datetime.strptime(created_from, "%Y-%m-%d"))
@@ -2170,18 +2173,57 @@ def register_routes(app):
             .all()
         ]
         case_type_options = sorted(set(all_case_types + existing_case_types))
+        case_status_options = sorted(
+            set(
+                ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed"]
+                + [
+                    row[0]
+                    for row in db.session.query(CrmCase.status)
+                    .filter_by(agency_id=agency_id)
+                    .distinct()
+                    .order_by(CrmCase.status)
+                    .all()
+                    if row[0]
+                ]
+            )
+        )
+        case_managers = AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all()
+        form_preparers = AgencyPreparer.query.filter_by(agency_id=agency_id).order_by(AgencyPreparer.full_name).all()
+        manager_lookup = {manager.id: manager.full_name for manager in case_managers}
+        preparer_lookup = {preparer.id: preparer.full_name for preparer in form_preparers}
+        active_filters = []
+        if case_status:
+            active_filters.append(f'status "{case_status}"')
+        if preparer_id.isdigit() and int(preparer_id) in preparer_lookup:
+            active_filters.append(f'form preparer "{preparer_lookup[int(preparer_id)]}"')
+        if manager_id.isdigit() and int(manager_id) in manager_lookup:
+            active_filters.append(f'case manager "{manager_lookup[int(manager_id)]}"')
+        if case_type:
+            active_filters.append(f'case type containing "{case_type}"')
+        if created_from and created_to:
+            active_filters.append(f"created from {created_from} to {created_to}")
+        elif created_from:
+            active_filters.append(f"created on or after {created_from}")
+        elif created_to:
+            active_filters.append(f"created on or before {created_to}")
+        report_answer = "Showing all CRM cases for this agency."
+        if active_filters:
+            report_answer = "Showing CRM cases with " + ", ".join(active_filters) + "."
 
         return render_template(
             "crm_reports.html",
             cases=cases,
             invoices=invoices,
-            case_managers=AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all(),
-            form_preparers=AgencyPreparer.query.filter_by(agency_id=agency_id).order_by(AgencyPreparer.full_name).all(),
+            case_managers=case_managers,
+            form_preparers=form_preparers,
             case_type_options=case_type_options,
+            case_status_options=case_status_options,
+            report_answer=report_answer,
             filters={
                 "manager_id": manager_id,
                 "preparer_id": preparer_id,
                 "case_type": case_type,
+                "case_status": case_status,
                 "created_from": created_from,
                 "created_to": created_to,
             },

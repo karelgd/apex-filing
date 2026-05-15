@@ -3309,12 +3309,60 @@ textarea.form-control {
   border-radius: 14px;
   display: grid;
   gap: .85rem;
-  grid-template-columns: repeat(5, minmax(150px, 1fr)) auto;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   padding: 1rem;
 }
 
 .crm-report-filter-actions {
   align-self: end;
+}
+
+.crm-report-answer {
+  background:
+    linear-gradient(90deg, rgba(31, 115, 255, .1), rgba(18, 184, 166, .06)),
+    #ffffff;
+  border: 1px solid var(--apex-border);
+  border-radius: 16px;
+  box-shadow: var(--apex-shadow);
+  padding: 1.1rem;
+}
+
+.crm-report-answer h2 {
+  color: #152033;
+  font-size: 1.15rem;
+  font-weight: 900;
+  margin: .25rem 0 1rem;
+}
+
+.crm-report-answer-grid {
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.crm-report-answer-grid div {
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid #dfe9f7;
+  border-radius: 12px;
+  padding: .85rem;
+}
+
+.crm-report-answer-grid strong,
+.crm-report-answer-grid span {
+  display: block;
+}
+
+.crm-report-answer-grid strong {
+  color: var(--apex-accent);
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.crm-report-answer-grid span {
+  color: var(--apex-muted);
+  font-size: .78rem;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .crm-report-summary {
@@ -3470,6 +3518,7 @@ textarea.form-control {
 @media (max-width: 991.98px) {
   .crm-report-filters,
   .crm-report-summary,
+  .crm-report-answer-grid,
   .crm-report-grid,
   .crm-report-money-grid {
     grid-template-columns: 1fr;

@@ -5,7 +5,7 @@
     <div>
       <span class="crm-kicker">CRM Reports</span>
       <h1>Reports</h1>
-      <p>Case and invoice performance for this agency only.</p>
+      <p>Ask operational questions by filtering cases, people, dates, and invoice balances.</p>
     </div>
     <div class="crm-actions">
       <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_reports') }}">Clear Filters</a>
@@ -16,7 +16,7 @@
     <div class="crm-panel-head">
       <div>
         <h2>Report Filters</h2>
-        <p>Filter by assigned team members, service type, and case creation date.</p>
+        <p>Use any combination of filters to answer questions like cases by preparer, open balances by manager, or cases created during a date range.</p>
       </div>
     </div>
     <form class="crm-report-filters" method="get">
@@ -40,10 +40,19 @@
       </div>
       <div>
         <label class="form-label">Case type</label>
-        <select class="form-select" name="case_type">
-          <option value="">All case types</option>
+        <input class="form-control" list="crm-case-type-options" name="case_type" value="{{ filters.case_type }}" placeholder="Example: I-130 or work permit">
+        <datalist id="crm-case-type-options">
           {% for option in case_type_options %}
-            <option value="{{ option }}" {% if filters.case_type == option %}selected{% endif %}>{{ option }}</option>
+            <option value="{{ option }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div>
+        <label class="form-label">Case status</label>
+        <select class="form-select" name="case_status">
+          <option value="">All statuses</option>
+          {% for status in case_status_options %}
+            <option value="{{ status }}" {% if filters.case_status == status %}selected{% endif %}>{{ status }}</option>
           {% endfor %}
         </select>
       </div>
@@ -59,6 +68,17 @@
         <button class="btn btn-primary crm-action-btn">Run Reports</button>
       </div>
     </form>
+  </section>
+
+  <section class="crm-report-answer">
+    <span class="crm-kicker">Report Answer</span>
+    <h2>{{ report_answer }}</h2>
+    <div class="crm-report-answer-grid">
+      <div><strong>{{ summary.case_count }}</strong><span>matching cases</span></div>
+      <div><strong>${{ '%.2f'|format(summary.open_balance or 0) }}</strong><span>open balance</span></div>
+      <div><strong>{{ summary.invoice_count }}</strong><span>related invoices</span></div>
+      <div><strong>${{ '%.2f'|format(summary.total_billed or 0) }}</strong><span>billed</span></div>
+    </div>
   </section>
 
   <div class="crm-report-summary">
