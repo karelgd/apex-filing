@@ -2103,10 +2103,14 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
 
         agency_id = current_user.agency_id
+        report_type = request.args.get("report_type", "cases").strip()
+        if report_type not in {"cases", "invoices"}:
+            report_type = "cases"
         manager_id = request.args.get("case_manager_id", "").strip()
         preparer_id = request.args.get("form_preparer_id", "").strip()
         case_type = request.args.get("case_type", "").strip()
         case_status = request.args.get("case_status", "").strip()
+        invoice_status = request.args.get("invoice_status", "").strip()
         created_from = request.args.get("created_from", "").strip()
         created_to = request.args.get("created_to", "").strip()
 
@@ -2120,20 +2124,31 @@ def register_routes(app):
         if case_status:
             cases_query = cases_query.filter(CrmCase.status == case_status)
         try:
-            if created_from:
+            if created_from and report_type == "cases":
                 cases_query = cases_query.filter(CrmCase.created_at >= datetime.strptime(created_from, "%Y-%m-%d"))
-            if created_to:
+            if created_to and report_type == "cases":
                 cases_query = cases_query.filter(CrmCase.created_at < datetime.strptime(created_to, "%Y-%m-%d") + timedelta(days=1))
         except ValueError:
             flash("One of the report dates was invalid and was ignored.", "warning")
 
         cases = cases_query.order_by(CrmCase.created_at.desc()).all()
         case_ids = [case.id for case in cases]
-        invoices = (
-            CrmInvoice.query.filter(CrmInvoice.agency_id == agency_id, CrmInvoice.case_id.in_(case_ids)).all()
-            if case_ids
-            else []
-        )
+        invoices_query = CrmInvoice.query.filter_by(agency_id=agency_id)
+        if case_ids:
+            invoices_query = invoices_query.filter(CrmInvoice.case_id.in_(case_ids))
+        elif manager_id or preparer_id or case_type or case_status:
+            invoices_query = invoices_query.filter(False)
+        if invoice_status:
+            invoices_query = invoices_query.filter(CrmInvoice.status == invoice_status)
+        if report_type == "invoices":
+            try:
+                if created_from:
+                    invoices_query = invoices_query.filter(CrmInvoice.issue_date >= datetime.strptime(created_from, "%Y-%m-%d").date())
+                if created_to:
+                    invoices_query = invoices_query.filter(CrmInvoice.issue_date <= datetime.strptime(created_to, "%Y-%m-%d").date())
+            except ValueError:
+                flash("One of the report dates was invalid and was ignored.", "warning")
+        invoices = invoices_query.order_by(CrmInvoice.issue_date.desc(), CrmInvoice.updated_at.desc()).all()
         invoice_ids = [invoice.id for invoice in invoices]
         activities = (
             CrmInvoiceActivity.query.filter(CrmInvoiceActivity.agency_id == agency_id, CrmInvoiceActivity.invoice_id.in_(invoice_ids)).all()
@@ -2141,22 +2156,7 @@ def register_routes(app):
             else []
         )
 
-        def service_code(title):
-            return (title or "No case type").split(" - ", 1)[0]
-
-        def manager_label(case):
-            return case.case_manager.full_name if case.case_manager else "No case manager"
-
-        def preparer_label(case):
-            return case.form_preparer.full_name if case.form_preparer else "No form preparer"
-
-        def count_chart(title, items, label_func):
-            counts = {}
-            for item in items:
-                label = label_func(item) or "Unassigned"
-                counts[label] = counts.get(label, 0) + 1
-            return build_crm_chart(title, counts)
-
+        total_case_value = sum((case.price or Decimal("0")) for case in cases)
         total_billed = sum((invoice.total or Decimal("0")) for invoice in invoices)
         total_paid = sum((invoice.paid_amount or Decimal("0")) for invoice in invoices)
         total_discounts = sum((invoice.discount or Decimal("0")) for invoice in invoices)
@@ -2187,6 +2187,20 @@ def register_routes(app):
                 ]
             )
         )
+        invoice_status_options = sorted(
+            set(
+                ["Unpaid", "Partial", "Paid", "Overpaid"]
+                + [
+                    row[0]
+                    for row in db.session.query(CrmInvoice.status)
+                    .filter_by(agency_id=agency_id)
+                    .distinct()
+                    .order_by(CrmInvoice.status)
+                    .all()
+                    if row[0]
+                ]
+            )
+        )
         case_managers = AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all()
         form_preparers = AgencyPreparer.query.filter_by(agency_id=agency_id).order_by(AgencyPreparer.full_name).all()
         manager_lookup = {manager.id: manager.full_name for manager in case_managers}
@@ -2200,15 +2214,17 @@ def register_routes(app):
             active_filters.append(f'case manager "{manager_lookup[int(manager_id)]}"')
         if case_type:
             active_filters.append(f'case type containing "{case_type}"')
+        if invoice_status and report_type == "invoices":
+            active_filters.append(f'invoice status "{invoice_status}"')
         if created_from and created_to:
-            active_filters.append(f"created from {created_from} to {created_to}")
+            active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} from {created_from} to {created_to}")
         elif created_from:
-            active_filters.append(f"created on or after {created_from}")
+            active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} on or after {created_from}")
         elif created_to:
-            active_filters.append(f"created on or before {created_to}")
-        report_answer = "Showing all CRM cases for this agency."
+            active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} on or before {created_to}")
+        report_answer = f"Showing all CRM {'invoices' if report_type == 'invoices' else 'cases'} for this agency."
         if active_filters:
-            report_answer = "Showing CRM cases with " + ", ".join(active_filters) + "."
+            report_answer = f"Showing CRM {'invoices' if report_type == 'invoices' else 'cases'} with " + ", ".join(active_filters) + "."
 
         return render_template(
             "crm_reports.html",
@@ -2218,40 +2234,28 @@ def register_routes(app):
             form_preparers=form_preparers,
             case_type_options=case_type_options,
             case_status_options=case_status_options,
+            invoice_status_options=invoice_status_options,
             report_answer=report_answer,
             filters={
+                "report_type": report_type,
                 "manager_id": manager_id,
                 "preparer_id": preparer_id,
                 "case_type": case_type,
                 "case_status": case_status,
+                "invoice_status": invoice_status,
                 "created_from": created_from,
                 "created_to": created_to,
             },
             summary={
                 "case_count": len(cases),
                 "invoice_count": len(invoices),
+                "total_case_value": total_case_value,
                 "total_billed": total_billed,
                 "total_paid": total_paid,
                 "total_discounts": total_discounts,
                 "total_refunds": total_refunds,
                 "open_balance": open_balance,
             },
-            case_charts=[
-                count_chart("Cases by Status", cases, lambda case: case.status),
-                count_chart("Cases by Case Type", cases, lambda case: service_code(case.title)),
-                count_chart("Cases by Case Manager", cases, manager_label),
-                count_chart("Cases by Form Preparer", cases, preparer_label),
-            ],
-            invoice_charts=[
-                count_chart("Invoices by Status", invoices, lambda invoice: invoice.status),
-                build_crm_chart("Invoice Money", {
-                    "Billed": total_billed,
-                    "Paid": total_paid,
-                    "Discounts": total_discounts,
-                    "Refunds": total_refunds,
-                    "Open Balance": open_balance,
-                }),
-            ],
         )
 
     @app.route("/agency/crm/clients/<int:client_id>")

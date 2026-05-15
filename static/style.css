@@ -3515,12 +3515,76 @@ textarea.form-control {
   margin-top: .2rem;
 }
 
+.crm-report-results {
+  display: grid;
+  gap: .55rem;
+}
+
+.crm-report-result-head,
+.crm-report-result-row {
+  align-items: center;
+  display: grid;
+  gap: .75rem;
+}
+
+.crm-report-result-head {
+  color: #667085;
+  font-size: .74rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  padding: .3rem .85rem;
+  text-transform: uppercase;
+}
+
+.crm-report-result-row {
+  background: #fbfdff;
+  border: 1px solid #e1eaf5;
+  border-radius: 12px;
+  color: var(--apex-ink);
+  padding: .85rem;
+  text-decoration: none;
+  transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+}
+
+.crm-report-result-row:hover {
+  background: #f2f7ff;
+  border-color: #cfe1ff;
+  color: #155bd6;
+  transform: translateY(-1px);
+}
+
+.crm-report-result-row span,
+.crm-report-result-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-report-case-row {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, .9fr) minmax(120px, .75fr) minmax(150px, .9fr) minmax(150px, .9fr) minmax(90px, .45fr);
+}
+
+.crm-report-invoice-row {
+  grid-template-columns: minmax(110px, .6fr) minmax(150px, 1fr) minmax(220px, 1.3fr) minmax(110px, .6fr) minmax(90px, .45fr) minmax(110px, .55fr);
+}
+
 @media (max-width: 991.98px) {
   .crm-report-filters,
   .crm-report-summary,
   .crm-report-answer-grid,
   .crm-report-grid,
-  .crm-report-money-grid {
+  .crm-report-money-grid,
+  .crm-report-case-row,
+  .crm-report-invoice-row {
     grid-template-columns: 1fr;
+  }
+
+  .crm-report-result-head {
+    display: none;
+  }
+
+  .crm-report-result-row span {
+    white-space: normal;
   }
 }
