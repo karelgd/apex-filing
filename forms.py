@@ -43,6 +43,23 @@ CRM_CASE_SERVICES = [
     ("G-28", "Notice of Attorney/Representative"),
     ("G-1145", "E-Notification for USCIS filings"),
     ("G-639", "FOIA Request for Immigration Records"),
+    ("Consultation", "Consultation"),
+    ("Motion to Terminate Proceedings", "Motion to Terminate Proceedings"),
+    ("Motion to Change Venue", "Motion to Change Venue"),
+    ("Motion to Continue Proceedings", "Motion to Continue Proceedings"),
+    ("Motion to Dismiss Proceedings", "Motion to Dismiss Proceedings"),
+    ("EOIR Change of Address", "EOIR Change of Address"),
+    ("USCIS Change of Address", "USCIS Change of Address"),
+    ("ICE Change of Address", "ICE Change of Address"),
+    ("EOIR+USCIS+ICE Changes of Address", "EOIR+USCIS+ICE Changes of Address"),
+    ("USCIS+ICE Changes of Address", "USCIS+ICE Changes of Address"),
+    ("Documents Review", "Documents Review"),
+    ("USCIS RFE", "USCIS Request for Evidence"),
+    ("USCIS Unsolicited RFE", "USCIS Unsolicited Evidence Response"),
+    ("Passport Photo Service", "Passport Photo Service"),
+    ("USCIS Request for Application Withdrawal", "USCIS Request for Application Withdrawal"),
+    ("EOIR Notice of Filing Form", "EOIR Notice of Filing Form"),
+    ("I-693", "Report of Immigration Medical Examination and Vaccination Record"),
 ]
 
 FORM_TEMPLATES = [
