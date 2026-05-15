@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">CRM Calendar</span>
+      <h1>{{ title }}</h1>
+      <p>{{ appointment_count }} appointment{{ '' if appointment_count == 1 else 's' }} scheduled for this {{ view }}.</p>
+    </div>
+    <div class="crm-actions">
+      <a class="btn btn-outline-light crm-action-btn" href="{{ url_for('crm_calendar', view=view, date=previous_date.strftime('%Y-%m-%d')) }}">Previous</a>
+      <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_calendar', view=view) }}">Today</a>
+      <a class="btn btn-outline-light crm-action-btn" href="{{ url_for('crm_calendar', view=view, date=next_date.strftime('%Y-%m-%d')) }}">Next</a>
+    </div>
+  </div>
+
+  <div class="crm-calendar-toolbar">
+    {% for mode in ['month', 'week', 'day'] %}
+      <a class="crm-calendar-mode {{ 'active' if view == mode else '' }}" href="{{ url_for('crm_calendar', view=mode, date=selected_date.strftime('%Y-%m-%d')) }}">{{ mode|title }}</a>
+    {% endfor %}
+  </div>
+
+  <section class="crm-calendar-shell {{ 'crm-calendar-' ~ view }}">
+    {% if view == 'month' %}
+      <div class="crm-calendar-weekdays">
+        {% for label in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+          <span>{{ label }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% for week in calendar_weeks %}
+      <div class="crm-calendar-row">
+        {% for day in week %}
+          <div class="crm-calendar-day {{ '' if day.in_month else 'muted' }}">
+            <div class="crm-calendar-date">
+              <strong>{{ day.date.strftime('%d') }}</strong>
+              {% if view != 'month' %}<span>{{ day.date.strftime('%A, %b %d') }}</span>{% endif %}
+            </div>
+            <div class="crm-calendar-events">
+              {% for appointment in day.appointments %}
+                <a class="crm-calendar-event" href="{{ url_for('crm_appointment_detail', appointment_id=appointment.id) }}">
+                  <strong>{{ appointment.start_at.strftime('%I:%M %p') }}</strong>
+                  <span>{{ appointment.appointment_type or 'Appointment' }}</span>
+                  <small>{{ appointment.client.full_name }} - {{ appointment.case.title }}</small>
+                </a>
+              {% else %}
+                {% if view != 'month' %}
+                  <p class="text-secondary mb-0">No appointments.</p>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

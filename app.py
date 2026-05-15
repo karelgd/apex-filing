@@ -1,3 +1,4 @@
+import calendar as calendar_lib
 import os
 import importlib.util
 import json
@@ -2000,6 +2001,96 @@ def register_routes(app):
             created_on=created_on,
             created_from=created_from,
             created_to=created_to,
+        )
+
+    @app.route("/agency/crm/calendar")
+    @role_required("agency")
+    def crm_calendar():
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        view = request.args.get("view", "month")
+        if view not in {"month", "week", "day"}:
+            view = "month"
+        try:
+            selected_date = datetime.strptime(request.args.get("date", ""), "%Y-%m-%d").date()
+        except ValueError:
+            selected_date = datetime.utcnow().date()
+
+        if view == "day":
+            start_date = selected_date
+            end_date = selected_date
+            title = selected_date.strftime("%B %d, %Y")
+            previous_date = selected_date - timedelta(days=1)
+            next_date = selected_date + timedelta(days=1)
+        elif view == "week":
+            start_date = selected_date - timedelta(days=selected_date.weekday())
+            end_date = start_date + timedelta(days=6)
+            title = f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d, %Y')}"
+            previous_date = selected_date - timedelta(days=7)
+            next_date = selected_date + timedelta(days=7)
+        else:
+            start_date = selected_date.replace(day=1)
+            _, last_day = calendar_lib.monthrange(selected_date.year, selected_date.month)
+            end_date = selected_date.replace(day=last_day)
+            title = selected_date.strftime("%B %Y")
+            previous_month = selected_date.month - 1 or 12
+            previous_year = selected_date.year - 1 if selected_date.month == 1 else selected_date.year
+            next_month = selected_date.month + 1 if selected_date.month < 12 else 1
+            next_year = selected_date.year + 1 if selected_date.month == 12 else selected_date.year
+            previous_date = selected_date.replace(year=previous_year, month=previous_month, day=1)
+            next_date = selected_date.replace(year=next_year, month=next_month, day=1)
+
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time())
+        appointments = (
+            CrmAppointment.query.filter(
+                CrmAppointment.agency_id == current_user.agency_id,
+                CrmAppointment.start_at >= start_dt,
+                CrmAppointment.start_at < end_dt,
+            )
+            .order_by(CrmAppointment.start_at.asc())
+            .all()
+        )
+        appointments_by_date = {}
+        for appointment in appointments:
+            appointments_by_date.setdefault(appointment.start_at.date(), []).append(appointment)
+
+        calendar_weeks = []
+        if view == "month":
+            for week in calendar_lib.Calendar(firstweekday=0).monthdatescalendar(selected_date.year, selected_date.month):
+                calendar_weeks.append(
+                    [
+                        {
+                            "date": day,
+                            "in_month": day.month == selected_date.month,
+                            "appointments": appointments_by_date.get(day, []),
+                        }
+                        for day in week
+                    ]
+                )
+        else:
+            day_count = 1 if view == "day" else 7
+            calendar_weeks.append(
+                [
+                    {
+                        "date": start_date + timedelta(days=offset),
+                        "in_month": True,
+                        "appointments": appointments_by_date.get(start_date + timedelta(days=offset), []),
+                    }
+                    for offset in range(day_count)
+                ]
+            )
+
+        return render_template(
+            "crm_calendar.html",
+            view=view,
+            title=title,
+            selected_date=selected_date,
+            previous_date=previous_date,
+            next_date=next_date,
+            calendar_weeks=calendar_weeks,
+            appointment_count=len(appointments),
         )
 
     @app.route("/agency/crm/clients/<int:client_id>")
