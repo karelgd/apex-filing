@@ -12,9 +12,6 @@
         <span><strong>Price:</strong> ${{ '%.2f'|format(case.price or 0) }}</span>
       </div>
     </div>
-    <div class="crm-actions">
-      <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('crm_case_edit', case_id=case.id) }}">Edit Case</a>
-    </div>
   </div>
 
   <section class="crm-folder-panel active">
@@ -23,7 +20,10 @@
         <h2>Case Information</h2>
         <p>{{ case.title }}</p>
       </div>
-      <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=case.client_id) }}">Back to Client</a>
+      <div class="crm-actions">
+        <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('crm_case_edit', case_id=case.id) }}">Edit Case</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=case.client_id) }}">Back to Client</a>
+      </div>
     </div>
     <div class="crm-detail-list crm-case-detail-list">
       <div><strong>Client</strong><span>{{ case.client.full_name }}</span></div>
