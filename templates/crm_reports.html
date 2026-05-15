@@ -55,6 +55,15 @@
         </select>
       </div>
       <div>
+        <label class="form-label">Tag</label>
+        <select class="form-select" name="tag_id">
+          <option value="">All tags</option>
+          {% for tag in case_tags %}
+            <option value="{{ tag.id }}" {% if filters.tag_id == tag.id|string %}selected{% endif %}>{{ tag.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
         <label class="form-label">Case status</label>
         <select class="form-select" name="case_status">
           <option value="">All statuses</option>
@@ -142,13 +151,14 @@
       </div>
       <div class="crm-report-results">
         <div class="crm-report-result-head crm-report-case-row">
-          <span>Case</span><span>Client</span><span>Status</span><span>Case Manager</span><span>Form Preparer</span><span>Value</span>
+          <span>Case</span><span>Client</span><span>Status</span><span>Tag</span><span>Case Manager</span><span>Form Preparer</span><span>Value</span>
         </div>
         {% for case in cases %}
           <a class="crm-report-result-row crm-report-case-row" href="{{ url_for('crm_case_detail', case_id=case.id) }}">
             <span>{{ case.title }}</span>
             <span>{{ case.client.full_name }}</span>
             <span>{{ case.status }}</span>
+            <span>{{ case.tag.name if case.tag else 'No tag' }}</span>
             <span>{{ case.case_manager.full_name if case.case_manager else 'Not assigned' }}</span>
             <span>{{ case.form_preparer.full_name if case.form_preparer else 'Not assigned' }}</span>
             <span>${{ '%.2f'|format(case.price or 0) }}</span>

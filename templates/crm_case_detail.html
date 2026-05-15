@@ -32,6 +32,7 @@
       <div><strong>Price</strong><span>${{ '%.2f'|format(case.price or 0) }}</span></div>
       <div><strong>Case Manager</strong><span>{{ case.case_manager.full_name if case.case_manager else 'Not assigned' }}</span></div>
       <div><strong>Form Preparer</strong><span>{{ case.form_preparer.full_name if case.form_preparer else 'Not assigned' }}</span></div>
+      <div><strong>Tag</strong><span>{{ case.tag.name if case.tag else 'No tag' }}</span></div>
       <div><strong>Opened</strong><span>{{ case.opened_at.strftime('%b %d, %Y') }}</span></div>
       <div><strong>Last Updated</strong><span>{{ case.updated_at.strftime('%b %d, %Y') }}</span></div>
     </div>

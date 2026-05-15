@@ -3585,7 +3585,7 @@ textarea.form-control {
 }
 
 .crm-report-case-row {
-  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, .9fr) minmax(120px, .75fr) minmax(150px, .9fr) minmax(150px, .9fr) minmax(90px, .45fr);
+  grid-template-columns: minmax(200px, 1.3fr) minmax(140px, .85fr) minmax(110px, .65fr) minmax(100px, .6fr) minmax(140px, .85fr) minmax(140px, .85fr) minmax(90px, .45fr);
 }
 
 .crm-report-invoice-row {

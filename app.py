@@ -50,6 +50,7 @@ from models import (
     CrmAppointmentNote,
     CrmCase,
     CrmCaseNote,
+    CrmCaseTag,
     CrmClientDocument,
     CrmInvoice,
     CrmInvoiceActivity,
@@ -755,15 +756,34 @@ def populate_crm_case_from_form(case):
     case.price = decimal_from_form("price")
     case.case_manager_id = int(request.form["case_manager_id"]) if request.form.get("case_manager_id") else None
     case.form_preparer_id = int(request.form["form_preparer_id"]) if request.form.get("form_preparer_id") else None
+    case.tag_id = resolve_crm_case_tag(case.agency_id)
     case.notes = request.form.get("notes", "").strip()
     if case.case_manager_id and not AgencyCaseManager.query.filter_by(id=case.case_manager_id, agency_id=case.agency_id).first():
         abort(403)
     if case.form_preparer_id and not AgencyPreparer.query.filter_by(id=case.form_preparer_id, agency_id=case.agency_id).first():
         abort(403)
+    if case.tag_id and not CrmCaseTag.query.filter_by(id=case.tag_id, agency_id=case.agency_id).first():
+        abort(403)
     if case.status == "Completed" and not case.completed_at:
         case.completed_at = datetime.utcnow()
     if case.status != "Completed":
         case.completed_at = None
+
+
+def resolve_crm_case_tag(agency_id):
+    new_tag_name = request.form.get("new_tag_name", "").strip()
+    if new_tag_name:
+        existing = CrmCaseTag.query.filter(
+            CrmCaseTag.agency_id == agency_id,
+            func.lower(CrmCaseTag.name) == new_tag_name.lower(),
+        ).first()
+        if existing:
+            return existing.id
+        tag = CrmCaseTag(agency_id=agency_id, name=new_tag_name)
+        db.session.add(tag)
+        db.session.flush()
+        return tag.id
+    return int(request.form["tag_id"]) if request.form.get("tag_id") else None
 
 
 def query_case_for_role(case_id):
@@ -2108,6 +2128,7 @@ def register_routes(app):
             report_type = "cases"
         manager_id = request.args.get("case_manager_id", "").strip()
         preparer_id = request.args.get("form_preparer_id", "").strip()
+        tag_id = request.args.get("tag_id", "").strip()
         case_type = request.args.get("case_type", "").strip()
         case_status = request.args.get("case_status", "").strip()
         invoice_status = request.args.get("invoice_status", "").strip()
@@ -2119,6 +2140,8 @@ def register_routes(app):
             cases_query = cases_query.filter(CrmCase.case_manager_id == int(manager_id))
         if preparer_id.isdigit():
             cases_query = cases_query.filter(CrmCase.form_preparer_id == int(preparer_id))
+        if tag_id.isdigit():
+            cases_query = cases_query.filter(CrmCase.tag_id == int(tag_id))
         if case_type:
             cases_query = cases_query.filter(CrmCase.title == case_type)
         if case_status:
@@ -2136,7 +2159,7 @@ def register_routes(app):
         invoices_query = CrmInvoice.query.filter_by(agency_id=agency_id)
         if case_ids:
             invoices_query = invoices_query.filter(CrmInvoice.case_id.in_(case_ids))
-        elif manager_id or preparer_id or case_type or case_status:
+        elif manager_id or preparer_id or tag_id or case_type or case_status:
             invoices_query = invoices_query.filter(False)
         if invoice_status:
             invoices_query = invoices_query.filter(CrmInvoice.status == invoice_status)
@@ -2203,13 +2226,17 @@ def register_routes(app):
         )
         case_managers = AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all()
         form_preparers = AgencyPreparer.query.filter_by(agency_id=agency_id).order_by(AgencyPreparer.full_name).all()
+        case_tags = CrmCaseTag.query.filter_by(agency_id=agency_id).order_by(CrmCaseTag.name).all()
         manager_lookup = {manager.id: manager.full_name for manager in case_managers}
         preparer_lookup = {preparer.id: preparer.full_name for preparer in form_preparers}
+        tag_lookup = {tag.id: tag.name for tag in case_tags}
         active_filters = []
         if case_status:
             active_filters.append(f'status "{case_status}"')
         if preparer_id.isdigit() and int(preparer_id) in preparer_lookup:
             active_filters.append(f'form preparer "{preparer_lookup[int(preparer_id)]}"')
+        if tag_id.isdigit() and int(tag_id) in tag_lookup:
+            active_filters.append(f'tag "{tag_lookup[int(tag_id)]}"')
         if manager_id.isdigit() and int(manager_id) in manager_lookup:
             active_filters.append(f'case manager "{manager_lookup[int(manager_id)]}"')
         if case_type:
@@ -2232,6 +2259,7 @@ def register_routes(app):
             invoices=invoices,
             case_managers=case_managers,
             form_preparers=form_preparers,
+            case_tags=case_tags,
             case_type_options=case_type_options,
             case_status_options=case_status_options,
             invoice_status_options=invoice_status_options,
@@ -2240,6 +2268,7 @@ def register_routes(app):
                 "report_type": report_type,
                 "manager_id": manager_id,
                 "preparer_id": preparer_id,
+                "tag_id": tag_id,
                 "case_type": case_type,
                 "case_status": case_status,
                 "invoice_status": invoice_status,
@@ -2305,6 +2334,7 @@ def register_routes(app):
             case=None,
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
+            case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>/edit", methods=["GET", "POST"])
@@ -2330,6 +2360,7 @@ def register_routes(app):
             case=case,
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
+            case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>")
@@ -3992,6 +4023,7 @@ def ensure_sqlite_schema():
             "price": "NUMERIC(10, 2) DEFAULT 0 NOT NULL",
             "case_manager_id": "INTEGER",
             "form_preparer_id": "INTEGER",
+            "tag_id": "INTEGER",
         }
         for column, ddl in crm_case_additions.items():
             if column not in existing_crm_case:

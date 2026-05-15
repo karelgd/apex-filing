@@ -48,6 +48,7 @@
                 {{ case.status }} &middot; ${{ '%.2f'|format(case.price or 0) }}
                 {% if case.case_manager %} &middot; Manager: {{ case.case_manager.full_name }}{% endif %}
                 {% if case.form_preparer %} &middot; Preparer: {{ case.form_preparer.full_name }}{% endif %}
+                {% if case.tag %} &middot; Tag: {{ case.tag.name }}{% endif %}
                 &middot; Updated {{ case.updated_at.strftime('%b %d, %Y') }}
               </small>
             </div>

@@ -482,6 +482,7 @@ class CrmCase(db.Model):
     price = db.Column(db.Numeric(10, 2), default=0, nullable=False)
     case_manager_id = db.Column(db.Integer, db.ForeignKey("agency_case_manager.id"))
     form_preparer_id = db.Column(db.Integer, db.ForeignKey("agency_preparer.id"))
+    tag_id = db.Column(db.Integer, db.ForeignKey("crm_case_tag.id"))
     opened_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     completed_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
@@ -492,10 +493,20 @@ class CrmCase(db.Model):
     client = db.relationship("Client", back_populates="crm_cases")
     case_manager = db.relationship("AgencyCaseManager")
     form_preparer = db.relationship("AgencyPreparer")
+    tag = db.relationship("CrmCaseTag")
     invoices = db.relationship("CrmInvoice", back_populates="case", cascade="all, delete-orphan")
     appointments = db.relationship("CrmAppointment", back_populates="case", cascade="all, delete-orphan")
     documents = db.relationship("CrmClientDocument", back_populates="case")
     note_entries = db.relationship("CrmCaseNote", back_populates="case", cascade="all, delete-orphan", order_by="CrmCaseNote.created_at.desc()")
+
+
+class CrmCaseTag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    name = db.Column(db.String(80), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("crm_case_tags", cascade="all, delete-orphan"))
 
 
 class CrmInvoice(db.Model):

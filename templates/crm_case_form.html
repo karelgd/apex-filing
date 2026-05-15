@@ -30,6 +30,14 @@
           <option value="{{ preparer.id }}" {% if case and case.form_preparer_id == preparer.id %}selected{% endif %}>{{ preparer.full_name }}</option>
         {% endfor %}
       </select>
+      <label class="form-label">Tag</label>
+      <input class="form-control mb-2" name="new_tag_name" placeholder="Add new tag if not listed">
+      <select class="form-select mb-3" name="tag_id">
+        <option value="">No tag</option>
+        {% for tag in case_tags %}
+          <option value="{{ tag.id }}" {% if case and case.tag_id == tag.id %}selected{% endif %}>{{ tag.name }}</option>
+        {% endfor %}
+      </select>
       <label class="form-label">Status</label>
       <select class="form-select mb-3" name="status">
         {% for status in ['Open', 'Documents Received', 'Documents Needed', 'Documents Ready', 'Completed'] %}
