@@ -482,6 +482,17 @@ body {
   max-width: 260px;
 }
 
+.form-filler-combo-menu button strong,
+.form-filler-combo-menu button small {
+  display: block;
+}
+
+.form-filler-combo-menu button small {
+  color: var(--apex-muted);
+  font-size: .78rem;
+  margin-top: .12rem;
+}
+
 .client-actions {
   white-space: nowrap;
   min-width: 132px;

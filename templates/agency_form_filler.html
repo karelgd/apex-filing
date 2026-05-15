@@ -9,26 +9,37 @@
 
 <div class="row g-4">
   <div class="col-lg-5">
-    <form class="card card-body" method="post">
+    <form class="card card-body form-filler-assign-form" method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <h2 class="h5 mb-3">Assign questionnaire</h2>
           <div class="mb-3">
             <label class="form-label">Client</label>
-            <input class="form-control mb-2 live-select-filter" data-target="client-select" placeholder="Search client by name, email, or phone">
-            <select class="form-select" id="client-select" name="client_id" required>
+            <div class="autocomplete-wrap form-filler-autocomplete">
+              <input class="form-control form-filler-combo-input" autocomplete="off" data-menu="client-options" data-value-input="client-id-input" placeholder="Search client by name, email, or phone" required>
+              <input type="hidden" id="client-id-input" name="client_id">
+              <div class="autocomplete-menu form-filler-combo-menu" id="client-options">
               {% for client in clients %}
-                <option value="{{ client.id }}" data-search="{{ (client.full_name ~ ' ' ~ client.email ~ ' ' ~ client.phone)|lower }}">{{ client.full_name }}</option>
+                <button type="button" data-value="{{ client.id }}" data-label="{{ client.full_name }}" data-search="{{ (client.full_name ~ ' ' ~ client.email ~ ' ' ~ client.phone)|lower }}">
+                  <strong>{{ client.full_name }}</strong>
+                  <small>{{ client.email }}{% if client.phone %} &middot; {{ client.phone }}{% endif %}</small>
+                </button>
               {% endfor %}
-            </select>
+              </div>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Form questionnaire</label>
-            <input class="form-control mb-2 live-select-filter" data-target="form-select" placeholder="Search form by code or name">
-            <select class="form-select" id="form-select" name="form_code" required>
+            <div class="autocomplete-wrap form-filler-autocomplete">
+              <input class="form-control form-filler-combo-input" autocomplete="off" data-menu="form-options" data-value-input="form-code-input" placeholder="Search form by code or name" required>
+              <input type="hidden" id="form-code-input" name="form_code">
+              <div class="autocomplete-menu form-filler-combo-menu" id="form-options">
               {% for template in templates %}
-                <option value="{{ template.code }}" data-search="{{ template.label|lower }}">{{ template.label }}</option>
+                <button type="button" data-value="{{ template.code }}" data-label="{{ template.label }}" data-search="{{ template.label|lower }}">
+                  <strong>{{ template.label }}</strong>
+                </button>
               {% endfor %}
-            </select>
+              </div>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Agency notes</label>
@@ -68,24 +79,63 @@
 
 {% block scripts %}
 <script>
-  document.querySelectorAll(".live-select-filter").forEach((input) => {
-    const select = document.getElementById(input.dataset.target);
-    if (!select) {
+  document.querySelectorAll(".form-filler-combo-input").forEach((input) => {
+    const menu = document.getElementById(input.dataset.menu);
+    const valueInput = document.getElementById(input.dataset.valueInput);
+    const options = Array.from(menu?.querySelectorAll("button") || []);
+    if (!menu || !valueInput) {
       return;
     }
-    input.addEventListener("input", () => {
+
+    const showMatches = () => {
       const query = input.value.trim().toLowerCase();
-      let firstVisible = null;
-      Array.from(select.options).forEach((option) => {
+      let visibleCount = 0;
+      options.forEach((option) => {
         const matches = !query || option.dataset.search.includes(query);
-        option.hidden = !matches;
-        option.disabled = !matches;
-        if (matches && !firstVisible) {
-          firstVisible = option;
+        option.classList.toggle("d-none", !matches);
+        if (matches) {
+          visibleCount += 1;
         }
       });
-      if (firstVisible && select.selectedOptions[0]?.disabled) {
-        select.value = firstVisible.value;
+      menu.classList.toggle("show", visibleCount > 0);
+    };
+
+    input.addEventListener("focus", showMatches);
+    input.addEventListener("input", () => {
+      valueInput.value = "";
+      input.setCustomValidity("");
+      showMatches();
+    });
+
+    options.forEach((option) => {
+      option.addEventListener("click", () => {
+        input.value = option.dataset.label;
+        valueInput.value = option.dataset.value;
+        input.setCustomValidity("");
+        menu.classList.remove("show");
+      });
+    });
+
+  });
+
+  document.querySelector(".form-filler-assign-form")?.addEventListener("submit", (event) => {
+    const missing = Array.from(document.querySelectorAll(".form-filler-combo-input")).find((input) => {
+      const valueInput = document.getElementById(input.dataset.valueInput);
+      return !valueInput?.value;
+    });
+    if (missing) {
+      event.preventDefault();
+      missing.focus();
+      document.getElementById(missing.dataset.menu)?.classList.add("show");
+      missing.setCustomValidity("Select an option from the dropdown.");
+      missing.reportValidity();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    document.querySelectorAll(".form-filler-autocomplete").forEach((wrap) => {
+      if (!wrap.contains(event.target)) {
+        wrap.querySelector(".autocomplete-menu")?.classList.remove("show");
       }
     });
   });
