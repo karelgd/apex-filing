@@ -1,0 +1,17 @@
+<html>
+<head><meta charset="utf-8"><title>Como usar los filtros en la herramienta de Reportes</title></head>
+<body>
+<h1>Como usar los filtros en la herramienta de Reportes</h1>
+<p>Los filtros permiten responder preguntas especificas sobre los casos e invoices de la agencia.</p>
+<ul>
+  <li><strong>Case manager:</strong> limita resultados a un case manager.</li>
+  <li><strong>Form preparer:</strong> limita resultados a un preparer.</li>
+  <li><strong>Case type:</strong> filtra por servicio o formulario.</li>
+  <li><strong>Tag:</strong> filtra por la etiqueta asignada al caso.</li>
+  <li><strong>Case status:</strong> filtra por estado del caso.</li>
+  <li><strong>Invoice status:</strong> aparece en Invoices Report y filtra por estado del invoice.</li>
+  <li><strong>Date from / Date to:</strong> limita por rango de fecha.</li>
+</ul>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen del area de filtros.</p>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page kb-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">Apex Admin</span>
+      <h1>Knowledge Base Admin</h1>
+      <p>Create help modules and attach PDF guides for agency users.</p>
+    </div>
+  </div>
+
+  <div class="kb-admin-grid">
+    <section class="crm-panel">
+      <div class="crm-panel-head">
+        <div><h2>Create Module</h2><p>Examples: CRM, Form Filler, Motion Creation.</p></div>
+      </div>
+      <form method="post" class="kb-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="form-label">Module name</label>
+        <input class="form-control" name="name" required>
+        <label class="form-label mt-3">Description</label>
+        <textarea class="form-control" name="description" rows="4"></textarea>
+        <label class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" name="is_active" checked>
+          <span class="form-check-label">Active</span>
+        </label>
+        <button class="btn btn-primary crm-action-btn mt-3">Create Module</button>
+      </form>
+    </section>
+
+    <section class="crm-panel crm-panel-wide">
+      <div class="crm-panel-head">
+        <div><h2>Modules</h2><p>Open a module to manage its topics and PDFs.</p></div>
+      </div>
+      <div class="crm-stack">
+        {% for module in modules %}
+          <div class="crm-record kb-module-row">
+            <div>
+              <strong>{{ module.name }}</strong>
+              <small>{{ module.description or 'No description' }} &middot; {{ module.topics|length }} topics &middot; {{ 'Active' if module.is_active else 'Inactive' }}</small>
+            </div>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('apex_knowledge_module_detail', module_id=module.id) }}">Open</a>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">No Knowledge Base modules yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

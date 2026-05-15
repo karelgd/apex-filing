@@ -1,0 +1,14 @@
+<html>
+<head><meta charset="utf-8"><title>Como ver el calendario general y sus citas</title></head>
+<body>
+<h1>Como ver el calendario general y sus citas</h1>
+<ol>
+  <li>En el menu izquierdo, bajo <strong>CRM</strong>, da clic en <strong>Calendar</strong>.</li>
+  <li>Usa las opciones de vista para revisar mes, semana o dia.</li>
+  <li>Cada cita aparece como un rectangulo pequeno con informacion resumida.</li>
+  <li>Da clic en una cita para abrir su pagina de detalle.</li>
+</ol>
+<p>Los colores ayudan a identificar el estado de la cita, por ejemplo Cancelled o No Show.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen del calendario mensual.</p>
+</body>
+</html>

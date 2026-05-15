@@ -1,0 +1,14 @@
+<html>
+<head><meta charset="utf-8"><title>Como buscar un cliente ya creado en el CRM</title></head>
+<body>
+<h1>Como buscar un cliente ya creado en el CRM y ver toda su informacion</h1>
+<ol>
+  <li>Abre <strong>CRM</strong> desde el menu izquierdo.</li>
+  <li>En la barra de busqueda, escribe el nombre, telefono, email o A-Number del cliente.</li>
+  <li>Opcionalmente, usa los filtros de <strong>Form Preparer</strong>, <strong>Case Manager</strong> o fecha.</li>
+  <li>Da clic en el boton azul llamado <strong>Search</strong>.</li>
+  <li>En los resultados, da clic en <strong>View</strong> para abrir la pagina general del cliente.</li>
+</ol>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen de los resultados de busqueda.</p>
+</body>
+</html>

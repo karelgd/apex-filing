@@ -1,0 +1,17 @@
+<html>
+<head><meta charset="utf-8"><title>Entendiendo la informacion en la pagina general del cliente</title></head>
+<body>
+<h1>Entendiendo la informacion en la pagina general del cliente</h1>
+<p>La pagina general del cliente contiene la informacion principal y carpetas para organizar su actividad.</p>
+<h2>Parte superior</h2>
+<p>Veras el nombre completo, direccion, telefono, email y <strong>A-Number</strong>.</p>
+<h2>Carpetas</h2>
+<ul>
+  <li><strong>Cases:</strong> casos o servicios del cliente.</li>
+  <li><strong>Appointments:</strong> citas relacionadas a casos.</li>
+  <li><strong>Invoices:</strong> invoices generados automaticamente por casos.</li>
+  <li><strong>Documents:</strong> documentos subidos para el cliente.</li>
+</ul>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen de la pagina del cliente con las carpetas visibles.</p>
+</body>
+</html>

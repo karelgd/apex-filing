@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page kb-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">Knowledge Base Module</span>
+      <h1>{{ module.name }}</h1>
+      <p>{{ module.description or 'Create and order the topics agencies will read.' }}</p>
+    </div>
+    <div class="crm-actions">
+      <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('apex_knowledge_base_admin') }}">Back to Modules</a>
+    </div>
+  </div>
+
+  <div class="kb-admin-grid">
+    <section class="crm-panel">
+      <div class="crm-panel-head">
+        <div><h2>Module Settings</h2><p>Rename or deactivate this package.</p></div>
+      </div>
+      <form method="post" action="{{ url_for('apex_knowledge_module_edit', module_id=module.id) }}" class="kb-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="form-label">Module name</label>
+        <input class="form-control" name="name" value="{{ module.name }}" required>
+        <label class="form-label mt-3">Description</label>
+        <textarea class="form-control" name="description" rows="3">{{ module.description or '' }}</textarea>
+        <label class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" name="is_active" {% if module.is_active %}checked{% endif %}>
+          <span class="form-check-label">Active</span>
+        </label>
+        <button class="btn btn-primary crm-action-btn mt-3">Save Module</button>
+      </form>
+
+      <hr>
+      <div class="crm-panel-head px-0 pt-0">
+        <div><h2>Create Topic</h2><p>Upload the PDF guide for this topic.</p></div>
+      </div>
+      <form method="post" enctype="multipart/form-data" class="kb-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="form-label">Topic title</label>
+        <input class="form-control" name="title" required>
+        <label class="form-label mt-3">Description</label>
+        <textarea class="form-control" name="description" rows="3"></textarea>
+        <label class="form-label mt-3">PDF guide</label>
+        <input class="form-control" type="file" name="pdf" accept="application/pdf,.pdf">
+        <label class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" name="is_active" checked>
+          <span class="form-check-label">Active</span>
+        </label>
+        <button class="btn btn-primary crm-action-btn mt-3">Create Topic</button>
+      </form>
+    </section>
+
+    <section class="crm-panel crm-panel-wide">
+      <div class="crm-panel-head">
+        <div><h2>Topics</h2><p>Drag topics up or down to change the order agencies see.</p></div>
+      </div>
+      <div class="kb-topic-list" id="kb-topic-sort-list" data-reorder-url="{{ url_for('apex_knowledge_topics_reorder', module_id=module.id) }}">
+        {% for topic in topics %}
+          <div class="kb-topic-item" draggable="true" data-topic-id="{{ topic.id }}">
+            <div class="kb-drag-handle" aria-hidden="true">::</div>
+            <div class="kb-topic-main">
+              <strong>{{ topic.sort_order }}. {{ topic.title }}</strong>
+              <small>{{ topic.description or 'No description' }}</small>
+              <small>{{ topic.pdf_original_filename or 'No PDF uploaded yet' }} &middot; {{ 'Active' if topic.is_active else 'Inactive' }}</small>
+            </div>
+            <div class="crm-row-actions">
+              {% if topic.pdf_stored_filename %}
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('knowledge_topic_pdf', topic_id=topic.id) }}" target="_blank">View PDF</a>
+              {% endif %}
+              <a class="btn btn-sm btn-primary" href="{{ url_for('apex_knowledge_topic_edit', topic_id=topic.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('apex_knowledge_topic_delete', topic_id=topic.id) }}" onsubmit="return confirm('Delete this topic?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">No topics yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const kbTopicList = document.getElementById("kb-topic-sort-list");
+  let draggedTopic = null;
+  function kbAfterElement(container, y) {
+    const elements = [...container.querySelectorAll(".kb-topic-item:not(.is-dragging)")];
+    return elements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+  async function saveKbTopicOrder() {
+    const topicIds = [...kbTopicList.querySelectorAll(".kb-topic-item")].map((item) => item.dataset.topicId);
+    const response = await fetch(kbTopicList.dataset.reorderUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token() }}",
+      },
+      body: JSON.stringify({ topic_ids: topicIds }),
+    });
+    if (!response.ok) {
+      window.location.reload();
+    }
+  }
+  kbTopicList?.addEventListener("dragstart", (event) => {
+    draggedTopic = event.target.closest(".kb-topic-item");
+    if (!draggedTopic) return;
+    event.dataTransfer.setData("text/plain", draggedTopic.dataset.topicId || "");
+    requestAnimationFrame(() => draggedTopic.classList.add("is-dragging"));
+  });
+  kbTopicList?.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    const afterElement = kbAfterElement(kbTopicList, event.clientY);
+    if (!draggedTopic) return;
+    if (afterElement == null) {
+      kbTopicList.appendChild(draggedTopic);
+    } else {
+      kbTopicList.insertBefore(draggedTopic, afterElement);
+    }
+  });
+  kbTopicList?.addEventListener("dragend", async () => {
+    if (!draggedTopic) return;
+    draggedTopic.classList.remove("is-dragging");
+    draggedTopic = null;
+    await saveKbTopicOrder();
+  });
+</script>
+{% endblock %}

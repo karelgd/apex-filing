@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page kb-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">Knowledge Base Topic</span>
+      <h1>Edit Topic</h1>
+      <p>{{ topic.module.name }}</p>
+    </div>
+    <div class="crm-actions">
+      <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('apex_knowledge_module_detail', module_id=topic.module_id) }}">Back to Module</a>
+    </div>
+  </div>
+
+  <section class="crm-panel">
+    <form method="post" enctype="multipart/form-data" class="kb-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label">Topic title</label>
+      <input class="form-control" name="title" value="{{ topic.title }}" required>
+      <label class="form-label mt-3">Description</label>
+      <textarea class="form-control" name="description" rows="4">{{ topic.description or '' }}</textarea>
+      <label class="form-label mt-3">Replace PDF guide</label>
+      <input class="form-control" type="file" name="pdf" accept="application/pdf,.pdf">
+      {% if topic.pdf_original_filename %}
+        <p class="text-secondary mt-2 mb-0">Current PDF: {{ topic.pdf_original_filename }}</p>
+      {% endif %}
+      <label class="form-check mt-3">
+        <input class="form-check-input" type="checkbox" name="is_active" {% if topic.is_active %}checked{% endif %}>
+        <span class="form-check-label">Active</span>
+      </label>
+      <div class="crm-actions mt-4">
+        <button class="btn btn-primary crm-action-btn">Save Topic</button>
+        {% if topic.pdf_stored_filename %}
+          <a class="btn btn-outline-primary crm-action-btn" href="{{ url_for('knowledge_topic_pdf', topic_id=topic.id) }}" target="_blank">View PDF</a>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

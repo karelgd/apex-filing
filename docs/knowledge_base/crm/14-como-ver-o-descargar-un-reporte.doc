@@ -1,0 +1,15 @@
+<html>
+<head><meta charset="utf-8"><title>Como ver o descargar un reporte</title></head>
+<body>
+<h1>Como ver o descargar un reporte</h1>
+<ol>
+  <li>Abre <strong>Reports</strong> desde el menu izquierdo bajo CRM.</li>
+  <li>Selecciona <strong>Cases Report</strong> o <strong>Invoices Report</strong>.</li>
+  <li>Aplica los filtros deseados.</li>
+  <li>Da clic en <strong>Run Report</strong> para ver los resultados en pantalla.</li>
+  <li>Da clic en el boton azul llamado <strong>Download PDF</strong> para descargar el reporte con esos mismos criterios.</li>
+</ol>
+<p>El PDF descargado refleja la version actual de los resultados obtenidos con los filtros seleccionados.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen del boton Download PDF.</p>
+</body>
+</html>

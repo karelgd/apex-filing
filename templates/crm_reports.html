@@ -9,6 +9,7 @@
     </div>
     <div class="crm-actions">
       <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_reports') }}">Clear Filters</a>
+      <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_reports_download') }}{% if request.query_string %}?{{ request.query_string.decode('utf-8') }}{% endif %}">Download PDF</a>
     </div>
   </div>
 

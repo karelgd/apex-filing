@@ -1,0 +1,13 @@
+<html>
+<head><meta charset="utf-8"><title>Como acceder a los reportes</title></head>
+<body>
+<h1>Como acceder a los reportes</h1>
+<ol>
+  <li>En el menu izquierdo, bajo <strong>CRM</strong>, da clic en <strong>Reports</strong>.</li>
+  <li>Selecciona el tipo de reporte: <strong>Cases Report</strong> o <strong>Invoices Report</strong>.</li>
+  <li>Completa los filtros que necesites.</li>
+  <li>Da clic en <strong>Run Report</strong>.</li>
+</ol>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen de la pagina Reports.</p>
+</body>
+</html>

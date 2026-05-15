@@ -1,0 +1,16 @@
+<html>
+<head><meta charset="utf-8"><title>Como Acceder a la subscripcion CRM</title></head>
+<body>
+<h1>Como Acceder a la subscripcion CRM</h1>
+<p>Esta guia explica como entrar al area CRM dentro de Apex Filing.</p>
+<h2>Pasos</h2>
+<ol>
+  <li>Inicia sesion usando la opcion <strong>Agency Login</strong>.</li>
+  <li>En el menu izquierdo, busca la seccion <strong>Subscriptions</strong>.</li>
+  <li>Da clic en la opcion <strong>CRM</strong>.</li>
+  <li>El sistema abrira la pagina principal del CRM con los resumenes y busqueda de clientes.</li>
+</ol>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen del menu izquierdo mostrando CRM.</p>
+<p>Si no ves la opcion CRM, significa que la agencia no tiene esta subscripcion activa. Apex debe activarla desde el formulario de la agencia.</p>
+</body>
+</html>

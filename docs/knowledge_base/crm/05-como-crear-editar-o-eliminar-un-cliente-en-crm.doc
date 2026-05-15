@@ -1,0 +1,22 @@
+<html>
+<head><meta charset="utf-8"><title>Como crear, editar o eliminar un Cliente en CRM</title></head>
+<body>
+<h1>Como crear, editar o eliminar un Cliente en CRM</h1>
+<h2>Crear cliente</h2>
+<ol>
+  <li>Abre <strong>CRM</strong>.</li>
+  <li>Da clic en el boton azul llamado <strong>Create Client</strong>.</li>
+  <li>Completa los datos requeridos del cliente.</li>
+  <li>Guarda el formulario.</li>
+</ol>
+<h2>Editar cliente</h2>
+<ol>
+  <li>Busca el cliente en CRM.</li>
+  <li>Da clic en <strong>Edit</strong> desde los resultados o en <strong>Edit Client</strong> dentro de su pagina.</li>
+  <li>Modifica la informacion y guarda.</li>
+</ol>
+<h2>Eliminar cliente</h2>
+<p>Usa la opcion <strong>Delete</strong> cuando este disponible. Antes de eliminar, verifica que no necesites conservar casos, invoices o documentos.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui capturas del boton Create Client y del formulario.</p>
+</body>
+</html>

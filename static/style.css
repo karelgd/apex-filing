@@ -3611,3 +3611,161 @@ textarea.form-control {
     white-space: normal;
   }
 }
+
+.kb-page .crm-hero {
+  border-left: 5px solid #2f7df6;
+}
+
+.kb-admin-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(280px, .45fr) minmax(0, 1fr);
+}
+
+.kb-form .form-label,
+.kb-form .form-check-label {
+  color: #4e5d74;
+  font-weight: 850;
+}
+
+.kb-module-row {
+  align-items: center;
+}
+
+.kb-topic-list {
+  display: grid;
+  gap: .7rem;
+}
+
+.kb-topic-item {
+  align-items: center;
+  background: #fbfdff;
+  border: 1px solid #dfe9f7;
+  border-radius: 14px;
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  padding: .85rem;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.kb-topic-item:hover {
+  border-color: #9cc5ff;
+  box-shadow: 0 12px 28px rgba(39, 99, 191, .1);
+}
+
+.kb-topic-item.is-dragging {
+  opacity: .72;
+  transform: scale(.99);
+}
+
+.kb-drag-handle {
+  align-items: center;
+  background: #eaf3ff;
+  border-radius: 10px;
+  color: #1f73ff;
+  cursor: grab;
+  display: flex;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+}
+
+.kb-topic-main strong,
+.kb-topic-main small {
+  display: block;
+}
+
+.kb-topic-main strong {
+  color: #101828;
+  font-weight: 900;
+}
+
+.kb-topic-main small {
+  color: #5f6d82;
+  font-weight: 750;
+  margin-top: .2rem;
+}
+
+.kb-reader {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 220px 280px minmax(0, 1fr);
+}
+
+.kb-packages,
+.kb-topics {
+  background: #ffffff;
+  border: 1px solid #dfe9f7;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(31, 52, 89, .07);
+  padding: 1rem;
+}
+
+.kb-package-link,
+.kb-topic-link {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: #24324a;
+  display: block;
+  font-weight: 850;
+  margin-top: .45rem;
+  padding: .75rem .85rem;
+  text-decoration: none;
+}
+
+.kb-package-link small {
+  color: #7b8ba3;
+  display: block;
+  font-size: .76rem;
+  margin-top: .15rem;
+}
+
+.kb-package-link:hover,
+.kb-topic-link:hover,
+.kb-package-link.active,
+.kb-topic-link.active {
+  background: #eaf3ff;
+  border-color: #bcd6ff;
+  color: #115bd8;
+}
+
+.kb-viewer {
+  min-height: 720px;
+}
+
+.kb-pdf-frame {
+  background: #f6f9fe;
+  border: 1px solid #dfe9f7;
+  border-radius: 14px;
+  height: 680px;
+  width: 100%;
+}
+
+.kb-empty-state {
+  align-items: center;
+  color: #637188;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 360px;
+  text-align: center;
+}
+
+.kb-empty-state h3 {
+  color: #172033;
+  font-weight: 900;
+}
+
+@media (max-width: 1199.98px) {
+  .kb-reader {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .kb-admin-grid,
+  .kb-topic-item {
+    grid-template-columns: 1fr;
+  }
+}

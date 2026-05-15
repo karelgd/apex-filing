@@ -111,7 +111,15 @@
       <div class="crm-stack">
         {% for document in case.documents %}
           <div class="crm-record">
-            <div><strong><a href="{{ url_for('uploaded_file', filename=document.stored_filename) }}">{{ document.original_filename }}</a></strong><small>{{ document.document_type }}</small></div>
+            <div><strong>{{ document.original_filename }}</strong><small>{{ document.document_type }}</small></div>
+            <div class="crm-row-actions">
+              <a class="btn btn-sm btn-primary" href="{{ url_for('crm_document_view', document_id=document.id) }}" target="_blank">View</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_document_download', document_id=document.id) }}">Download</a>
+              <form method="post" action="{{ url_for('crm_document_delete', document_id=document.id) }}" onsubmit="return confirm('Delete this document?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </div>
           </div>
         {% else %}
           <p class="text-secondary mb-0">No documents linked to this case.</p>

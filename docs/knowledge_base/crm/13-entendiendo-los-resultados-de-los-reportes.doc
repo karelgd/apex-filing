@@ -1,0 +1,13 @@
+<html>
+<head><meta charset="utf-8"><title>Entendiendo los resultados de los reportes</title></head>
+<body>
+<h1>Entendiendo los resultados de los reportes</h1>
+<p>Despues de ejecutar un reporte, Apex Filing muestra un resumen y una lista de resultados.</p>
+<h2>Cases Report</h2>
+<p>Muestra cantidad de casos encontrados y <strong>Total value</strong>, que suma el precio de los casos que cumplen los filtros.</p>
+<h2>Invoices Report</h2>
+<p>Muestra cantidad de invoices, valor total, open balance y pagos aplicados.</p>
+<p>En ambos reportes puedes dar clic en cualquier resultado para abrir el caso o invoice correspondiente.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen de resultados de reporte.</p>
+</body>
+</html>

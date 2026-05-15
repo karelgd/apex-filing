@@ -1,0 +1,16 @@
+<html>
+<head><meta charset="utf-8"><title>Entendiendo la pagina principal del CRM y sus datos</title></head>
+<body>
+<h1>Entendiendo la pagina principal del CRM y sus datos</h1>
+<p>La pagina principal del CRM muestra un resumen rapido de clientes, casos e invoices de la agencia.</p>
+<h2>Bloques principales</h2>
+<ul>
+  <li><strong>Clients:</strong> muestra el total de clientes creados.</li>
+  <li><strong>Cases:</strong> muestra los casos agrupados por estado.</li>
+  <li><strong>Invoices:</strong> muestra totales financieros como descuentos, refunds y balances abiertos.</li>
+</ul>
+<h2>Busqueda</h2>
+<p>Debajo de los resumenes esta el area de busqueda. Puedes filtrar por nombre del cliente, form preparer, case manager o fecha de creacion.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen de la pagina principal del CRM.</p>
+</body>
+</html>

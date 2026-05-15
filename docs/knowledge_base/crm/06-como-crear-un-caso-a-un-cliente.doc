@@ -1,0 +1,15 @@
+<html>
+<head><meta charset="utf-8"><title>Como Crear un Caso a un cliente</title></head>
+<body>
+<h1>Como Crear un Caso a un cliente</h1>
+<ol>
+  <li>Abre la pagina general del cliente.</li>
+  <li>En la carpeta <strong>Cases</strong>, da clic en <strong>Create Case</strong>.</li>
+  <li>Selecciona el <strong>Case Type</strong> del menu desplegable.</li>
+  <li>Agrega precio, case manager, form preparer y tag si aplica.</li>
+  <li>Selecciona el estado inicial del caso y guarda.</li>
+</ol>
+<p>Cuando el caso se crea, Apex Filing genera automaticamente un invoice asociado a ese caso.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen del formulario Create Case.</p>
+</body>
+</html>

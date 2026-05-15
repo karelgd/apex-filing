@@ -1,0 +1,16 @@
+<html>
+<head><meta charset="utf-8"><title>Como Crear una cita en el calendario a un caso</title></head>
+<body>
+<h1>Como Crear una cita en el calendario a un caso</h1>
+<ol>
+  <li>Abre la pagina del cliente.</li>
+  <li>En la carpeta <strong>Cases</strong>, ubica el caso correspondiente.</li>
+  <li>Da clic en el boton <strong>Appointment</strong>.</li>
+  <li>Selecciona <strong>Appointment Type</strong>: By Phone u On-Site.</li>
+  <li>Indica fecha, hora de inicio, duracion y estado.</li>
+  <li>Guarda la cita.</li>
+</ol>
+<p>La cita aparecera en la pagina del cliente, en el detalle del caso y en el calendario general del CRM.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen del formulario de cita.</p>
+</body>
+</html>

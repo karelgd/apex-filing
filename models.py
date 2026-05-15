@@ -611,6 +611,38 @@ class CrmClientDocument(db.Model):
     case = db.relationship("CrmCase", back_populates="documents")
 
 
+class KnowledgeBaseModule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(140), nullable=False)
+    description = db.Column(db.Text)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    topics = db.relationship(
+        "KnowledgeBaseTopic",
+        back_populates="module",
+        cascade="all, delete-orphan",
+        order_by="KnowledgeBaseTopic.sort_order",
+    )
+
+
+class KnowledgeBaseTopic(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    module_id = db.Column(db.Integer, db.ForeignKey("knowledge_base_module.id"), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
+    pdf_original_filename = db.Column(db.String(255))
+    pdf_stored_filename = db.Column(db.String(255))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    module = db.relationship("KnowledgeBaseModule", back_populates="topics")
+
+
 class ActiveSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)

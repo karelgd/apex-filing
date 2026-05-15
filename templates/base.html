@@ -55,6 +55,7 @@
           {% if current_user.role == 'apex' %}
           <span class="sidebar-label">Apex Admin</span>
           <a class="tool-link {{ 'active' if request.endpoint == 'apex_dashboard' else '' }}" href="{{ url_for('apex_dashboard') }}">Dashboard</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['apex_knowledge_base_admin', 'apex_knowledge_module_detail', 'apex_knowledge_topic_edit'] else '' }}" href="{{ url_for('apex_knowledge_base_admin') }}">Knowledge Base Admin</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['agency_list', 'agency_create', 'agency_edit'] else '' }}" href="{{ url_for('agency_list') }}">Agencies</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('case_list') }}">Cases</a>
@@ -63,6 +64,7 @@
           {% else %}
           <span class="sidebar-label">Agency tools</span>
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_dashboard' else '' }}" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+          <a class="tool-link {{ 'active' if request.endpoint == 'agency_knowledge_base' else '' }}" href="{{ url_for('agency_knowledge_base') }}">Knowledge Base</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['translator_list', 'translator_edit'] else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['preparer_list', 'preparer_edit', 'crm_preparer_list', 'crm_preparer_edit'] else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
@@ -73,7 +75,7 @@
           {% if current_user.agency.has_tool('CRM') %}
             <a class="tool-link {{ 'active' if request.endpoint in ['agency_crm', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail'] else '' }}" href="{{ url_for('agency_crm') }}">CRM</a>
             <a class="tool-link tool-sublink {{ 'active' if request.endpoint == 'crm_calendar' else '' }}" href="{{ url_for('crm_calendar') }}">Calendar</a>
-            <a class="tool-link tool-sublink {{ 'active' if request.endpoint == 'crm_reports' else '' }}" href="{{ url_for('crm_reports') }}">Reports</a>
+            <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['crm_reports', 'crm_reports_download'] else '' }}" href="{{ url_for('crm_reports') }}">Reports</a>
           {% endif %}
           {% if current_user.agency.has_tool('Form Filler') %}
             <a class="tool-link {{ 'active' if request.endpoint in ['agency_form_filler', 'case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('agency_form_filler') }}">Form Filler</a>

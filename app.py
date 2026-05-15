@@ -58,6 +58,8 @@ from models import (
     GeneratedForm,
     ImmigrationCourt,
     ImmigrationJudge,
+    KnowledgeBaseModule,
+    KnowledgeBaseTopic,
     MotionDraft,
     MotionRespondent,
     MotionTemplate,
@@ -69,6 +71,22 @@ from models import (
 
 OPLAOffice = OplaOffice
 Judge = ImmigrationJudge
+CRM_KNOWLEDGE_TOPICS = [
+    "Como Acceder a la subscripcion CRM",
+    "Entendiendo la pagina principal del CRM y sus datos",
+    "Como buscar un cliente ya creado en el CRM y ver toda su informacion",
+    "Entendiendo la informacion en la pagina general del cliente",
+    "Como crear, editar o eliminar un Cliente en CRM.",
+    "Como Crear un Caso a un cliente",
+    "Como Crear una cita en el calendario a un caso",
+    "Como agregar, editar o eliminar pagos, descuentos o refunds a un invoice generado",
+    "Como subir, ver o descargar documentos de un cliente",
+    "Como ver el calendario general y sus citas",
+    "Como acceder a los reportes.",
+    "Como usar los filtros en la herramienta de Reportes.",
+    "Entendiendo los resultados de los reportes.",
+    "Como ver o descargar un reporte",
+]
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -873,6 +891,183 @@ def can_use_crm(agency):
     return bool(agency and agency.has_tool("CRM"))
 
 
+def active_knowledge_modules():
+    return KnowledgeBaseModule.query.filter_by(is_active=True).order_by(
+        KnowledgeBaseModule.sort_order,
+        KnowledgeBaseModule.name,
+    ).all()
+
+
+def save_knowledge_topic_pdf(topic, file_storage):
+    if not file_storage or not file_storage.filename:
+        return
+    if not file_storage.filename.lower().endswith(".pdf"):
+        raise ValueError("Knowledge Base topics require a PDF file.")
+    saved = save_upload(file_storage, f"knowledge_base/module_{topic.module_id}")
+    if saved:
+        topic.pdf_original_filename, topic.pdf_stored_filename = saved
+
+
+def build_crm_report_data(agency_id, args):
+    report_type = args.get("report_type", "cases").strip()
+    if report_type not in {"cases", "invoices"}:
+        report_type = "cases"
+    manager_id = args.get("case_manager_id", "").strip()
+    preparer_id = args.get("form_preparer_id", "").strip()
+    tag_id = args.get("tag_id", "").strip()
+    case_type = args.get("case_type", "").strip()
+    case_status = args.get("case_status", "").strip()
+    invoice_status = args.get("invoice_status", "").strip()
+    created_from = args.get("created_from", "").strip()
+    created_to = args.get("created_to", "").strip()
+    date_warning = False
+
+    cases_query = CrmCase.query.filter_by(agency_id=agency_id)
+    if manager_id.isdigit():
+        cases_query = cases_query.filter(CrmCase.case_manager_id == int(manager_id))
+    if preparer_id.isdigit():
+        cases_query = cases_query.filter(CrmCase.form_preparer_id == int(preparer_id))
+    if tag_id.isdigit():
+        cases_query = cases_query.filter(CrmCase.tag_id == int(tag_id))
+    if case_type:
+        cases_query = cases_query.filter(CrmCase.title == case_type)
+    if case_status:
+        cases_query = cases_query.filter(CrmCase.status == case_status)
+    try:
+        if created_from and report_type == "cases":
+            cases_query = cases_query.filter(CrmCase.created_at >= datetime.strptime(created_from, "%Y-%m-%d"))
+        if created_to and report_type == "cases":
+            cases_query = cases_query.filter(CrmCase.created_at < datetime.strptime(created_to, "%Y-%m-%d") + timedelta(days=1))
+    except ValueError:
+        date_warning = True
+
+    cases = cases_query.order_by(CrmCase.created_at.desc()).all()
+    case_ids = [case.id for case in cases]
+    invoices_query = CrmInvoice.query.filter_by(agency_id=agency_id)
+    if case_ids:
+        invoices_query = invoices_query.filter(CrmInvoice.case_id.in_(case_ids))
+    elif manager_id or preparer_id or tag_id or case_type or case_status:
+        invoices_query = invoices_query.filter(False)
+    if invoice_status:
+        invoices_query = invoices_query.filter(CrmInvoice.status == invoice_status)
+    if report_type == "invoices":
+        try:
+            if created_from:
+                invoices_query = invoices_query.filter(CrmInvoice.issue_date >= datetime.strptime(created_from, "%Y-%m-%d").date())
+            if created_to:
+                invoices_query = invoices_query.filter(CrmInvoice.issue_date <= datetime.strptime(created_to, "%Y-%m-%d").date())
+        except ValueError:
+            date_warning = True
+    invoices = invoices_query.order_by(CrmInvoice.issue_date.desc(), CrmInvoice.updated_at.desc()).all()
+    invoice_ids = [invoice.id for invoice in invoices]
+    activities = (
+        CrmInvoiceActivity.query.filter(CrmInvoiceActivity.agency_id == agency_id, CrmInvoiceActivity.invoice_id.in_(invoice_ids)).all()
+        if invoice_ids
+        else []
+    )
+
+    all_case_types = [f"{code} - {purpose}" for code, purpose in CRM_CASE_SERVICES]
+    existing_case_types = [
+        row[0]
+        for row in db.session.query(CrmCase.title)
+        .filter_by(agency_id=agency_id)
+        .distinct()
+        .order_by(CrmCase.title)
+        .all()
+    ]
+    case_managers = AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all()
+    form_preparers = AgencyPreparer.query.filter_by(agency_id=agency_id).order_by(AgencyPreparer.full_name).all()
+    case_tags = CrmCaseTag.query.filter_by(agency_id=agency_id).order_by(CrmCaseTag.name).all()
+    manager_lookup = {manager.id: manager.full_name for manager in case_managers}
+    preparer_lookup = {preparer.id: preparer.full_name for preparer in form_preparers}
+    tag_lookup = {tag.id: tag.name for tag in case_tags}
+    case_status_options = sorted(
+        set(
+            ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed"]
+            + [
+                row[0]
+                for row in db.session.query(CrmCase.status)
+                .filter_by(agency_id=agency_id)
+                .distinct()
+                .order_by(CrmCase.status)
+                .all()
+                if row[0]
+            ]
+        )
+    )
+    invoice_status_options = sorted(
+        set(
+            ["Unpaid", "Partial", "Paid", "Overpaid"]
+            + [
+                row[0]
+                for row in db.session.query(CrmInvoice.status)
+                .filter_by(agency_id=agency_id)
+                .distinct()
+                .order_by(CrmInvoice.status)
+                .all()
+                if row[0]
+            ]
+        )
+    )
+
+    active_filters = []
+    if case_status:
+        active_filters.append(f'status "{case_status}"')
+    if preparer_id.isdigit() and int(preparer_id) in preparer_lookup:
+        active_filters.append(f'form preparer "{preparer_lookup[int(preparer_id)]}"')
+    if tag_id.isdigit() and int(tag_id) in tag_lookup:
+        active_filters.append(f'tag "{tag_lookup[int(tag_id)]}"')
+    if manager_id.isdigit() and int(manager_id) in manager_lookup:
+        active_filters.append(f'case manager "{manager_lookup[int(manager_id)]}"')
+    if case_type:
+        active_filters.append(f'case type "{case_type}"')
+    if invoice_status and report_type == "invoices":
+        active_filters.append(f'invoice status "{invoice_status}"')
+    if created_from and created_to:
+        active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} from {created_from} to {created_to}")
+    elif created_from:
+        active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} on or after {created_from}")
+    elif created_to:
+        active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} on or before {created_to}")
+    report_answer = f"Showing all CRM {'invoices' if report_type == 'invoices' else 'cases'} for this agency."
+    if active_filters:
+        report_answer = f"Showing CRM {'invoices' if report_type == 'invoices' else 'cases'} with " + ", ".join(active_filters) + "."
+
+    return {
+        "cases": cases,
+        "invoices": invoices,
+        "case_managers": case_managers,
+        "form_preparers": form_preparers,
+        "case_tags": case_tags,
+        "case_type_options": sorted(set(all_case_types + existing_case_types)),
+        "case_status_options": case_status_options,
+        "invoice_status_options": invoice_status_options,
+        "report_answer": report_answer,
+        "date_warning": date_warning,
+        "filters": {
+            "report_type": report_type,
+            "manager_id": manager_id,
+            "preparer_id": preparer_id,
+            "tag_id": tag_id,
+            "case_type": case_type,
+            "case_status": case_status,
+            "invoice_status": invoice_status,
+            "created_from": created_from,
+            "created_to": created_to,
+        },
+        "summary": {
+            "case_count": len(cases),
+            "invoice_count": len(invoices),
+            "total_case_value": sum((case.price or Decimal("0")) for case in cases),
+            "total_billed": sum((invoice.total or Decimal("0")) for invoice in invoices),
+            "total_paid": sum((invoice.paid_amount or Decimal("0")) for invoice in invoices),
+            "total_discounts": sum((invoice.discount or Decimal("0")) for invoice in invoices),
+            "total_refunds": sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund"),
+            "open_balance": sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid"),
+        },
+    }
+
+
 def build_crm_chart(title, counts):
     palette = ["#1f73ff", "#12b8a6", "#f5a623", "#7157e8", "#f45d6c", "#4aa3df", "#38c977", "#ff8a4c"]
     cleaned = []
@@ -1285,6 +1480,154 @@ def register_routes(app):
             case_count=Case.query.count(),
             agencies=Agency.query.order_by(Agency.created_at.desc()).limit(5).all(),
         )
+
+    @app.route("/apex/knowledge-base", methods=["GET", "POST"])
+    @role_required("apex")
+    def apex_knowledge_base_admin():
+        if request.method == "POST":
+            module = KnowledgeBaseModule(
+                name=request.form["name"].strip(),
+                description=request.form.get("description", "").strip(),
+                sort_order=KnowledgeBaseModule.query.count() + 1,
+                is_active=bool(request.form.get("is_active")),
+            )
+            db.session.add(module)
+            db.session.commit()
+            flash("Knowledge Base module created.", "success")
+            return redirect(url_for("apex_knowledge_module_detail", module_id=module.id))
+        modules = KnowledgeBaseModule.query.order_by(KnowledgeBaseModule.sort_order, KnowledgeBaseModule.name).all()
+        return render_template("apex_knowledge_base_admin.html", modules=modules)
+
+    @app.route("/apex/knowledge-base/modules/<int:module_id>", methods=["GET", "POST"])
+    @role_required("apex")
+    def apex_knowledge_module_detail(module_id):
+        module = db.session.get(KnowledgeBaseModule, module_id) or abort(404)
+        if request.method == "POST":
+            topic = KnowledgeBaseTopic(
+                module_id=module.id,
+                title=request.form["title"].strip(),
+                description=request.form.get("description", "").strip(),
+                sort_order=KnowledgeBaseTopic.query.filter_by(module_id=module.id).count() + 1,
+                is_active=bool(request.form.get("is_active")),
+            )
+            db.session.add(topic)
+            db.session.flush()
+            try:
+                save_knowledge_topic_pdf(topic, request.files.get("pdf"))
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), "danger")
+                return redirect(url_for("apex_knowledge_module_detail", module_id=module.id))
+            db.session.commit()
+            flash("Knowledge Base topic created.", "success")
+            return redirect(url_for("apex_knowledge_module_detail", module_id=module.id))
+        topics = KnowledgeBaseTopic.query.filter_by(module_id=module.id).order_by(KnowledgeBaseTopic.sort_order, KnowledgeBaseTopic.title).all()
+        return render_template("apex_knowledge_module_detail.html", module=module, topics=topics)
+
+    @app.route("/apex/knowledge-base/modules/<int:module_id>/edit", methods=["POST"])
+    @role_required("apex")
+    def apex_knowledge_module_edit(module_id):
+        module = db.session.get(KnowledgeBaseModule, module_id) or abort(404)
+        module.name = request.form["name"].strip()
+        module.description = request.form.get("description", "").strip()
+        module.is_active = bool(request.form.get("is_active"))
+        db.session.commit()
+        flash("Knowledge Base module updated.", "success")
+        return redirect(url_for("apex_knowledge_module_detail", module_id=module.id))
+
+    @app.route("/apex/knowledge-base/topics/<int:topic_id>/edit", methods=["GET", "POST"])
+    @role_required("apex")
+    def apex_knowledge_topic_edit(topic_id):
+        topic = db.session.get(KnowledgeBaseTopic, topic_id) or abort(404)
+        if request.method == "POST":
+            topic.title = request.form["title"].strip()
+            topic.description = request.form.get("description", "").strip()
+            topic.is_active = bool(request.form.get("is_active"))
+            try:
+                save_knowledge_topic_pdf(topic, request.files.get("pdf"))
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), "danger")
+                return redirect(url_for("apex_knowledge_topic_edit", topic_id=topic.id))
+            db.session.commit()
+            flash("Knowledge Base topic updated.", "success")
+            return redirect(url_for("apex_knowledge_module_detail", module_id=topic.module_id))
+        return render_template("apex_knowledge_topic_form.html", topic=topic)
+
+    @app.route("/apex/knowledge-base/topics/<int:topic_id>/delete", methods=["POST"])
+    @role_required("apex")
+    def apex_knowledge_topic_delete(topic_id):
+        topic = db.session.get(KnowledgeBaseTopic, topic_id) or abort(404)
+        module_id = topic.module_id
+        stored_path = os.path.join(app.config["UPLOAD_FOLDER"], topic.pdf_stored_filename) if topic.pdf_stored_filename else None
+        db.session.delete(topic)
+        db.session.commit()
+        if stored_path and os.path.exists(stored_path):
+            try:
+                os.remove(stored_path)
+            except OSError:
+                pass
+        flash("Knowledge Base topic deleted.", "info")
+        return redirect(url_for("apex_knowledge_module_detail", module_id=module_id))
+
+    @app.route("/apex/knowledge-base/modules/<int:module_id>/topics/reorder", methods=["POST"])
+    @role_required("apex")
+    def apex_knowledge_topics_reorder(module_id):
+        module = db.session.get(KnowledgeBaseModule, module_id) or abort(404)
+        payload = request.get_json(silent=True) or {}
+        try:
+            ordered_ids = [int(raw_id) for raw_id in payload.get("topic_ids", [])]
+        except (TypeError, ValueError):
+            abort(400)
+        topics = KnowledgeBaseTopic.query.filter_by(module_id=module.id).all()
+        topics_by_id = {topic.id: topic for topic in topics}
+        if set(ordered_ids) != set(topics_by_id):
+            abort(400)
+        for index, topic_id in enumerate(ordered_ids, start=1):
+            topics_by_id[topic_id].sort_order = index
+        db.session.commit()
+        return {"status": "ok"}
+
+    @app.route("/agency/knowledge-base")
+    @role_required("agency")
+    def agency_knowledge_base():
+        modules = active_knowledge_modules()
+        selected_module = None
+        selected_topic = None
+        module_id = request.args.get("module_id", "").strip()
+        topic_id = request.args.get("topic_id", "").strip()
+        if module_id.isdigit():
+            selected_module = KnowledgeBaseModule.query.filter_by(id=int(module_id), is_active=True).first()
+        if not selected_module and modules:
+            selected_module = modules[0]
+        topics = []
+        if selected_module:
+            topics = KnowledgeBaseTopic.query.filter_by(module_id=selected_module.id, is_active=True).order_by(
+                KnowledgeBaseTopic.sort_order,
+                KnowledgeBaseTopic.title,
+            ).all()
+            if topic_id.isdigit():
+                selected_topic = next((topic for topic in topics if topic.id == int(topic_id)), None)
+            if not selected_topic and topics:
+                selected_topic = topics[0]
+        return render_template(
+            "agency_knowledge_base.html",
+            modules=modules,
+            selected_module=selected_module,
+            topics=topics,
+            selected_topic=selected_topic,
+        )
+
+    @app.route("/knowledge-base/topics/<int:topic_id>/pdf")
+    @role_required("apex", "agency")
+    def knowledge_topic_pdf(topic_id):
+        topic = db.session.get(KnowledgeBaseTopic, topic_id) or abort(404)
+        if current_user.role == "agency" and (not topic.is_active or not topic.module.is_active):
+            abort(404)
+        if not topic.pdf_stored_filename:
+            abort(404)
+        authorize_upload_access(topic.pdf_stored_filename)
+        return send_from_directory(app.config["UPLOAD_FOLDER"], topic.pdf_stored_filename, as_attachment=False)
 
     @app.route("/apex/agencies")
     @role_required("apex")
@@ -2121,171 +2464,18 @@ def register_routes(app):
         if not can_use_crm(current_user.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
-
-        agency_id = current_user.agency_id
-        report_type = request.args.get("report_type", "cases").strip()
-        if report_type not in {"cases", "invoices"}:
-            report_type = "cases"
-        manager_id = request.args.get("case_manager_id", "").strip()
-        preparer_id = request.args.get("form_preparer_id", "").strip()
-        tag_id = request.args.get("tag_id", "").strip()
-        case_type = request.args.get("case_type", "").strip()
-        case_status = request.args.get("case_status", "").strip()
-        invoice_status = request.args.get("invoice_status", "").strip()
-        created_from = request.args.get("created_from", "").strip()
-        created_to = request.args.get("created_to", "").strip()
-
-        cases_query = CrmCase.query.filter_by(agency_id=agency_id)
-        if manager_id.isdigit():
-            cases_query = cases_query.filter(CrmCase.case_manager_id == int(manager_id))
-        if preparer_id.isdigit():
-            cases_query = cases_query.filter(CrmCase.form_preparer_id == int(preparer_id))
-        if tag_id.isdigit():
-            cases_query = cases_query.filter(CrmCase.tag_id == int(tag_id))
-        if case_type:
-            cases_query = cases_query.filter(CrmCase.title == case_type)
-        if case_status:
-            cases_query = cases_query.filter(CrmCase.status == case_status)
-        try:
-            if created_from and report_type == "cases":
-                cases_query = cases_query.filter(CrmCase.created_at >= datetime.strptime(created_from, "%Y-%m-%d"))
-            if created_to and report_type == "cases":
-                cases_query = cases_query.filter(CrmCase.created_at < datetime.strptime(created_to, "%Y-%m-%d") + timedelta(days=1))
-        except ValueError:
+        report_data = build_crm_report_data(current_user.agency_id, request.args)
+        if report_data["date_warning"]:
             flash("One of the report dates was invalid and was ignored.", "warning")
+        return render_template("crm_reports.html", **report_data)
 
-        cases = cases_query.order_by(CrmCase.created_at.desc()).all()
-        case_ids = [case.id for case in cases]
-        invoices_query = CrmInvoice.query.filter_by(agency_id=agency_id)
-        if case_ids:
-            invoices_query = invoices_query.filter(CrmInvoice.case_id.in_(case_ids))
-        elif manager_id or preparer_id or tag_id or case_type or case_status:
-            invoices_query = invoices_query.filter(False)
-        if invoice_status:
-            invoices_query = invoices_query.filter(CrmInvoice.status == invoice_status)
-        if report_type == "invoices":
-            try:
-                if created_from:
-                    invoices_query = invoices_query.filter(CrmInvoice.issue_date >= datetime.strptime(created_from, "%Y-%m-%d").date())
-                if created_to:
-                    invoices_query = invoices_query.filter(CrmInvoice.issue_date <= datetime.strptime(created_to, "%Y-%m-%d").date())
-            except ValueError:
-                flash("One of the report dates was invalid and was ignored.", "warning")
-        invoices = invoices_query.order_by(CrmInvoice.issue_date.desc(), CrmInvoice.updated_at.desc()).all()
-        invoice_ids = [invoice.id for invoice in invoices]
-        activities = (
-            CrmInvoiceActivity.query.filter(CrmInvoiceActivity.agency_id == agency_id, CrmInvoiceActivity.invoice_id.in_(invoice_ids)).all()
-            if invoice_ids
-            else []
-        )
-
-        total_case_value = sum((case.price or Decimal("0")) for case in cases)
-        total_billed = sum((invoice.total or Decimal("0")) for invoice in invoices)
-        total_paid = sum((invoice.paid_amount or Decimal("0")) for invoice in invoices)
-        total_discounts = sum((invoice.discount or Decimal("0")) for invoice in invoices)
-        total_refunds = sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund")
-        open_balance = sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid")
-
-        all_case_types = [f"{code} - {purpose}" for code, purpose in CRM_CASE_SERVICES]
-        existing_case_types = [
-            row[0]
-            for row in db.session.query(CrmCase.title)
-            .filter_by(agency_id=agency_id)
-            .distinct()
-            .order_by(CrmCase.title)
-            .all()
-        ]
-        case_type_options = sorted(set(all_case_types + existing_case_types))
-        case_status_options = sorted(
-            set(
-                ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed"]
-                + [
-                    row[0]
-                    for row in db.session.query(CrmCase.status)
-                    .filter_by(agency_id=agency_id)
-                    .distinct()
-                    .order_by(CrmCase.status)
-                    .all()
-                    if row[0]
-                ]
-            )
-        )
-        invoice_status_options = sorted(
-            set(
-                ["Unpaid", "Partial", "Paid", "Overpaid"]
-                + [
-                    row[0]
-                    for row in db.session.query(CrmInvoice.status)
-                    .filter_by(agency_id=agency_id)
-                    .distinct()
-                    .order_by(CrmInvoice.status)
-                    .all()
-                    if row[0]
-                ]
-            )
-        )
-        case_managers = AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all()
-        form_preparers = AgencyPreparer.query.filter_by(agency_id=agency_id).order_by(AgencyPreparer.full_name).all()
-        case_tags = CrmCaseTag.query.filter_by(agency_id=agency_id).order_by(CrmCaseTag.name).all()
-        manager_lookup = {manager.id: manager.full_name for manager in case_managers}
-        preparer_lookup = {preparer.id: preparer.full_name for preparer in form_preparers}
-        tag_lookup = {tag.id: tag.name for tag in case_tags}
-        active_filters = []
-        if case_status:
-            active_filters.append(f'status "{case_status}"')
-        if preparer_id.isdigit() and int(preparer_id) in preparer_lookup:
-            active_filters.append(f'form preparer "{preparer_lookup[int(preparer_id)]}"')
-        if tag_id.isdigit() and int(tag_id) in tag_lookup:
-            active_filters.append(f'tag "{tag_lookup[int(tag_id)]}"')
-        if manager_id.isdigit() and int(manager_id) in manager_lookup:
-            active_filters.append(f'case manager "{manager_lookup[int(manager_id)]}"')
-        if case_type:
-            active_filters.append(f'case type "{case_type}"')
-        if invoice_status and report_type == "invoices":
-            active_filters.append(f'invoice status "{invoice_status}"')
-        if created_from and created_to:
-            active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} from {created_from} to {created_to}")
-        elif created_from:
-            active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} on or after {created_from}")
-        elif created_to:
-            active_filters.append(f"{'invoice date' if report_type == 'invoices' else 'created'} on or before {created_to}")
-        report_answer = f"Showing all CRM {'invoices' if report_type == 'invoices' else 'cases'} for this agency."
-        if active_filters:
-            report_answer = f"Showing CRM {'invoices' if report_type == 'invoices' else 'cases'} with " + ", ".join(active_filters) + "."
-
-        return render_template(
-            "crm_reports.html",
-            cases=cases,
-            invoices=invoices,
-            case_managers=case_managers,
-            form_preparers=form_preparers,
-            case_tags=case_tags,
-            case_type_options=case_type_options,
-            case_status_options=case_status_options,
-            invoice_status_options=invoice_status_options,
-            report_answer=report_answer,
-            filters={
-                "report_type": report_type,
-                "manager_id": manager_id,
-                "preparer_id": preparer_id,
-                "tag_id": tag_id,
-                "case_type": case_type,
-                "case_status": case_status,
-                "invoice_status": invoice_status,
-                "created_from": created_from,
-                "created_to": created_to,
-            },
-            summary={
-                "case_count": len(cases),
-                "invoice_count": len(invoices),
-                "total_case_value": total_case_value,
-                "total_billed": total_billed,
-                "total_paid": total_paid,
-                "total_discounts": total_discounts,
-                "total_refunds": total_refunds,
-                "open_balance": open_balance,
-            },
-        )
+    @app.route("/agency/crm/reports/download")
+    @role_required("agency")
+    def crm_reports_download():
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        return generate_crm_report_pdf(build_crm_report_data(current_user.agency_id, request.args))
 
     @app.route("/agency/crm/clients/<int:client_id>")
     @role_required("agency")
@@ -2655,10 +2845,41 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
         client_id = document.client_id
+        stored_path = os.path.join(app.config["UPLOAD_FOLDER"], document.stored_filename)
         db.session.delete(document)
         db.session.commit()
+        if os.path.exists(stored_path):
+            try:
+                os.remove(stored_path)
+            except OSError:
+                pass
         flash("Document deleted.", "info")
         return redirect(url_for("crm_client_detail", client_id=client_id))
+
+    @app.route("/agency/crm/documents/<int:document_id>/view")
+    @role_required("agency")
+    def crm_document_view(document_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
+        authorize_upload_access(document.stored_filename)
+        return send_from_directory(app.config["UPLOAD_FOLDER"], document.stored_filename, as_attachment=False)
+
+    @app.route("/agency/crm/documents/<int:document_id>/download")
+    @role_required("agency")
+    def crm_document_download(document_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
+        authorize_upload_access(document.stored_filename)
+        return send_from_directory(
+            app.config["UPLOAD_FOLDER"],
+            document.stored_filename,
+            as_attachment=True,
+            download_name=document.original_filename,
+        )
 
     @app.route("/clients")
     @role_required("apex", "agency")
@@ -2995,6 +3216,14 @@ def authorize_upload_access(filename):
         if current_user.role == "client" and client.id == current_user.id:
             return
         abort(403)
+    if parts[0] == "knowledge_base":
+        if current_user.role == "apex":
+            return
+        if current_user.role == "agency":
+            topic = KnowledgeBaseTopic.query.filter_by(pdf_stored_filename=filename, is_active=True).first()
+            if topic and topic.module.is_active:
+                return
+        abort(403)
     abort(403)
 
 
@@ -3103,6 +3332,110 @@ def generate_crm_invoice_pdf(invoice):
         buffer.getvalue(),
         mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={invoice.invoice_number}.pdf"},
+    )
+
+
+def generate_crm_report_pdf(report_data):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    left = 50
+    y = height - 52
+    filters = report_data["filters"]
+    summary = report_data["summary"]
+    report_label = "Invoices Report" if filters["report_type"] == "invoices" else "Cases Report"
+
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(left, y, f"CRM {report_label}")
+    pdf.setFont("Helvetica", 9)
+    pdf.drawRightString(width - 50, y, datetime.utcnow().strftime("%m/%d/%Y"))
+    y -= 24
+    pdf.setFont("Helvetica", 10)
+    for line in split_pdf_lines(report_data["report_answer"], 95):
+        pdf.drawString(left, y, line)
+        y -= 13
+    y -= 8
+
+    pdf.setFont("Helvetica-Bold", 10)
+    if filters["report_type"] == "invoices":
+        summary_lines = [
+            f"Matching invoices: {summary['invoice_count']}",
+            f"Total value: ${float(summary['total_billed'] or 0):,.2f}",
+            f"Open balance: ${float(summary['open_balance'] or 0):,.2f}",
+            f"Paid: ${float(summary['total_paid'] or 0):,.2f}",
+        ]
+    else:
+        summary_lines = [
+            f"Matching cases: {summary['case_count']}",
+            f"Total value: ${float(summary['total_case_value'] or 0):,.2f}",
+        ]
+    for line in summary_lines:
+        pdf.drawString(left, y, line)
+        y -= 14
+    y -= 10
+
+    if filters["report_type"] == "invoices":
+        rows = [
+            (
+                invoice.invoice_number,
+                invoice.client.full_name,
+                invoice.case.title,
+                invoice.status,
+                f"${float(invoice.total or 0):,.2f}",
+                f"${float(invoice.balance_due or 0):,.2f}",
+            )
+            for invoice in report_data["invoices"]
+        ]
+        headers = ("Invoice", "Client", "Case", "Status", "Total", "Balance")
+        widths = (70, 110, 150, 65, 65, 65)
+    else:
+        rows = [
+            (
+                case.title,
+                case.client.full_name,
+                case.status,
+                case.tag.name if case.tag else "No tag",
+                case.case_manager.full_name if case.case_manager else "Not assigned",
+                f"${float(case.price or 0):,.2f}",
+            )
+            for case in report_data["cases"]
+        ]
+        headers = ("Case", "Client", "Status", "Tag", "Manager", "Value")
+        widths = (155, 115, 75, 75, 80, 55)
+
+    def draw_header(current_y):
+        pdf.setFont("Helvetica-Bold", 8)
+        x = left
+        for header, col_width in zip(headers, widths):
+            pdf.drawString(x, current_y, header)
+            x += col_width
+        current_y -= 8
+        pdf.line(left, current_y, width - 50, current_y)
+        return current_y - 12
+
+    y = draw_header(y)
+    pdf.setFont("Helvetica", 8)
+    for row in rows:
+        if y < 70:
+            pdf.showPage()
+            y = height - 52
+            y = draw_header(y)
+            pdf.setFont("Helvetica", 8)
+        x = left
+        for value, col_width in zip(row, widths):
+            pdf.drawString(x, y, str(value or "")[: max(8, int(col_width / 5))])
+            x += col_width
+        y -= 14
+    if not rows:
+        pdf.drawString(left, y, "No results matched those criteria.")
+
+    pdf.save()
+    buffer.seek(0)
+    filename = f"crm-{filters['report_type']}-report.pdf"
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -3875,11 +4208,31 @@ def init_database():
             db.session.add(SubscriptionTool(name=name))
     if os.environ.get("SEED_SAMPLE_FORMS") == "1" and FormTemplate.query.count() == 0:
         seed_sample_form_templates()
+    seed_default_knowledge_base()
     if not ApexUser.query.filter_by(username="apexadmin").first():
         apex = ApexUser(username="apexadmin")
         apex.set_password("ChangeMe123!")
         db.session.add(apex)
     db.session.commit()
+
+
+def seed_default_knowledge_base():
+    module = KnowledgeBaseModule.query.filter_by(name="CRM").first()
+    if not module:
+        module = KnowledgeBaseModule(name="CRM", description="Guias de uso para la subscripcion CRM.", sort_order=1, is_active=True)
+        db.session.add(module)
+        db.session.flush()
+    for index, title in enumerate(CRM_KNOWLEDGE_TOPICS, start=1):
+        if not KnowledgeBaseTopic.query.filter_by(module_id=module.id, title=title).first():
+            db.session.add(
+                KnowledgeBaseTopic(
+                    module_id=module.id,
+                    title=title,
+                    description="Documento guia pendiente de cargar en PDF.",
+                    sort_order=index,
+                    is_active=True,
+                )
+            )
 
 
 def migrate_crm_preparers_to_unified_preparers():

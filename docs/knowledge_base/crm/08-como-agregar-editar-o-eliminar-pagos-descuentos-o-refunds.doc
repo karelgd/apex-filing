@@ -1,0 +1,16 @@
+<html>
+<head><meta charset="utf-8"><title>Como agregar, editar o eliminar pagos, descuentos o refunds</title></head>
+<body>
+<h1>Como agregar, editar o eliminar pagos, descuentos o refunds a un invoice generado</h1>
+<ol>
+  <li>Abre la pagina general del cliente.</li>
+  <li>Entra a la carpeta <strong>Invoices</strong>.</li>
+  <li>Da clic en <strong>View</strong> sobre el invoice deseado.</li>
+  <li>Usa el formulario de actividad para agregar <strong>Payment</strong>, <strong>Discount</strong> o <strong>Refund</strong>.</li>
+  <li>Para modificar una actividad ya creada, da clic en <strong>Edit</strong>.</li>
+  <li>Para eliminarla, usa <strong>Delete</strong>.</li>
+</ol>
+<p>Los totales del invoice se recalculan automaticamente cada vez que agregas, editas o eliminas una actividad.</p>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen del detalle de invoice.</p>
+</body>
+</html>

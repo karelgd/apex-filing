@@ -1,0 +1,20 @@
+<html>
+<head><meta charset="utf-8"><title>Como subir, ver o descargar documentos de un cliente</title></head>
+<body>
+<h1>Como subir, ver o descargar documentos de un cliente</h1>
+<ol>
+  <li>Abre la pagina general del cliente.</li>
+  <li>Entra a la carpeta <strong>Documents</strong>.</li>
+  <li>Selecciona el archivo desde tu computadora.</li>
+  <li>Agrega tipo de documento, caso relacionado si aplica, y una descripcion corta.</li>
+  <li>Da clic en <strong>Upload Document</strong>.</li>
+</ol>
+<h2>Acciones disponibles</h2>
+<ul>
+  <li><strong>View:</strong> abre el documento en una nueva pestana cuando el navegador lo permita.</li>
+  <li><strong>Download:</strong> descarga el archivo a tu computadora.</li>
+  <li><strong>Delete:</strong> elimina el documento del sistema.</li>
+</ul>
+<p><strong>Espacio para captura:</strong> Inserta aqui una imagen de la carpeta Documents.</p>
+</body>
+</html>
