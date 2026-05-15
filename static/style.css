@@ -1951,3 +1951,462 @@ body {
     flex-wrap: wrap;
   }
 }
+
+/* Platform visual system refresh */
+:root {
+  --apex-ink: #111827;
+  --apex-muted: #5b6b82;
+  --apex-accent: #2f80ed;
+  --apex-accent-dark: #1e61c4;
+  --apex-teal: #11b8a7;
+  --apex-green: #38c977;
+  --apex-gold: #f6ad22;
+  --apex-coral: #f45d6c;
+  --apex-violet: #7c5cff;
+  --apex-navy: #10284c;
+  --apex-rail: #071a36;
+  --apex-surface: #f2f5fa;
+  --apex-card: #ffffff;
+  --apex-border: #dfe7f2;
+  --apex-soft-blue: #eef5ff;
+  --apex-shadow: 0 10px 28px rgba(18, 37, 66, .08);
+}
+
+body {
+  background: var(--apex-surface);
+  color: var(--apex-ink);
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+.navbar {
+  background: #15273f !important;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 1px 0 rgba(12, 27, 48, .08);
+  min-height: 54px;
+}
+
+.navbar .container-fluid {
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.navbar-brand {
+  font-size: 1.05rem;
+  font-weight: 800 !important;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+  color: rgba(255, 255, 255, .78);
+  font-weight: 700;
+}
+
+.app-content {
+  max-width: 1540px;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.home-page .app-content {
+  max-width: 1440px;
+}
+
+.agency-shell,
+.apex-shell {
+  align-items: start;
+  gap: 1rem;
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+
+.app-main {
+  background: transparent;
+  min-height: calc(100vh - 94px);
+}
+
+.tool-sidebar {
+  background: var(--apex-rail);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 14px;
+  box-shadow: var(--apex-shadow);
+  max-height: calc(100vh - 86px);
+  overflow: auto;
+  padding: .8rem;
+}
+
+.sidebar-label {
+  color: rgba(255, 255, 255, .48);
+  font-size: .68rem;
+  letter-spacing: .08em;
+  margin: .45rem .45rem .65rem;
+}
+
+.tool-link {
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, .72);
+  font-size: .93rem;
+  font-weight: 750;
+  margin-bottom: .2rem;
+  padding: .62rem .75rem;
+}
+
+.tool-link:hover {
+  background: rgba(255, 255, 255, .08);
+  color: #ffffff;
+}
+
+.tool-link.active {
+  background: #1f73ff;
+  border-left-color: #7ee7dc;
+  box-shadow: 0 10px 22px rgba(47, 128, 237, .24);
+  color: #ffffff;
+}
+
+.tool-sublink {
+  margin-left: .45rem;
+  opacity: .92;
+}
+
+h1,
+.h1,
+h2,
+.h2,
+h3,
+.h3 {
+  color: #111827;
+  font-weight: 850;
+}
+
+.text-secondary {
+  color: var(--apex-muted) !important;
+}
+
+.card,
+.metric,
+.question-card,
+.questionnaire-admin-card,
+.questionnaire-form,
+.motion-section,
+.crm-panel,
+.crm-folder-panel,
+.crm-summary-card,
+.crm-metric,
+.crm-calendar-shell,
+.crm-form-card {
+  background: var(--apex-card);
+  border: 1px solid var(--apex-border);
+  border-radius: 12px;
+  box-shadow: var(--apex-shadow);
+}
+
+.card-header,
+.crm-panel-head {
+  background: #ffffff !important;
+  border-color: var(--apex-border);
+}
+
+.card-header {
+  color: #25344d;
+  font-weight: 850 !important;
+  padding: .95rem 1rem;
+}
+
+.metric {
+  min-height: 128px;
+  padding: 1.1rem;
+}
+
+.metric span,
+.crm-summary-card > strong,
+.crm-metric span {
+  color: var(--apex-accent);
+}
+
+.metric small,
+.crm-metric small,
+.crm-summary-card > small {
+  color: var(--apex-muted);
+  font-size: .74rem;
+  font-weight: 850;
+  letter-spacing: .04em;
+}
+
+.btn {
+  border-radius: 7px;
+  font-weight: 750;
+}
+
+.btn-primary {
+  background: #2f80ed;
+  border-color: #2f80ed;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: #1f6fd5;
+  border-color: #1f6fd5;
+}
+
+.btn-outline-primary {
+  border-color: #9ec5ff;
+  color: #1f6fd5;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  background: #2f80ed;
+  border-color: #2f80ed;
+  color: #ffffff;
+}
+
+.btn-outline-secondary {
+  border-color: #cbd6e5;
+  color: #42526b;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+  background: #42526b;
+  border-color: #42526b;
+  color: #ffffff;
+}
+
+.btn-outline-danger {
+  border-color: #ffb8c0;
+  color: #d92d48;
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+  background: #e5485d;
+  border-color: #e5485d;
+  color: #ffffff;
+}
+
+.form-control,
+.form-select {
+  background-color: #ffffff;
+  border-color: #cfdae8;
+  border-radius: 7px;
+  color: var(--apex-ink);
+  min-height: 42px;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #76a9fa;
+  box-shadow: 0 0 0 .2rem rgba(47, 128, 237, .15);
+}
+
+.form-label {
+  color: #344054;
+  font-size: .86rem;
+  font-weight: 800;
+}
+
+.table {
+  --bs-table-bg: #ffffff;
+  --bs-table-hover-bg: #f4f8ff;
+  color: #182235;
+}
+
+.table thead th {
+  background: #f7f9fc;
+  border-bottom: 1px solid var(--apex-border);
+  color: #526176;
+  font-size: .78rem;
+  font-weight: 850;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.badge {
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.alert {
+  border: 0;
+  border-radius: 10px;
+  box-shadow: var(--apex-shadow);
+}
+
+.crm-page {
+  gap: 1rem;
+}
+
+.crm-hero,
+.crm-client-header {
+  background: #ffffff;
+  border: 1px solid var(--apex-border);
+  border-radius: 14px;
+  box-shadow: var(--apex-shadow);
+  color: var(--apex-ink);
+}
+
+.crm-hero h1,
+.crm-client-header h1 {
+  color: #111827;
+}
+
+.crm-hero p,
+.crm-client-header p,
+.crm-client-facts {
+  color: var(--apex-muted);
+}
+
+.crm-client-facts strong {
+  color: #344054;
+}
+
+.crm-client-facts span:not(:last-child)::after {
+  background: #cbd5e1;
+}
+
+.crm-kicker {
+  color: var(--apex-accent);
+  letter-spacing: .06em;
+}
+
+.crm-action-btn,
+.motion-btn {
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(47, 128, 237, .15);
+}
+
+.crm-summary-card,
+.crm-metric {
+  min-height: 150px;
+}
+
+.crm-summary-lines div,
+.crm-panel-head,
+.crm-detail-list > div,
+.crm-calendar-weekdays span,
+.crm-calendar-day {
+  border-color: var(--apex-border);
+}
+
+.crm-client-row,
+.crm-record,
+.crm-mini-card,
+.crm-client-result,
+.respondent-row,
+.checkbox-answer-option {
+  background: #ffffff;
+  border: 1px solid var(--apex-border);
+  border-radius: 10px;
+}
+
+.crm-client-row:hover,
+.crm-client-result:hover {
+  background: #f6f9ff;
+}
+
+.crm-folder-panel {
+  border-radius: 0 12px 12px 12px;
+}
+
+.crm-folder-tab {
+  border-radius: 12px 12px 0 0;
+  min-width: 150px;
+}
+
+.crm-calendar-weekdays span {
+  background: #f7f9fc;
+}
+
+.crm-calendar-date strong {
+  background: #e7f0ff;
+  color: #1f6fd5;
+}
+
+.crm-calendar-event {
+  border-radius: 7px;
+  padding: .32rem .42rem;
+}
+
+.motion-section-primary {
+  background: #ffffff;
+}
+
+.motion-section-head span {
+  background: #2f80ed;
+}
+
+.motion-btn-primary {
+  background: #2f80ed;
+}
+
+.motion-btn-teal {
+  background: #11b8a7;
+}
+
+.motion-btn-danger {
+  background: #e5485d;
+}
+
+.motion-btn-muted {
+  background: #42526b;
+}
+
+.question-map {
+  background: var(--apex-rail);
+  border-radius: 14px;
+  box-shadow: var(--apex-shadow);
+}
+
+.question-map-link {
+  border-radius: 10px;
+}
+
+.question-map-link:hover,
+.question-map-link.active {
+  background: #1f73ff;
+}
+
+.question-card {
+  border-radius: 14px;
+}
+
+.question-prompt {
+  color: #0f172a;
+}
+
+.question-meta,
+.review-question-number {
+  color: var(--apex-accent);
+}
+
+.pdf-field-list code,
+.questionnaire-code {
+  background: var(--apex-soft-blue);
+  border-color: #cfe0fb;
+  color: #1c47a0;
+}
+
+.home-page {
+  background:
+    radial-gradient(circle at 78% 12%, rgba(126, 231, 220, .45), transparent 22%),
+    linear-gradient(145deg, #2f80ed 0%, #87c4ff 47%, #eef5ff 47.2%, #f7fbff 100%);
+}
+
+.home-page .navbar {
+  background: rgba(16, 40, 76, .95) !important;
+}
+
+.product-window,
+.floating-card,
+.login-pill {
+  box-shadow: 0 24px 60px rgba(18, 44, 92, .22);
+}
+
+@media (max-width: 767.98px) {
+  .app-content {
+    padding-left: .85rem;
+    padding-right: .85rem;
+  }
+
+  .tool-sidebar {
+    max-height: none;
+  }
+}
