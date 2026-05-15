@@ -1442,12 +1442,14 @@ body {
   font-weight: 700;
 }
 
-.crm-appointment-detail-list {
+.crm-appointment-detail-list,
+.crm-case-detail-list {
   border-top: 1px solid #dfe8f5;
   gap: 0;
 }
 
-.crm-appointment-detail-list > div {
+.crm-appointment-detail-list > div,
+.crm-case-detail-list > div {
   background: transparent;
   border: 0;
   border-bottom: 1px solid #dfe8f5;
@@ -3248,7 +3250,8 @@ textarea.form-control {
   background: #fbfdff;
 }
 
-.crm-appointment-detail-list > div {
+.crm-appointment-detail-list > div,
+.crm-case-detail-list > div {
   background: transparent;
 }
 
