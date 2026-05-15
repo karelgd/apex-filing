@@ -20,9 +20,9 @@
         <h2>Case Information</h2>
         <p>{{ case.title }}</p>
       </div>
-      <div class="crm-actions">
+      <div class="crm-actions crm-case-info-actions">
         <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('crm_case_edit', case_id=case.id) }}">Edit Case</a>
-        <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=case.client_id) }}">Back to Client</a>
+        <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_client_detail', client_id=case.client_id) }}">Back to Client</a>
       </div>
     </div>
     <div class="crm-detail-list crm-case-detail-list">

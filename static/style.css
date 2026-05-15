@@ -1209,6 +1209,15 @@ body {
   color: #10233a !important;
 }
 
+.crm-case-info-actions .btn {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 42px;
+  min-width: 128px;
+  padding: .62rem 1rem;
+}
+
 .crm-metrics {
   display: grid;
   gap: 1rem;
