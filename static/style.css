@@ -4361,7 +4361,15 @@ textarea.form-control {
   border: 1px solid #dfe9f7;
   border-radius: 12px;
   margin-top: .55rem;
+  min-width: 0;
   padding: .8rem;
+}
+
+.client-uploaded-item strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 1199.98px) {
