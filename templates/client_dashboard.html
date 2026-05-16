@@ -15,6 +15,24 @@
     </div>
   </div>
   <div class="col-lg-8">
+    <h2 class="h4 mb-3" data-i18n="your_cases">Your cases</h2>
+    <div class="list-group mb-4">
+      {% for crm_case in client.crm_cases %}
+        <a class="list-group-item list-group-item-action client-case-card" href="{{ url_for('client_crm_case_detail', case_id=crm_case.id) }}">
+          <div>
+            <strong>{{ crm_case.title }}</strong>
+            <div class="text-secondary small">
+              <span data-i18n="current_status">Current status</span>:
+              <span data-i18n-text="{{ crm_case.status }}">{{ crm_case.status }}</span>
+            </div>
+          </div>
+          <span class="client-case-arrow" aria-hidden="true">&rsaquo;</span>
+        </a>
+      {% else %}
+        <div class="list-group-item text-secondary" data-i18n="no_crm_cases_assigned">No CRM cases have been assigned yet.</div>
+      {% endfor %}
+    </div>
+
     <h2 class="h4 mb-3" data-i18n="your_questionnaires">Your questionnaires</h2>
     <div class="list-group">
       {% for case in client.cases %}

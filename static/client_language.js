@@ -4,6 +4,20 @@
     es: {
       language_label: "Idioma",
       agency: "Agencia",
+      your_cases: "Sus casos",
+      current_status: "Estado actual",
+      no_crm_cases_assigned: "Aun no hay casos de CRM asignados.",
+      back_to_dashboard: "Volver al panel",
+      case_type: "Tipo de caso",
+      case_timeline: "Linea de tiempo del caso",
+      timeline_help: "Su agencia actualiza esta linea de tiempo cuando cambia el estado del caso.",
+      upload_case_documents: "Subir documentos del caso",
+      client_upload_help: "Suba los documentos solicitados por su agencia. Puede volver mas tarde y agregar mas.",
+      choose_document: "Elegir documento",
+      optional_note: "Nota opcional",
+      document_note_placeholder: "Ejemplo: copia del pasaporte, acta de nacimiento, recibo",
+      upload_security_note: "Por seguridad, solo se aceptan archivos PDF, imagen y DOCX.",
+      upload_document: "Subir documento",
       your_questionnaires: "Sus cuestionarios",
       no_cases_assigned: "Aún no se le ha asignado ningún caso.",
       continue: "Continuar",
@@ -43,11 +57,29 @@
       "Ready for Review": "Listo para revisión",
       "In Preparation": "En preparación",
       "Generated": "Generado",
-      "Completed": "Completado"
+      "Completed": "Completado",
+      "Open": "Abierto",
+      "Documents Received": "Documentos recibidos",
+      "Documents Needed": "Documentos necesarios",
+      "Documents Ready": "Documentos listos"
     },
     ht: {
       language_label: "Lang",
       agency: "Ajans",
+      your_cases: "Dosye ou yo",
+      current_status: "Estati aktyel",
+      no_crm_cases_assigned: "Pa gen dosye CRM ki asiyen pou ou anko.",
+      back_to_dashboard: "Retounen sou paj prensipal la",
+      case_type: "Kalite dosye",
+      case_timeline: "Liy tan dosye a",
+      timeline_help: "Ajans ou mete liy tan sa a ajou le estati dosye a chanje.",
+      upload_case_documents: "Telechaje dokiman dosye a",
+      client_upload_help: "Telechaje dokiman ajans ou mande yo. Ou ka retounen pita pou ajoute plis.",
+      choose_document: "Chwazi dokiman",
+      optional_note: "Not opsyonel",
+      document_note_placeholder: "Egzanp: kopi paspo, batiste, resi",
+      upload_security_note: "Pou sekirite, se selman PDF, imaj ak DOCX yo aksepte.",
+      upload_document: "Telechaje dokiman",
       your_questionnaires: "Kesyonè ou yo",
       no_cases_assigned: "Pa gen dosye ki asiyen pou ou ankò.",
       continue: "Kontinye",
@@ -87,7 +119,11 @@
       "Ready for Review": "Pare pou revizyon",
       "In Preparation": "An preparasyon",
       "Generated": "Jenere",
-      "Completed": "Fini"
+      "Completed": "Fini",
+      "Open": "Louvri",
+      "Documents Received": "Dokiman resevwa",
+      "Documents Needed": "Dokiman nesese",
+      "Documents Ready": "Dokiman pare"
     }
   };
 
@@ -471,6 +507,15 @@
         promptFor(language, element.dataset.originalText || "") ||
         promptFor(language, element.textContent || "");
       element.textContent = translatedText || element.dataset.originalText;
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+      if (!element.dataset.originalPlaceholder) {
+        element.dataset.originalPlaceholder = element.getAttribute("placeholder") || "";
+      }
+      element.setAttribute(
+        "placeholder",
+        textFor(language, element.dataset.i18nPlaceholder) || element.dataset.originalPlaceholder
+      );
     });
     document.querySelectorAll(".question-prompt, .question-map-link b").forEach((element) => {
       if (!element.dataset.originalText) {

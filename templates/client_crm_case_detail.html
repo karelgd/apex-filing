@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="client-case-page">
+  <div class="client-case-hero">
+    <div>
+      <a class="client-back-link" href="{{ url_for('client_dashboard') }}" data-i18n="back_to_dashboard">Back to dashboard</a>
+      <span data-i18n="case_type">Case type</span>
+      <h1>{{ case.title }}</h1>
+    </div>
+    <div class="client-status-pill" data-i18n-text="{{ case.status }}">{{ case.status }}</div>
+  </div>
+
+  <div class="client-case-grid">
+    <section class="client-case-panel">
+      <div class="client-panel-head">
+        <h2 data-i18n="case_timeline">Case timeline</h2>
+        <p data-i18n="timeline_help">Your agency updates this timeline when the case status changes.</p>
+      </div>
+      <ol class="client-timeline">
+        {% for event in case.status_history|reverse %}
+          <li>
+            <span class="client-timeline-dot"></span>
+            <div>
+              <strong data-i18n-text="{{ event.status }}">{{ event.status }}</strong>
+              <small>{{ event.changed_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+            </div>
+          </li>
+        {% else %}
+          <li>
+            <span class="client-timeline-dot"></span>
+            <div>
+              <strong data-i18n-text="{{ case.status }}">{{ case.status }}</strong>
+              <small>{{ case.opened_at.strftime('%b %d, %Y %I:%M %p') if case.opened_at else '' }}</small>
+            </div>
+          </li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <section class="client-case-panel">
+      <div class="client-panel-head">
+        <h2 data-i18n="upload_case_documents">Upload case documents</h2>
+        <p data-i18n="client_upload_help">Upload documents requested by your agency. You can come back later and add more.</p>
+      </div>
+      <form method="post" enctype="multipart/form-data" action="{{ url_for('client_crm_document_upload', case_id=case.id) }}" class="client-upload-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="form-label" data-i18n="choose_document">Choose document</label>
+        <input class="form-control form-control-lg" type="file" name="document" accept=".pdf,.png,.jpg,.jpeg,.docx" required>
+        <label class="form-label mt-3" data-i18n="optional_note">Optional note</label>
+        <input class="form-control form-control-lg" name="description" data-i18n-placeholder="document_note_placeholder" placeholder="Example: passport copy, birth certificate, receipt">
+        <p class="client-upload-security" data-i18n="upload_security_note">For security, only PDF, image, and DOCX files are accepted.</p>
+        <button class="btn btn-primary btn-lg client-upload-button" data-i18n="upload_document">Upload document</button>
+      </form>
+
+      <div class="client-uploaded-list">
+        <h3 data-i18n="uploaded_documents">Uploaded documents</h3>
+        {% for document in documents %}
+          <div class="client-uploaded-item">
+            <strong>{{ document.original_filename }}</strong>
+            <small>{{ document.uploaded_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0" data-i18n="no_documents_uploaded">No documents uploaded yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -498,6 +498,7 @@ class CrmCase(db.Model):
     appointments = db.relationship("CrmAppointment", back_populates="case", cascade="all, delete-orphan")
     documents = db.relationship("CrmClientDocument", back_populates="case")
     note_entries = db.relationship("CrmCaseNote", back_populates="case", cascade="all, delete-orphan", order_by="CrmCaseNote.created_at.desc()")
+    status_history = db.relationship("CrmCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CrmCaseStatusHistory.changed_at.desc()")
 
 
 class CrmCaseTag(db.Model):
@@ -507,6 +508,17 @@ class CrmCaseTag(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency", backref=db.backref("crm_case_tags", cascade="all, delete-orphan"))
+
+
+class CrmCaseStatusHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False)
+    status = db.Column(db.String(60), nullable=False)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    case = db.relationship("CrmCase", back_populates="status_history")
 
 
 class CrmInvoice(db.Model):

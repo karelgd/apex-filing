@@ -50,6 +50,7 @@ from models import (
     CrmAppointmentNote,
     CrmCase,
     CrmCaseNote,
+    CrmCaseStatusHistory,
     CrmCaseTag,
     CrmClientDocument,
     CrmInvoice,
@@ -91,6 +92,7 @@ CRM_KNOWLEDGE_TOPICS = [
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx", "txt"}
+CLIENT_DOCUMENT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "docx"}
 
 
 def create_app():
@@ -180,6 +182,30 @@ def agency_for_user():
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def allowed_client_document(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in CLIENT_DOCUMENT_EXTENSIONS
+
+
+def validate_client_document_upload(file_storage):
+    if not file_storage or not file_storage.filename:
+        raise ValueError("Choose a document to upload.")
+    if not allowed_client_document(file_storage.filename):
+        raise ValueError("For security, clients can only upload PDF, image, or DOCX files.")
+    extension = file_storage.filename.rsplit(".", 1)[1].lower()
+    head = file_storage.stream.read(8)
+    file_storage.stream.seek(0)
+    signatures = {
+        "pdf": [b"%PDF"],
+        "png": [b"\x89PNG"],
+        "jpg": [b"\xff\xd8\xff"],
+        "jpeg": [b"\xff\xd8\xff"],
+        "docx": [b"PK\x03\x04"],
+    }
+    expected = signatures.get(extension, [])
+    if expected and not any(head.startswith(signature) for signature in expected):
+        raise ValueError("The uploaded file does not match its file type. Please upload the original document file.")
 
 
 def save_upload(file_storage, subfolder):
@@ -786,6 +812,28 @@ def populate_crm_case_from_form(case):
         case.completed_at = datetime.utcnow()
     if case.status != "Completed":
         case.completed_at = None
+
+
+def record_crm_case_status(case, status=None):
+    status = status or case.status or "Open"
+    last_entry = CrmCaseStatusHistory.query.filter_by(case_id=case.id).order_by(CrmCaseStatusHistory.changed_at.desc()).first()
+    if last_entry and last_entry.status == status:
+        return
+    db.session.add(CrmCaseStatusHistory(agency_id=case.agency_id, case_id=case.id, status=status))
+
+
+def ensure_crm_case_status_history(case):
+    if case.status_history:
+        return
+    db.session.add(
+        CrmCaseStatusHistory(
+            agency_id=case.agency_id,
+            case_id=case.id,
+            status=case.status or "Open",
+            changed_at=case.opened_at or case.created_at or datetime.utcnow(),
+        )
+    )
+    db.session.flush()
 
 
 def resolve_crm_case_tag(agency_id):
@@ -2511,6 +2559,7 @@ def register_routes(app):
             populate_crm_case_from_form(case)
             db.session.add(case)
             db.session.flush()
+            record_crm_case_status(case)
             if case.notes:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
                 case.notes = ""
@@ -2535,8 +2584,12 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
+            ensure_crm_case_status_history(case)
             existing_note = case.notes
+            previous_status = case.status
             populate_crm_case_from_form(case)
+            if case.status != previous_status:
+                record_crm_case_status(case)
             if case.notes and case.notes != existing_note:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
                 case.notes = ""
@@ -2560,6 +2613,7 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
+        ensure_crm_case_status_history(case)
         sync_case_invoice(case)
         db.session.commit()
         return render_template("crm_case_detail.html", case=case)
@@ -3069,6 +3123,45 @@ def register_routes(app):
     @role_required("client")
     def client_dashboard():
         return render_template("client_dashboard.html", client=current_user)
+
+    @app.route("/client/crm-cases/<int:case_id>")
+    @role_required("client")
+    def client_crm_case_detail(case_id):
+        case = CrmCase.query.filter_by(id=case_id, client_id=current_user.id).first() or abort(404)
+        ensure_crm_case_status_history(case)
+        db.session.commit()
+        documents = CrmClientDocument.query.filter_by(
+            client_id=current_user.id,
+            case_id=case.id,
+            agency_id=case.agency_id,
+        ).order_by(CrmClientDocument.uploaded_at.desc()).all()
+        return render_template("client_crm_case_detail.html", case=case, documents=documents)
+
+    @app.route("/client/crm-cases/<int:case_id>/documents", methods=["POST"])
+    @role_required("client")
+    def client_crm_document_upload(case_id):
+        case = CrmCase.query.filter_by(id=case_id, client_id=current_user.id).first() or abort(404)
+        file_storage = request.files.get("document")
+        try:
+            validate_client_document_upload(file_storage)
+            original, stored = save_upload(file_storage, f"crm/clients/{current_user.id}")
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return redirect(url_for("client_crm_case_detail", case_id=case.id))
+        db.session.add(
+            CrmClientDocument(
+                agency_id=case.agency_id,
+                client_id=current_user.id,
+                case_id=case.id,
+                original_filename=original,
+                stored_filename=stored,
+                document_type="Client upload",
+                description=request.form.get("description", "").strip(),
+            )
+        )
+        db.session.commit()
+        flash("Document uploaded.", "success")
+        return redirect(url_for("client_crm_case_detail", case_id=case.id))
 
     @app.route("/client/cases/<int:case_id>/questionnaire", methods=["GET", "POST"])
     @role_required("client")
