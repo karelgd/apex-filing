@@ -2,58 +2,71 @@
 {% block title %}Login - Apex Filing{% endblock %}
 {% block body_class %}home-page{% endblock %}
 {% block content %}
-<section class="login-hero">
-  <div class="hero-stage">
-    <div class="hero-copy-wrap">
-      <span class="hero-kicker">Built for form preparer teams</span>
-      <h1 class="display-5 fw-bold">Apex Filing</h1>
-      <p class="hero-copy">The Ultimate Software for<br>Form Preparer Agencies</p>
-    </div>
-    <div class="hero-product">
-      <div class="product-window">
-        <div class="window-bar">
-          <span></span>
-          <span></span>
-          <span></span>
-          <button>Generate Summary</button>
-        </div>
-        <div class="product-grid">
-          <aside class="product-sidebar">
-            <strong>Apex</strong>
-            <span class="active">Cases</span>
-            <span>Clients</span>
-            <span>Questionnaires</span>
-            <span>Documents</span>
-          </aside>
-          <div class="product-main">
-            <div class="table-card">
-              <div class="table-row head"><span>Client</span><span>Case</span><span>Status</span></div>
-              <div class="table-row"><span>R. Martinez</span><span>I-485</span><span class="pill green">Ready</span></div>
-              <div class="table-row"><span>A. Torres</span><span>I-765</span><span class="pill blue">Started</span></div>
-              <div class="table-row"><span>M. Rivera</span><span>Motion</span><span class="pill gold">Review</span></div>
-            </div>
-            <div class="flow-card">
-              <span>Questionnaire Workflow</span>
-              <div class="flow-lane">
-                <i></i><b></b><i></i><b></b><i></i>
+<section class="role-login-shell">
+  <div class="role-login-grid">
+    <div class="role-visual-panel" aria-hidden="true">
+      <div class="role-glow glow-one"></div>
+      <div class="role-glow glow-two"></div>
+      <div class="role-illustration">
+        <div class="role-browser-card">
+          <div class="role-browser-top">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="role-browser-body">
+            <div class="role-doc-preview">
+              <div class="doc-line long"></div>
+              <div class="doc-line"></div>
+              <div class="doc-grid">
+                <i></i><i></i><i></i>
+                <i></i><i></i><i></i>
+                <i></i><i></i><i></i>
               </div>
+            </div>
+            <div class="role-form-preview">
+              <span class="form-dot"></span>
+              <div class="form-line"></div>
+              <div class="form-line short"></div>
+              <div class="form-progress"><span></span></div>
             </div>
           </div>
         </div>
+        <div class="role-assistant-card">
+          <div class="assistant-face">
+            <span></span>
+            <span></span>
+          </div>
+          <strong>Forms ready</strong>
+          <small>Cases, documents, questionnaires</small>
+        </div>
+        <div class="role-floating-note note-a">
+          <span></span>
+          <strong>I-485</strong>
+        </div>
+        <div class="role-floating-note note-b">
+          <span></span>
+          <strong>PDF</strong>
+        </div>
       </div>
-      <div class="floating-card review-card">
-        <small>Case Progress</small>
-        <strong>82%</strong>
-        <div class="mini-progress"><span></span></div>
-      </div>
-      <div class="floating-card pdf-card">
-        <small>Generated PDF</small>
-        <strong>I-485 Summary</strong>
-      </div>
-      <div class="login-actions" aria-label="Login options">
-        <a class="login-pill agency-pill" href="{{ url_for('login', role='agency') }}">Agency Login</a>
-        <a class="login-pill client-pill" href="{{ url_for('login', role='client') }}">Client Login</a>
-        <a class="login-pill apex-pill" href="{{ url_for('login', role='apex') }}">Apex Login</a>
+    </div>
+
+    <div class="role-login-panel">
+      <div class="role-logo-mark">A</div>
+      <span class="role-eyebrow">Secure access</span>
+      <h1>Apex Filing</h1>
+      <p>The Ultimate Software for Form Preparer Agencies</p>
+
+      <div class="role-options" aria-label="Login options">
+        <a class="role-option agency" href="{{ url_for('login', role='agency') }}">
+          <span>Agency Login</span>
+        </a>
+        <a class="role-option client" href="{{ url_for('login', role='client') }}">
+          <span>Client Login</span>
+        </a>
+        <a class="role-option apex" href="{{ url_for('login', role='apex') }}">
+          <span>Apex Login</span>
+        </a>
       </div>
     </div>
   </div>
