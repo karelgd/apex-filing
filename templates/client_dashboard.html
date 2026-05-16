@@ -1,57 +1,105 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-body">
-        <h1 class="h4">{{ client.full_name }}</h1>
-        <p class="text-secondary mb-3">{{ client.display_address }}</p>
-        <h2 class="h6" data-i18n="agency">Agency</h2>
-        <p class="mb-1 fw-semibold">{{ client.agency.agency_name }}</p>
-        <p class="mb-1">{{ client.agency.agency_phone or client.agency.ceo_phone }}</p>
-        <p class="mb-1">{{ client.agency.agency_email or client.agency.ceo_email }}</p>
-        <p class="mb-0 text-secondary">{{ client.agency.display_address }}</p>
-      </div>
+{% set hide_standalone_questionnaires = client.agency.has_tool('CRM') and client.agency.has_tool('Form Filler') %}
+<div class="client-home">
+  <section class="client-home-hero">
+    <div>
+      <span data-i18n="client_portal">Client portal</span>
+      <h1>{{ client.full_name }}</h1>
+      <p data-i18n="client_portal_help">Review your case updates, agency contact information, and requested actions.</p>
     </div>
-  </div>
-  <div class="col-lg-8">
-    <h2 class="h4 mb-3" data-i18n="your_cases">Your cases</h2>
-    <div class="list-group mb-4">
-      {% for crm_case in client.crm_cases %}
-        <a class="list-group-item list-group-item-action client-case-card" href="{{ url_for('client_crm_case_detail', case_id=crm_case.id) }}">
-          <div>
-            <strong>{{ crm_case.title }}</strong>
-            <div class="text-secondary small">
-              <span data-i18n="current_status">Current status</span>:
-              <span data-i18n-text="{{ crm_case.status }}">{{ crm_case.status }}</span>
-            </div>
-          </div>
-          <span class="client-case-arrow" aria-hidden="true">&rsaquo;</span>
-        </a>
-      {% else %}
-        <div class="list-group-item text-secondary" data-i18n="no_crm_cases_assigned">No CRM cases have been assigned yet.</div>
-      {% endfor %}
-    </div>
+  </section>
 
-    <h2 class="h4 mb-3" data-i18n="your_questionnaires">Your questionnaires</h2>
-    <div class="list-group">
-      {% for case in standalone_questionnaires %}
-        <a class="list-group-item list-group-item-action" href="{{ url_for('questionnaire', case_id=case.id) }}">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>{{ case.case_type }}</strong>
-              <div class="text-secondary small" data-i18n-text="{{ case.status }}">{{ case.status }}</div>
-            </div>
-            <div class="text-end" style="width: 160px">
-              <div class="progress mb-1"><div class="progress-bar" style="width: {{ case.progress_percentage }}%"></div></div>
-              <small><span data-i18n="{{ 'continue' if case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.progress_percentage else 'Start Questionnaire' }}</span> &middot; {{ case.progress_percentage }}%</small>
-            </div>
+  <div class="client-home-layout{% if hide_standalone_questionnaires %} no-questionnaires{% endif %}">
+    <aside class="client-profile-stack">
+      <section class="client-info-card">
+        <h2 data-i18n="client_information">Your information</h2>
+        <div class="client-info-line">
+          <span aria-hidden="true">📍</span>
+          <div><strong data-i18n="address">Address</strong><p>{{ client.display_address }}</p></div>
+        </div>
+        <div class="client-info-line">
+          <span aria-hidden="true">☎</span>
+          <div><strong data-i18n="phone">Phone</strong><p>{{ client.phone }}</p></div>
+        </div>
+        <div class="client-info-line">
+          <span aria-hidden="true">✉</span>
+          <div><strong data-i18n="email">Email</strong><p>{{ client.email }}</p></div>
+        </div>
+        {% if client.a_number %}
+          <div class="client-info-line">
+            <span aria-hidden="true">#</span>
+            <div><strong data-i18n="a_number">A-Number</strong><p>{{ client.a_number }}</p></div>
           </div>
-        </a>
-      {% else %}
-        <div class="list-group-item text-secondary" data-i18n="no_cases_assigned">No cases have been assigned yet.</div>
-      {% endfor %}
-    </div>
+        {% endif %}
+      </section>
+
+      <section class="client-info-card agency-card">
+        <h2 data-i18n="agency_information">Agency information</h2>
+        <h3>{{ client.agency.agency_name }}</h3>
+        <div class="client-info-line">
+          <span aria-hidden="true">☎</span>
+          <div><strong data-i18n="phone">Phone</strong><p>{{ client.agency.agency_phone or client.agency.ceo_phone }}</p></div>
+        </div>
+        <div class="client-info-line">
+          <span aria-hidden="true">✉</span>
+          <div><strong data-i18n="email">Email</strong><p>{{ client.agency.agency_email or client.agency.ceo_email }}</p></div>
+        </div>
+        <div class="client-info-line">
+          <span aria-hidden="true">📍</span>
+          <div><strong data-i18n="address">Address</strong><p>{{ client.agency.display_address }}</p></div>
+        </div>
+        <div class="client-map-box">
+          <span>📍</span>
+          <small>{{ client.agency.city }}, {{ client.agency.state }}</small>
+        </div>
+      </section>
+    </aside>
+
+    <main class="client-main-stack">
+      <section class="client-section-card">
+        <div class="client-section-head">
+          <h2 data-i18n="your_cases">Your cases</h2>
+        </div>
+        <div class="client-case-list">
+          {% for crm_case in client.crm_cases %}
+            <article class="client-case-card">
+              <div class="client-case-summary">
+                <strong>{{ crm_case.title }}</strong>
+                <span class="client-status-mini status-{{ (crm_case.status or 'open')|lower|replace(' ', '-')|replace('_', '-') }}" data-i18n-text="{{ crm_case.status }}">{{ crm_case.status }}</span>
+              </div>
+              <a class="btn btn-primary client-open-button" href="{{ url_for('client_crm_case_detail', case_id=crm_case.id) }}" data-i18n="open">Open</a>
+            </article>
+          {% else %}
+            <div class="client-empty-state" data-i18n="no_crm_cases_assigned">No CRM cases have been assigned yet.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% if not hide_standalone_questionnaires %}
+        <section class="client-section-card">
+          <div class="client-section-head">
+            <h2 data-i18n="your_questionnaires">Your questionnaires</h2>
+          </div>
+          <div class="client-questionnaire-list">
+            {% for case in standalone_questionnaires %}
+              <a class="client-questionnaire-row" href="{{ url_for('questionnaire', case_id=case.id) }}">
+                <div>
+                  <strong>{{ case.case_type }}</strong>
+                  <small data-i18n-text="{{ case.status }}">{{ case.status }}</small>
+                </div>
+                <div class="client-questionnaire-progress">
+                  <div class="progress"><div class="progress-bar" style="width: {{ case.progress_percentage }}%"></div></div>
+                  <small><span data-i18n="{{ 'continue' if case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.progress_percentage else 'Start Questionnaire' }}</span> · {{ case.progress_percentage }}%</small>
+                </div>
+              </a>
+            {% else %}
+              <div class="client-empty-state" data-i18n="no_cases_assigned">No cases have been assigned yet.</div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </main>
   </div>
 </div>
 {% endblock %}
