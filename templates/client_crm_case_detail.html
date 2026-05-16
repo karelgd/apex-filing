@@ -17,7 +17,7 @@
         <p data-i18n="timeline_help">Your agency updates this timeline when the case status changes.</p>
       </div>
       <ol class="client-timeline">
-        {% for event in case.status_history|reverse %}
+        {% for event in case.status_history %}
           <li>
             <span class="client-timeline-dot"></span>
             <div>
