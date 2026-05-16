@@ -32,13 +32,22 @@
             </div>
           </div>
         </div>
-        <div class="role-assistant-card">
-          <div class="assistant-face">
-            <span></span>
-            <span></span>
+        <div class="role-robot">
+          <div class="robot-antenna"></div>
+          <div class="robot-head">
+            <div class="robot-screen">
+              <span></span>
+              <span></span>
+            </div>
           </div>
-          <strong>Forms ready</strong>
-          <small>Cases, documents, questionnaires</small>
+          <div class="robot-ear left"></div>
+          <div class="robot-ear right"></div>
+          <div class="robot-body">
+            <div class="robot-core"></div>
+          </div>
+          <div class="robot-arm left"></div>
+          <div class="robot-arm right"></div>
+          <div class="robot-caption">Ready to help</div>
         </div>
         <div class="role-floating-note note-a">
           <span></span>
@@ -52,10 +61,9 @@
     </div>
 
     <div class="role-login-panel">
-      <div class="role-logo-mark">A</div>
       <span class="role-eyebrow">Secure access</span>
       <h1>Apex Filing</h1>
-      <p>The Ultimate Software for Form Preparer Agencies</p>
+      <p>The Ultimate Software for Form Preparers</p>
 
       <div class="role-options" aria-label="Login options">
         <a class="role-option agency" href="{{ url_for('login', role='agency') }}">

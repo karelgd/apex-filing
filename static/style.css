@@ -519,6 +519,7 @@ body {
 }
 
 .role-browser-card {
+  animation: windowArrive .82s cubic-bezier(.2, .72, .18, 1) both;
   background: rgba(255, 255, 255, .8);
   border: 1px solid rgba(255, 255, 255, .92);
   border-radius: 28px;
@@ -567,11 +568,16 @@ body {
 
 .role-doc-preview,
 .role-form-preview,
-.role-assistant-card,
+.role-robot,
+.role-floating-note {
+  box-shadow: 0 20px 42px rgba(31, 80, 160, .14);
+}
+
+.role-doc-preview,
+.role-form-preview,
 .role-floating-note {
   background: #ffffff;
   border: 1px solid #dce9fb;
-  box-shadow: 0 20px 42px rgba(31, 80, 160, .14);
 }
 
 .role-doc-preview {
@@ -648,48 +654,175 @@ body {
   width: 72%;
 }
 
-.role-assistant-card {
-  align-items: center;
-  border-radius: 26px;
-  bottom: 11%;
-  display: grid;
-  gap: .35rem;
-  justify-items: center;
-  left: 18%;
-  padding: 1.15rem;
+.role-robot {
+  animation: robotArrive .95s cubic-bezier(.2, .72, .18, 1) .16s both, robotFloat 4.2s ease-in-out 1.2s infinite;
+  background: transparent;
+  bottom: 7%;
+  height: 270px;
+  left: 20%;
   position: absolute;
-  text-align: center;
-  width: 210px;
+  transform-origin: center bottom;
+  width: 250px;
+  z-index: 5;
 }
 
-.assistant-face {
+.robot-antenna {
+  background: linear-gradient(180deg, #d9f4ff, #66b9ff);
+  border-radius: 999px;
+  height: 58px;
+  left: 113px;
+  position: absolute;
+  top: 0;
+  transform: rotate(7deg);
+  width: 15px;
+  z-index: 2;
+}
+
+.robot-head {
+  background: linear-gradient(145deg, #ffffff 0%, #dceeff 100%);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 38px;
+  box-shadow: 0 26px 50px rgba(31, 80, 160, .22);
+  height: 118px;
+  left: 50%;
+  padding: 18px;
+  position: absolute;
+  top: 45px;
+  transform: translateX(-50%) rotate(-4deg);
+  width: 166px;
+  z-index: 4;
+}
+
+.robot-screen {
   align-items: center;
   background: #12243f;
-  border: 8px solid #e2f4ff;
   border-radius: 24px;
   display: flex;
-  gap: .45rem;
-  height: 76px;
+  gap: 18px;
+  height: 100%;
   justify-content: center;
-  margin-bottom: .25rem;
-  width: 96px;
+  overflow: hidden;
+  position: relative;
 }
 
-.assistant-face span {
-  background: #55eef2;
+.robot-screen::before,
+.robot-screen::after {
+  border: 2px solid #55eef2;
+  content: "";
+  height: 9px;
+  opacity: .8;
+  position: absolute;
+  width: 9px;
+}
+
+.robot-screen::before {
+  border-bottom: 0;
+  border-right: 0;
+  left: 13px;
+  top: 13px;
+}
+
+.robot-screen::after {
+  border-left: 0;
+  border-top: 0;
+  bottom: 13px;
+  right: 13px;
+}
+
+.robot-screen span {
+  animation: robotBlink 5.2s ease-in-out 1.5s infinite;
+  border: 5px solid #67f3f3;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  border-radius: 0 0 999px 999px;
+  display: block;
+  height: 22px;
+  width: 28px;
+}
+
+.robot-ear {
+  background: linear-gradient(145deg, #dbf1ff, #60a9f5);
   border-radius: 999px;
-  height: 12px;
-  width: 18px;
+  box-shadow: 0 12px 24px rgba(31, 80, 160, .18);
+  height: 42px;
+  position: absolute;
+  top: 83px;
+  width: 30px;
+  z-index: 3;
 }
 
-.role-assistant-card strong {
-  color: #11213d;
+.robot-ear.left {
+  left: 30px;
+  transform: rotate(-18deg);
+}
+
+.robot-ear.right {
+  right: 30px;
+  transform: rotate(18deg);
+}
+
+.robot-body {
+  background: linear-gradient(145deg, #dff3ff, #80bbff);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 44px 44px 56px 56px;
+  box-shadow: 0 26px 50px rgba(31, 80, 160, .2);
+  height: 102px;
+  left: 68px;
+  position: absolute;
+  top: 145px;
+  width: 116px;
+  z-index: 2;
+}
+
+.robot-core {
+  background: radial-gradient(circle, #bfffff 0%, #42d7f1 48%, #2c89ff 100%);
+  border: 7px solid rgba(255, 255, 255, .65);
+  border-radius: 999px;
+  box-shadow: 0 0 28px rgba(70, 216, 200, .58);
+  height: 42px;
+  left: 37px;
+  position: absolute;
+  top: 24px;
+  width: 42px;
+}
+
+.robot-arm {
+  background: linear-gradient(145deg, #ffffff, #8bc7ff);
+  border-radius: 999px 999px 44px 44px;
+  box-shadow: 0 18px 34px rgba(31, 80, 160, .18);
+  height: 92px;
+  position: absolute;
+  top: 135px;
+  width: 36px;
+  z-index: 1;
+}
+
+.robot-arm.left {
+  animation: robotWave 3.4s ease-in-out 1.4s infinite;
+  left: 33px;
+  transform: rotate(48deg);
+  transform-origin: top center;
+}
+
+.robot-arm.right {
+  right: 35px;
+  transform: rotate(-34deg);
+  transform-origin: top center;
+}
+
+.robot-caption {
+  background: linear-gradient(135deg, #2f82ff, #35d6c6);
+  border-radius: 14px;
+  bottom: 0;
+  box-shadow: 0 16px 30px rgba(31, 80, 160, .16);
+  color: #ffffff;
+  font-size: .82rem;
   font-weight: 950;
-}
-
-.role-assistant-card small {
-  color: #667895;
-  font-weight: 800;
+  left: 68px;
+  padding: .45rem .75rem;
+  position: absolute;
+  z-index: 6;
 }
 
 .role-floating-note {
@@ -724,26 +857,12 @@ body {
 }
 
 .role-login-panel {
+  animation: loginPanelArrive .7s cubic-bezier(.2, .72, .18, 1) .1s both;
   background: rgba(255, 255, 255, .78);
   border: 1px solid rgba(255, 255, 255, .92);
   border-radius: 30px;
   box-shadow: 0 38px 90px rgba(31, 80, 160, .18);
   padding: clamp(1.5rem, 4vw, 2.35rem);
-}
-
-.role-logo-mark {
-  align-items: center;
-  background: linear-gradient(135deg, #1e63ff, #22c8b8);
-  border-radius: 22px;
-  box-shadow: 0 16px 32px rgba(31, 115, 255, .22);
-  color: #ffffff;
-  display: flex;
-  font-size: 1.45rem;
-  font-weight: 950;
-  height: 58px;
-  justify-content: center;
-  margin-bottom: 1.25rem;
-  width: 58px;
 }
 
 .role-eyebrow {
@@ -765,10 +884,11 @@ body {
 
 .role-login-panel p {
   color: #52627a;
-  font-size: 1.05rem;
+  font-size: clamp(.9rem, 1.05vw, 1.02rem);
   font-weight: 800;
   line-height: 1.45;
   margin: 0 0 1.55rem;
+  white-space: nowrap;
 }
 
 .role-options {
@@ -811,6 +931,70 @@ body {
   transform: translateY(-2px);
 }
 
+@keyframes windowArrive {
+  from {
+    opacity: 0;
+    transform: translateX(-70px) translateY(26px) scale(.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1);
+  }
+}
+
+@keyframes robotArrive {
+  from {
+    opacity: 0;
+    transform: translateX(84px) translateY(42px) scale(.84) rotate(8deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1) rotate(0);
+  }
+}
+
+@keyframes robotFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-10px) rotate(-1.5deg);
+  }
+}
+
+@keyframes robotWave {
+  0%,
+  100% {
+    transform: rotate(48deg);
+  }
+  50% {
+    transform: rotate(66deg);
+  }
+}
+
+@keyframes robotBlink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(.18);
+  }
+}
+
+@keyframes loginPanelArrive {
+  from {
+    opacity: 0;
+    transform: translateX(42px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @media (max-width: 991.98px) {
   .role-login-shell {
     padding-top: 1.5rem;
@@ -840,6 +1024,10 @@ body {
 
   .role-login-panel {
     border-radius: 24px;
+  }
+
+  .role-login-panel p {
+    white-space: normal;
   }
 }
 
