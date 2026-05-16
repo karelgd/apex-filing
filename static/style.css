@@ -3786,7 +3786,7 @@ textarea.form-control {
 }
 
 .client-case-hero {
-  align-items: center;
+  align-items: flex-start;
   background: linear-gradient(135deg, #f8fbff 0%, #eaf5ff 100%);
   border: 1px solid #d7e7fb;
   border-radius: 20px;
@@ -3826,7 +3826,6 @@ textarea.form-control {
   color: #155bd6;
   display: inline-block;
   font-weight: 850;
-  margin-bottom: .7rem;
   padding: .55rem .9rem;
   text-decoration: none;
 }
@@ -3840,7 +3839,7 @@ textarea.form-control {
   align-items: flex-start;
   display: flex;
   flex-direction: column;
-  gap: .35rem;
+  gap: .45rem;
   text-align: left;
 }
 
