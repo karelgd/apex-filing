@@ -3156,9 +3156,12 @@ def register_routes(app):
     @app.route("/client")
     @role_required("client")
     def client_dashboard():
+        crm_cases = CrmCase.query.filter_by(client_id=current_user.id).order_by(
+            CrmCase.created_at.desc(), CrmCase.id.desc()
+        ).all()
         linked_questionnaire_ids = {
             crm_case.form_filler_case_id
-            for crm_case in current_user.crm_cases
+            for crm_case in crm_cases
             if crm_case.form_filler_case_id
         }
         standalone_questionnaires = [
@@ -3167,6 +3170,7 @@ def register_routes(app):
         return render_template(
             "client_dashboard.html",
             client=current_user,
+            crm_cases=crm_cases,
             standalone_questionnaires=standalone_questionnaires,
         )
 
