@@ -49,6 +49,11 @@
       {% for respondent in respondent_rows %}
       <div class="respondent-row">
         <div class="motion-grid motion-grid-respondent">
+          <div>
+            <label class="form-label">Search Existing Client</label>
+            <input class="form-control respondent-client-search" type="search" list="respondent-client-options" autocomplete="off" placeholder="Type client name or A-number">
+            <div class="form-text">Optional. Select a client to auto-fill the respondent fields below.</div>
+          </div>
           <div><label class="form-label">Alien First Name</label><input class="form-control" name="respondent_first_name[]" value="{{ respondent.first_name if respondent else '' }}" required></div>
           <div><label class="form-label">Alien Middle Name</label><input class="form-control" name="respondent_middle_name[]" value="{{ respondent.middle_name if respondent else '' }}"></div>
           <div><label class="form-label">Alien Last Name</label><input class="form-control" name="respondent_last_name[]" value="{{ respondent.last_name if respondent else '' }}" required></div>
@@ -58,6 +63,11 @@
       </div>
       {% endfor %}
     </div>
+    <datalist id="respondent-client-options">
+      {% for client in client_options %}
+        <option value="{{ client.label }}"></option>
+      {% endfor %}
+    </datalist>
     <button class="btn motion-btn motion-btn-teal" type="button" id="add-respondent">Add Respondent</button>
     <div class="motion-field-grid mt-3">
       <div>
@@ -237,7 +247,20 @@
 
 {% block scripts %}
 <script>
+  const respondentClientOptions = {{ client_options|tojson }};
   const respondentList = document.getElementById("respondent-list");
+  const fillRespondentFromClient = (input) => {
+    const query = input.value.trim().toLowerCase();
+    const client = respondentClientOptions.find((option) => option.label.toLowerCase() === query);
+    if (!client) {
+      return;
+    }
+    const row = input.closest(".respondent-row");
+    row.querySelector('[name="respondent_first_name[]"]').value = client.first_name || "";
+    row.querySelector('[name="respondent_middle_name[]"]').value = client.middle_name || "";
+    row.querySelector('[name="respondent_last_name[]"]').value = client.last_name || "";
+    row.querySelector('[name="respondent_alien_number[]"]').value = client.alien_number || "";
+  };
   const updateRemoveButtons = () => {
     const rows = respondentList?.querySelectorAll(".respondent-row") || [];
     rows.forEach((row) => {
@@ -257,6 +280,16 @@
     if (event.target.classList.contains("remove-respondent")) {
       event.target.closest(".respondent-row").remove();
       updateRemoveButtons();
+    }
+  });
+  respondentList?.addEventListener("input", (event) => {
+    if (event.target.classList.contains("respondent-client-search")) {
+      fillRespondentFromClient(event.target);
+    }
+  });
+  respondentList?.addEventListener("change", (event) => {
+    if (event.target.classList.contains("respondent-client-search")) {
+      fillRespondentFromClient(event.target);
     }
   });
   updateRemoveButtons();

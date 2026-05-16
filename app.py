@@ -1386,7 +1386,28 @@ def motion_template_for_agency(template_id, agency_id):
 
 
 def render_motion_form_response(templates, lawyers, law_firms, references, motion=None):
-    return render_template("motion_form.html", templates=templates, lawyers=lawyers, law_firms=law_firms, motion=motion, **references)
+    clients = Client.query.filter_by(agency_id=current_user.agency.id).order_by(
+        Client.last_name, Client.first_name, Client.id
+    ).all()
+    client_options = [
+        {
+            "label": f"{client.full_name} - A# {client.a_number}" if client.a_number else client.full_name,
+            "first_name": client.first_name,
+            "middle_name": client.middle_name or "",
+            "last_name": client.last_name,
+            "alien_number": client.a_number or "",
+        }
+        for client in clients
+    ]
+    return render_template(
+        "motion_form.html",
+        templates=templates,
+        lawyers=lawyers,
+        law_firms=law_firms,
+        motion=motion,
+        client_options=client_options,
+        **references,
+    )
 
 
 def update_motion_from_request(motion, agency):
