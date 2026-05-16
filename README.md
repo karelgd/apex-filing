@@ -1,4 +1,4 @@
-# Apex Filing
+# Apex Document Filing
 
 A Flask MVP for a subscription-based agency platform. Apex super admins manage agencies; agencies manage clients and cases; clients complete case questionnaires and upload documents; agencies can review answers and generate a PDF answer summary when the agency has the Form Filler subscription.
 
