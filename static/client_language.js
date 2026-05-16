@@ -15,6 +15,10 @@
       upload_case_documents: "Subir documentos del caso",
       case_questionnaire: "Cuestionario del caso",
       case_questionnaire_help: "Su agencia necesita que complete este cuestionario para este caso.",
+      case_appointments: "Citas del caso",
+      case_appointments_help: "Estas citas estan relacionadas con este caso.",
+      duration: "Duracion",
+      minutes: "minutos",
       client_upload_help: "Suba los documentos solicitados por su agencia. Puede volver mas tarde y agregar mas.",
       choose_document: "Elegir documento",
       optional_note: "Nota opcional",
@@ -64,7 +68,11 @@
       "Open": "Abierto",
       "Documents Received": "Documentos recibidos",
       "Documents Needed": "Documentos necesarios",
-      "Documents Ready": "Documentos listos"
+      "Documents Ready": "Documentos listos",
+      "Scheduled": "Programada",
+      "Canceled": "Cancelada",
+      "No Show": "No se presento",
+      "Re-scheduled": "Reprogramada"
     },
     ht: {
       language_label: "Lang",
@@ -80,6 +88,10 @@
       upload_case_documents: "Telechaje dokiman dosye a",
       case_questionnaire: "Kesyone dosye a",
       case_questionnaire_help: "Ajans ou bezwen ou ranpli kesyone sa a pou dosye sa a.",
+      case_appointments: "Randevou dosye a",
+      case_appointments_help: "Randevou sa yo konekte ak dosye sa a.",
+      duration: "Dire",
+      minutes: "minit",
       client_upload_help: "Telechaje dokiman ajans ou mande yo. Ou ka retounen pita pou ajoute plis.",
       choose_document: "Chwazi dokiman",
       optional_note: "Not opsyonel",
@@ -129,7 +141,11 @@
       "Open": "Louvri",
       "Documents Received": "Dokiman resevwa",
       "Documents Needed": "Dokiman nesese",
-      "Documents Ready": "Dokiman pare"
+      "Documents Ready": "Dokiman pare",
+      "Scheduled": "Pwograme",
+      "Canceled": "Anile",
+      "No Show": "Pa vini",
+      "Re-scheduled": "Repwograme"
     }
   };
 

@@ -3957,6 +3957,38 @@ textarea.form-control {
   margin-top: .25rem;
 }
 
+.client-appointment-list {
+  display: grid;
+  gap: .75rem;
+}
+
+.client-appointment-item {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dfe9f7;
+  border-radius: 14px;
+  display: flex;
+  gap: .85rem;
+  justify-content: space-between;
+  padding: .9rem;
+}
+
+.client-appointment-item strong,
+.client-appointment-item small {
+  display: block;
+}
+
+.client-appointment-item strong {
+  color: #101828;
+  font-weight: 950;
+}
+
+.client-appointment-item small,
+.client-appointment-item span {
+  color: #667085;
+  font-weight: 800;
+}
+
 .client-upload-button {
   width: 100%;
 }

@@ -57,6 +57,28 @@
     </section>
     {% endif %}
 
+    {% if case.appointments %}
+    <section class="client-case-panel">
+      <div class="client-panel-head">
+        <h2 data-i18n="case_appointments">Case appointments</h2>
+        <p data-i18n="case_appointments_help">These appointments are linked to this case.</p>
+      </div>
+      <div class="client-appointment-list">
+        {% for appointment in case.appointments %}
+          <div class="client-appointment-item">
+            <div>
+              <strong>{{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }}</strong>
+              <small>{{ appointment.appointment_type or 'Appointment' }} &middot; <span data-i18n-text="{{ appointment.status }}">{{ appointment.status }}</span></small>
+            </div>
+            {% if appointment.end_at %}
+              <span><span data-i18n="duration">Duration</span>: {{ ((appointment.end_at - appointment.start_at).total_seconds() // 60)|int }} <span data-i18n="minutes">minutes</span></span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <section class="client-case-panel">
       <div class="client-panel-head">
         <h2 data-i18n="upload_case_documents">Upload case documents</h2>
