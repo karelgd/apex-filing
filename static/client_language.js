@@ -17,10 +17,14 @@
       case_questionnaire_help: "Su agencia necesita que complete este cuestionario para este caso.",
       case_appointments: "Citas del caso",
       case_appointments_help: "Estas citas estan relacionadas con este caso.",
+      no_case_appointments: "Aun no hay citas programadas para este caso.",
       duration: "Duracion",
       minutes: "minutos",
       client_upload_help: "Suba los documentos solicitados por su agencia. Puede volver mas tarde y agregar mas.",
+      no_case_questionnaire: "Aun no se ha solicitado ningun cuestionario para este caso.",
       choose_document: "Elegir documento",
+      choose_file: "Elegir archivo",
+      no_file_chosen: "No se ha elegido archivo",
       optional_note: "Nota opcional",
       document_note_placeholder: "Ejemplo: copia del pasaporte, acta de nacimiento, recibo",
       upload_security_note: "Por seguridad, solo se aceptan archivos PDF, imagen y DOCX.",
@@ -90,10 +94,14 @@
       case_questionnaire_help: "Ajans ou bezwen ou ranpli kesyone sa a pou dosye sa a.",
       case_appointments: "Randevou dosye a",
       case_appointments_help: "Randevou sa yo konekte ak dosye sa a.",
+      no_case_appointments: "Pa gen randevou ki pwograme pou dosye sa a anko.",
       duration: "Dire",
       minutes: "minit",
       client_upload_help: "Telechaje dokiman ajans ou mande yo. Ou ka retounen pita pou ajoute plis.",
+      no_case_questionnaire: "Pa gen kesyone ki mande pou dosye sa a anko.",
       choose_document: "Chwazi dokiman",
+      choose_file: "Chwazi fichye",
+      no_file_chosen: "Pa gen fichye chwazi",
       optional_note: "Not opsyonel",
       document_note_placeholder: "Egzanp: kopi paspo, batiste, resi",
       upload_security_note: "Pou sekirite, se selman PDF, imaj ak DOCX yo aksepte.",
@@ -539,6 +547,12 @@
         textFor(language, element.dataset.i18nPlaceholder) || element.dataset.originalPlaceholder
       );
     });
+    document.querySelectorAll("[data-file-name]").forEach((element) => {
+      const fileInput = document.getElementById("client-document-input");
+      if (!fileInput?.files?.length) {
+        element.textContent = textFor(language, "no_file_chosen") || "No file chosen";
+      }
+    });
     document.querySelectorAll(".question-prompt, .question-map-link b").forEach((element) => {
       if (!element.dataset.originalText) {
         element.dataset.originalText = element.textContent;
@@ -562,5 +576,13 @@
       applyLanguage(select.value);
     });
   }
+  const fileInput = document.getElementById("client-document-input");
+  const fileName = document.querySelector("[data-file-name]");
+  fileInput?.addEventListener("change", () => {
+    const language = localStorage.getItem(STORAGE_KEY) || "en";
+    if (fileName) {
+      fileName.textContent = fileInput.files?.[0]?.name || textFor(language, "no_file_chosen") || "No file chosen";
+    }
+  });
   applyLanguage(savedLanguage);
 })();

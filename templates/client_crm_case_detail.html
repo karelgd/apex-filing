@@ -13,39 +13,62 @@
     </div>
   </div>
 
+  <section class="client-case-panel client-timeline-panel">
+    <div class="client-panel-head">
+      <h2 data-i18n="case_timeline">Case timeline</h2>
+      <p data-i18n="timeline_help">Your agency updates this timeline when the case status changes.</p>
+    </div>
+    <ol class="client-timeline">
+      {% for event in case.status_history %}
+        <li>
+          <span class="client-timeline-dot"></span>
+          <div>
+            <strong data-i18n-text="{{ event.status }}">{{ event.status }}</strong>
+            <small>{{ event.changed_at.strftime('%m/%d/%Y') }}</small>
+          </div>
+        </li>
+      {% else %}
+        <li>
+          <span class="client-timeline-dot"></span>
+          <div>
+            <strong data-i18n-text="{{ case.status }}">{{ case.status }}</strong>
+            <small>{{ case.opened_at.strftime('%m/%d/%Y') if case.opened_at else '' }}</small>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  </section>
+
   <div class="client-case-grid">
     <section class="client-case-panel">
       <div class="client-panel-head">
-        <h2 data-i18n="case_timeline">Case timeline</h2>
-        <p data-i18n="timeline_help">Your agency updates this timeline when the case status changes.</p>
+        <h2 data-i18n="case_appointments">Case appointments</h2>
+        <p data-i18n="case_appointments_help">These appointments are linked to this case.</p>
       </div>
-      <ol class="client-timeline">
-        {% for event in case.status_history %}
-          <li>
-            <span class="client-timeline-dot"></span>
+      <div class="client-appointment-list">
+        {% for appointment in case.appointments %}
+          <div class="client-appointment-item status-{{ (appointment.status or 'scheduled')|lower|replace(' ', '-')|replace('_', '-') }}">
             <div>
-              <strong data-i18n-text="{{ event.status }}">{{ event.status }}</strong>
-              <small>{{ event.changed_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+              <strong>{{ appointment.start_at.strftime('%m/%d/%Y') }}</strong>
+              <small>{{ appointment.start_at.strftime('%I:%M %p') }} &middot; {{ appointment.appointment_type or 'Appointment' }}</small>
+              <small><span data-i18n="current_status">Current status</span>: <span data-i18n-text="{{ appointment.status }}">{{ appointment.status }}</span></small>
             </div>
-          </li>
+            {% if appointment.end_at %}
+              <span><span data-i18n="duration">Duration</span>: {{ ((appointment.end_at - appointment.start_at).total_seconds() // 60)|int }} <span data-i18n="minutes">minutes</span></span>
+            {% endif %}
+          </div>
         {% else %}
-          <li>
-            <span class="client-timeline-dot"></span>
-            <div>
-              <strong data-i18n-text="{{ case.status }}">{{ case.status }}</strong>
-              <small>{{ case.opened_at.strftime('%b %d, %Y %I:%M %p') if case.opened_at else '' }}</small>
-            </div>
-          </li>
+          <div class="client-empty-state" data-i18n="no_case_appointments">No appointments have been scheduled for this case yet.</div>
         {% endfor %}
-      </ol>
+      </div>
     </section>
 
-    {% if case.form_filler_case %}
     <section class="client-case-panel client-questionnaire-panel">
       <div class="client-panel-head">
         <h2 data-i18n="case_questionnaire">Case questionnaire</h2>
         <p data-i18n="case_questionnaire_help">Your agency needs this questionnaire completed for this case.</p>
       </div>
+      {% if case.form_filler_case %}
       <div class="client-questionnaire-card">
         <strong>{{ case.form_filler_case.case_type }}</strong>
         <small><span data-i18n="current_status">Current status</span>: <span data-i18n-text="{{ case.form_filler_case.status }}">{{ case.form_filler_case.status }}</span></small>
@@ -54,30 +77,10 @@
           <span data-i18n="{{ 'continue' if case.form_filler_case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.form_filler_case.progress_percentage else 'Start Questionnaire' }}</span>
         </a>
       </div>
+      {% else %}
+        <div class="client-empty-state" data-i18n="no_case_questionnaire">No questionnaire has been requested for this case yet.</div>
+      {% endif %}
     </section>
-    {% endif %}
-
-    {% if case.appointments %}
-    <section class="client-case-panel">
-      <div class="client-panel-head">
-        <h2 data-i18n="case_appointments">Case appointments</h2>
-        <p data-i18n="case_appointments_help">These appointments are linked to this case.</p>
-      </div>
-      <div class="client-appointment-list">
-        {% for appointment in case.appointments %}
-          <div class="client-appointment-item">
-            <div>
-              <strong>{{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }}</strong>
-              <small>{{ appointment.appointment_type or 'Appointment' }} &middot; <span data-i18n-text="{{ appointment.status }}">{{ appointment.status }}</span></small>
-            </div>
-            {% if appointment.end_at %}
-              <span><span data-i18n="duration">Duration</span>: {{ ((appointment.end_at - appointment.start_at).total_seconds() // 60)|int }} <span data-i18n="minutes">minutes</span></span>
-            {% endif %}
-          </div>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
 
     <section class="client-case-panel">
       <div class="client-panel-head">
@@ -87,7 +90,11 @@
       <form method="post" enctype="multipart/form-data" action="{{ url_for('client_crm_document_upload', case_id=case.id) }}" class="client-upload-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="form-label" data-i18n="choose_document">Choose document</label>
-        <input class="form-control form-control-lg" type="file" name="document" accept=".pdf,.png,.jpg,.jpeg,.docx" required>
+        <div class="client-file-picker">
+          <input id="client-document-input" type="file" name="document" accept=".pdf,.png,.jpg,.jpeg,.docx" required>
+          <label class="client-file-button" for="client-document-input" data-i18n="choose_file">Choose file</label>
+          <span class="client-file-name" data-file-name data-i18n="no_file_chosen">No file chosen</span>
+        </div>
         <label class="form-label mt-3" data-i18n="optional_note">Optional note</label>
         <input class="form-control form-control-lg" name="description" data-i18n-placeholder="document_note_placeholder" placeholder="Example: passport copy, birth certificate, receipt">
         <p class="client-upload-security" data-i18n="upload_security_note">For security, only PDF, image, and DOCX files are accepted.</p>

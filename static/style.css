@@ -3858,7 +3858,7 @@ textarea.form-control {
 .client-case-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(0, .9fr) minmax(320px, .7fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .client-case-panel {
@@ -3883,34 +3883,48 @@ textarea.form-control {
 }
 
 .client-timeline {
+  align-items: stretch;
+  display: flex;
+  gap: .85rem;
   list-style: none;
   margin: 0;
+  overflow-x: auto;
   padding: 0;
 }
 
 .client-timeline li {
-  display: grid;
-  gap: .85rem;
-  grid-template-columns: 22px minmax(0, 1fr);
-  padding: .4rem 0 1.15rem;
+  background: #f8fbff;
+  border: 1px solid #dfe9f7;
+  border-radius: 14px;
+  display: block;
+  flex: 1 0 150px;
+  padding: 1rem .85rem .85rem;
   position: relative;
+  text-align: center;
+}
+
+.client-timeline-panel {
+  margin-bottom: 1rem;
 }
 
 .client-timeline li:not(:last-child)::before {
   background: #d7e7fb;
   content: "";
-  height: 100%;
-  left: 9px;
+  height: 3px;
+  left: 50%;
   position: absolute;
-  top: 21px;
-  width: 3px;
+  top: 18px;
+  width: 100%;
+  z-index: 0;
 }
 
 .client-timeline-dot {
   background: #1f73ff;
   border: 4px solid #dcecff;
   border-radius: 999px;
+  display: inline-block;
   height: 22px;
+  margin-bottom: .5rem;
   position: relative;
   width: 22px;
   z-index: 1;
@@ -3933,6 +3947,20 @@ textarea.form-control {
 .client-upload-security {
   color: #68788f;
   font-weight: 750;
+}
+
+.client-empty-state {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px dashed #c9d9ef;
+  border-radius: 14px;
+  color: #667085;
+  display: flex;
+  font-weight: 850;
+  justify-content: center;
+  min-height: 112px;
+  padding: 1rem;
+  text-align: center;
 }
 
 .client-upload-form .form-label {
@@ -3973,6 +4001,33 @@ textarea.form-control {
   padding: .9rem;
 }
 
+.client-appointment-item.status-scheduled {
+  background: #e8fbf8;
+  border-color: #a8eee2;
+}
+
+.client-appointment-item.status-re-scheduled,
+.client-appointment-item.status-rescheduled {
+  background: #eaf1ff;
+  border-color: #bcd2ff;
+}
+
+.client-appointment-item.status-completed {
+  background: #e9f8ef;
+  border-color: #b7e7c7;
+}
+
+.client-appointment-item.status-canceled,
+.client-appointment-item.status-cancelled {
+  background: #ffe8e8;
+  border-color: #ffb4b4;
+}
+
+.client-appointment-item.status-no-show {
+  background: #fff1df;
+  border-color: #ffc680;
+}
+
 .client-appointment-item strong,
 .client-appointment-item small {
   display: block;
@@ -3991,6 +4046,44 @@ textarea.form-control {
 
 .client-upload-button {
   width: 100%;
+}
+
+.client-file-picker {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #d7e7fb;
+  border-radius: 14px;
+  display: flex;
+  gap: .75rem;
+  padding: .65rem;
+}
+
+.client-file-picker input[type="file"] {
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.client-file-button {
+  background: #1f73ff;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  margin: 0;
+  padding: .65rem 1rem;
+  white-space: nowrap;
+}
+
+.client-file-name {
+  color: #667085;
+  font-weight: 850;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .client-uploaded-list {
