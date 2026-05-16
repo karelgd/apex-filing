@@ -19,7 +19,7 @@
       <p data-i18n="timeline_help">Your agency updates this timeline when the case status changes.</p>
     </div>
     <ol class="client-timeline">
-      {% for event in case.status_history %}
+      {% for event in case.status_history|reverse %}
         <li>
           <span class="client-timeline-dot"></span>
           <div>
@@ -47,11 +47,11 @@
       </div>
       <div class="client-appointment-list">
         {% for appointment in case.appointments %}
-          <div class="client-appointment-item status-{{ (appointment.status or 'scheduled')|lower|replace(' ', '-')|replace('_', '-') }}">
+          <div class="client-appointment-item">
             <div>
               <strong>{{ appointment.start_at.strftime('%m/%d/%Y') }}</strong>
               <small>{{ appointment.start_at.strftime('%I:%M %p') }} &middot; {{ appointment.appointment_type or 'Appointment' }}</small>
-              <small><span data-i18n="current_status">Current status</span>: <span data-i18n-text="{{ appointment.status }}">{{ appointment.status }}</span></small>
+              <small><span data-i18n="current_status">Current status</span>: <span class="client-status-mini status-{{ (appointment.status or 'scheduled')|lower|replace(' ', '-')|replace('_', '-') }}" data-i18n-text="{{ appointment.status }}">{{ appointment.status }}</span></small>
             </div>
             {% if appointment.end_at %}
               <span><span data-i18n="duration">Duration</span>: {{ ((appointment.end_at - appointment.start_at).total_seconds() // 60)|int }} <span data-i18n="minutes">minutes</span></span>
@@ -65,7 +65,7 @@
 
     <section class="client-case-panel client-questionnaire-panel">
       <div class="client-panel-head">
-        <h2 data-i18n="case_questionnaire">Case questionnaire</h2>
+        <h2 data-i18n="case_questionnaire">Case questionnaires</h2>
         <p data-i18n="case_questionnaire_help">Your agency needs this questionnaire completed for this case.</p>
       </div>
       {% if case.form_filler_case %}

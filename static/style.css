@@ -3798,6 +3798,10 @@ textarea.form-control {
   padding: 1.35rem;
 }
 
+.client-case-hero > div:first-child {
+  text-align: left;
+}
+
 .client-case-hero span {
   color: #1f73ff;
   display: block;
@@ -3833,10 +3837,11 @@ textarea.form-control {
 }
 
 .client-status-box {
-  align-items: flex-end;
+  align-items: flex-start;
   display: flex;
   flex-direction: column;
   gap: .35rem;
+  text-align: left;
 }
 
 .client-status-box small {
@@ -3883,22 +3888,19 @@ textarea.form-control {
 }
 
 .client-timeline {
-  align-items: stretch;
+  align-items: flex-start;
   display: flex;
-  gap: .85rem;
+  gap: 0;
   list-style: none;
   margin: 0;
   overflow-x: auto;
-  padding: 0;
+  padding: .3rem 0 .15rem;
 }
 
 .client-timeline li {
-  background: #f8fbff;
-  border: 1px solid #dfe9f7;
-  border-radius: 14px;
   display: block;
-  flex: 1 0 150px;
-  padding: 1rem .85rem .85rem;
+  flex: 1 0 155px;
+  padding: 0 .75rem;
   position: relative;
   text-align: center;
 }
@@ -3907,15 +3909,27 @@ textarea.form-control {
   margin-bottom: 1rem;
 }
 
-.client-timeline li:not(:last-child)::before {
+.client-timeline li::before {
   background: #d7e7fb;
   content: "";
   height: 3px;
-  left: 50%;
+  left: 0;
   position: absolute;
-  top: 18px;
-  width: 100%;
+  right: 0;
+  top: 10px;
   z-index: 0;
+}
+
+.client-timeline li:first-child::before {
+  left: 50%;
+}
+
+.client-timeline li:last-child::before {
+  right: 50%;
+}
+
+.client-timeline li:only-child::before {
+  display: none;
 }
 
 .client-timeline-dot {
@@ -3924,7 +3938,7 @@ textarea.form-control {
   border-radius: 999px;
   display: inline-block;
   height: 22px;
-  margin-bottom: .5rem;
+  margin-bottom: .55rem;
   position: relative;
   width: 22px;
   z-index: 1;
@@ -4001,31 +4015,48 @@ textarea.form-control {
   padding: .9rem;
 }
 
-.client-appointment-item.status-scheduled {
+.client-status-mini {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: .72rem;
+  font-weight: 950;
+  line-height: 1;
+  padding: .24rem .55rem;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.client-status-mini.status-scheduled {
   background: #e8fbf8;
   border-color: #a8eee2;
+  color: #087d75;
 }
 
-.client-appointment-item.status-re-scheduled,
-.client-appointment-item.status-rescheduled {
+.client-status-mini.status-re-scheduled,
+.client-status-mini.status-rescheduled {
   background: #eaf1ff;
   border-color: #bcd2ff;
+  color: #155bd6;
 }
 
-.client-appointment-item.status-completed {
+.client-status-mini.status-completed {
   background: #e9f8ef;
   border-color: #b7e7c7;
+  color: #16803a;
 }
 
-.client-appointment-item.status-canceled,
-.client-appointment-item.status-cancelled {
+.client-status-mini.status-canceled,
+.client-status-mini.status-cancelled {
   background: #ffe8e8;
   border-color: #ffb4b4;
+  color: #c02121;
 }
 
-.client-appointment-item.status-no-show {
+.client-status-mini.status-no-show {
   background: #fff1df;
   border-color: #ffc680;
+  color: #a75a00;
 }
 
 .client-appointment-item strong,
