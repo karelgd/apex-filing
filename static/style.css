@@ -657,13 +657,22 @@ body {
 .role-robot {
   animation: robotArrive .95s cubic-bezier(.2, .72, .18, 1) .16s both, robotFloat 4.2s ease-in-out 1.2s infinite;
   background: transparent;
-  bottom: 7%;
-  height: 270px;
-  left: 20%;
+  bottom: 1%;
+  box-shadow: none;
+  height: 390px;
+  left: 10%;
   position: absolute;
   transform-origin: center bottom;
-  width: 250px;
+  width: 340px;
   z-index: 5;
+}
+
+.role-robot-image {
+  display: block;
+  filter: drop-shadow(0 28px 38px rgba(31, 80, 160, .24));
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
 }
 
 .robot-antenna {
