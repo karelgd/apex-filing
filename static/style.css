@@ -3940,6 +3940,23 @@ textarea.form-control {
   font-weight: 900;
 }
 
+.client-questionnaire-card strong,
+.client-questionnaire-card small {
+  display: block;
+}
+
+.client-questionnaire-card strong {
+  color: #101828;
+  font-size: 1.15rem;
+  font-weight: 950;
+}
+
+.client-questionnaire-card small {
+  color: #667085;
+  font-weight: 800;
+  margin-top: .25rem;
+}
+
 .client-upload-button {
   width: 100%;
 }

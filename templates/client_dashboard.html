@@ -35,7 +35,7 @@
 
     <h2 class="h4 mb-3" data-i18n="your_questionnaires">Your questionnaires</h2>
     <div class="list-group">
-      {% for case in client.cases %}
+      {% for case in standalone_questionnaires %}
         <a class="list-group-item list-group-item-action" href="{{ url_for('questionnaire', case_id=case.id) }}">
           <div class="d-flex justify-content-between align-items-center">
             <div>

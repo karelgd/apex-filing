@@ -836,6 +836,27 @@ def ensure_crm_case_status_history(case):
     db.session.flush()
 
 
+def sync_crm_case_questionnaire(crm_case):
+    if not can_use_crm_form_filler(crm_case.agency):
+        return
+    form_code = request.form.get("form_code", "").strip()
+    if not form_code:
+        return
+    if crm_case.form_filler_case and crm_case.form_filler_case.case_type == form_code:
+        return
+    template = FormTemplate.query.filter_by(code=form_code, is_active=True).first() or abort(404)
+    questionnaire = Case(
+        agency_id=crm_case.agency_id,
+        client_id=crm_case.client_id,
+        case_type=template.code,
+        status="Waiting for Client",
+        notes=f"Linked to CRM case #{crm_case.id}: {crm_case.title}",
+    )
+    db.session.add(questionnaire)
+    db.session.flush()
+    crm_case.form_filler_case_id = questionnaire.id
+
+
 def resolve_crm_case_tag(agency_id):
     new_tag_name = request.form.get("new_tag_name", "").strip()
     if new_tag_name:
@@ -937,6 +958,10 @@ def can_use_motion_creation(agency):
 
 def can_use_crm(agency):
     return bool(agency and agency.has_tool("CRM"))
+
+
+def can_use_crm_form_filler(agency):
+    return can_use_crm(agency) and can_use_form_filler(agency)
 
 
 def active_knowledge_modules():
@@ -2560,6 +2585,7 @@ def register_routes(app):
             db.session.add(case)
             db.session.flush()
             record_crm_case_status(case)
+            sync_crm_case_questionnaire(case)
             if case.notes:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
                 case.notes = ""
@@ -2574,6 +2600,8 @@ def register_routes(app):
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
+            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) else [],
+            can_link_form_filler=can_use_crm_form_filler(current_user.agency),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>/edit", methods=["GET", "POST"])
@@ -2590,6 +2618,7 @@ def register_routes(app):
             populate_crm_case_from_form(case)
             if case.status != previous_status:
                 record_crm_case_status(case)
+            sync_crm_case_questionnaire(case)
             if case.notes and case.notes != existing_note:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
                 case.notes = ""
@@ -2604,6 +2633,8 @@ def register_routes(app):
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
+            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) else [],
+            can_link_form_filler=can_use_crm_form_filler(current_user.agency),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>")
@@ -2640,7 +2671,10 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
         client_id = case.client_id
+        linked_questionnaire = case.form_filler_case
         db.session.delete(case)
+        if linked_questionnaire:
+            db.session.delete(linked_questionnaire)
         db.session.commit()
         flash("CRM case deleted.", "info")
         return redirect(url_for("crm_client_detail", client_id=client_id))
@@ -3122,7 +3156,19 @@ def register_routes(app):
     @app.route("/client")
     @role_required("client")
     def client_dashboard():
-        return render_template("client_dashboard.html", client=current_user)
+        linked_questionnaire_ids = {
+            crm_case.form_filler_case_id
+            for crm_case in current_user.crm_cases
+            if crm_case.form_filler_case_id
+        }
+        standalone_questionnaires = [
+            case for case in current_user.cases if case.id not in linked_questionnaire_ids
+        ]
+        return render_template(
+            "client_dashboard.html",
+            client=current_user,
+            standalone_questionnaires=standalone_questionnaires,
+        )
 
     @app.route("/client/crm-cases/<int:case_id>")
     @role_required("client")
@@ -4470,6 +4516,7 @@ def ensure_sqlite_schema():
             "case_manager_id": "INTEGER",
             "form_preparer_id": "INTEGER",
             "tag_id": "INTEGER",
+            "form_filler_case_id": "INTEGER",
         }
         for column, ddl in crm_case_additions.items():
             if column not in existing_crm_case:

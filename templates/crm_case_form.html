@@ -44,6 +44,22 @@
           <option value="{{ status }}" {% if case and case.status == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
       </select>
+      {% if can_link_form_filler and (not case or not case.form_filler_case) %}
+        <label class="form-label">Send questionnaire</label>
+        <select class="form-select mb-3" name="form_code">
+          <option value="">No questionnaire</option>
+          {% for template in form_templates %}
+            <option value="{{ template.code }}" {% if case and case.form_filler_case and case.form_filler_case.case_type == template.code %}selected{% endif %}>{{ template.label }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text mb-3">
+          Available because this agency has both CRM and Form Filler. The selected questionnaire will appear inside this client case.
+        </div>
+      {% elif can_link_form_filler and case and case.form_filler_case %}
+        <label class="form-label">Linked questionnaire</label>
+        <input class="form-control mb-3" value="{{ case.form_filler_case.case_type }} - {{ case.form_filler_case.status }}" readonly>
+        <input type="hidden" name="form_code" value="{{ case.form_filler_case.case_type }}">
+      {% endif %}
       <label class="form-label">{{ 'Add note' if case else 'Initial note' }}</label>
       <textarea class="form-control mb-4" name="notes" rows="5" placeholder="This will be added to the case note history."></textarea>
       <div class="d-flex gap-2">

@@ -40,6 +40,23 @@
       </ol>
     </section>
 
+    {% if case.form_filler_case %}
+    <section class="client-case-panel client-questionnaire-panel">
+      <div class="client-panel-head">
+        <h2 data-i18n="case_questionnaire">Case questionnaire</h2>
+        <p data-i18n="case_questionnaire_help">Your agency needs this questionnaire completed for this case.</p>
+      </div>
+      <div class="client-questionnaire-card">
+        <strong>{{ case.form_filler_case.case_type }}</strong>
+        <small><span data-i18n="current_status">Current status</span>: <span data-i18n-text="{{ case.form_filler_case.status }}">{{ case.form_filler_case.status }}</span></small>
+        <div class="progress my-3"><div class="progress-bar" style="width: {{ case.form_filler_case.progress_percentage }}%">{{ case.form_filler_case.progress_percentage }}%</div></div>
+        <a class="btn btn-primary btn-lg client-upload-button" href="{{ url_for('questionnaire', case_id=case.form_filler_case.id) }}">
+          <span data-i18n="{{ 'continue' if case.form_filler_case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.form_filler_case.progress_percentage else 'Start Questionnaire' }}</span>
+        </a>
+      </div>
+    </section>
+    {% endif %}
+
     <section class="client-case-panel">
       <div class="client-panel-head">
         <h2 data-i18n="upload_case_documents">Upload case documents</h2>
