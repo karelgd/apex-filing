@@ -885,15 +885,17 @@ body {
 
 .role-login-panel h1 {
   color: #0b1733;
-  font-size: clamp(2.1rem, 4.2vw, 3.25rem);
+  font-size: clamp(1.15rem, 1.75vw, 1.55rem);
   font-weight: 950;
   letter-spacing: 0;
-  margin: .25rem 0 .55rem;
+  line-height: 1.15;
+  margin: .45rem 0 .45rem;
+  white-space: nowrap;
 }
 
 .role-login-panel p {
   color: #52627a;
-  font-size: clamp(.9rem, 1.05vw, 1.02rem);
+  font-size: clamp(.9rem, 1.05vw, 1rem);
   font-weight: 800;
   line-height: 1.45;
   margin: 0 0 1.55rem;
