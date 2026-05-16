@@ -15,20 +15,20 @@
       <section class="client-info-card">
         <h2 data-i18n="client_information">Your information</h2>
         <div class="client-info-line">
-          <span aria-hidden="true">📍</span>
+          <span class="client-modern-icon icon-location" aria-hidden="true"></span>
           <div><strong data-i18n="address">Address</strong><p>{{ client.display_address }}</p></div>
         </div>
         <div class="client-info-line">
-          <span aria-hidden="true">☎</span>
+          <span class="client-modern-icon icon-phone" aria-hidden="true"></span>
           <div><strong data-i18n="phone">Phone</strong><p>{{ client.phone }}</p></div>
         </div>
         <div class="client-info-line">
-          <span aria-hidden="true">✉</span>
+          <span class="client-modern-icon icon-email" aria-hidden="true"></span>
           <div><strong data-i18n="email">Email</strong><p>{{ client.email }}</p></div>
         </div>
         {% if client.a_number %}
           <div class="client-info-line">
-            <span aria-hidden="true">#</span>
+            <span class="client-modern-icon icon-id" aria-hidden="true"></span>
             <div><strong data-i18n="a_number">A-Number</strong><p>{{ client.a_number }}</p></div>
           </div>
         {% endif %}
@@ -38,20 +38,24 @@
         <h2 data-i18n="agency_information">Agency information</h2>
         <h3>{{ client.agency.agency_name }}</h3>
         <div class="client-info-line">
-          <span aria-hidden="true">☎</span>
+          <span class="client-modern-icon icon-phone" aria-hidden="true"></span>
           <div><strong data-i18n="phone">Phone</strong><p>{{ client.agency.agency_phone or client.agency.ceo_phone }}</p></div>
         </div>
         <div class="client-info-line">
-          <span aria-hidden="true">✉</span>
+          <span class="client-modern-icon icon-email" aria-hidden="true"></span>
           <div><strong data-i18n="email">Email</strong><p>{{ client.agency.agency_email or client.agency.ceo_email }}</p></div>
         </div>
         <div class="client-info-line">
-          <span aria-hidden="true">📍</span>
+          <span class="client-modern-icon icon-location" aria-hidden="true"></span>
           <div><strong data-i18n="address">Address</strong><p>{{ client.agency.display_address }}</p></div>
         </div>
         <div class="client-map-box">
-          <span>📍</span>
-          <small>{{ client.agency.city }}, {{ client.agency.state }}</small>
+          <iframe
+            title="Agency location map"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            src="https://www.google.com/maps?q={{ client.agency.display_address|urlencode }}&output=embed">
+          </iframe>
         </div>
       </section>
     </aside>
@@ -66,7 +70,9 @@
             <article class="client-case-card">
               <div class="client-case-summary">
                 <strong>{{ crm_case.title }}</strong>
-                <span class="client-status-mini status-{{ (crm_case.status or 'open')|lower|replace(' ', '-')|replace('_', '-') }}" data-i18n-text="{{ crm_case.status }}">{{ crm_case.status }}</span>
+                <div>
+                  <span class="client-status-mini status-{{ (crm_case.status or 'open')|lower|replace(' ', '-')|replace('_', '-') }}" data-i18n-text="{{ crm_case.status }}">{{ crm_case.status }}</span>
+                </div>
               </div>
               <a class="btn btn-primary client-open-button" href="{{ url_for('client_crm_case_detail', case_id=crm_case.id) }}" data-i18n="open">Open</a>
             </article>
@@ -90,7 +96,7 @@
                 </div>
                 <div class="client-questionnaire-progress">
                   <div class="progress"><div class="progress-bar" style="width: {{ case.progress_percentage }}%"></div></div>
-                  <small><span data-i18n="{{ 'continue' if case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.progress_percentage else 'Start Questionnaire' }}</span> · {{ case.progress_percentage }}%</small>
+                  <small><span data-i18n="{{ 'continue' if case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.progress_percentage else 'Start Questionnaire' }}</span> &middot; {{ case.progress_percentage }}%</small>
                 </div>
               </a>
             {% else %}
