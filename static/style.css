@@ -657,13 +657,13 @@ body {
 .role-robot {
   animation: robotArrive .95s cubic-bezier(.2, .72, .18, 1) .16s both, robotFloat 4.2s ease-in-out 1.2s infinite;
   background: transparent;
-  bottom: -8%;
+  bottom: 2%;
   box-shadow: none;
-  height: 440px;
-  left: 8%;
+  height: 295px;
+  left: 16%;
   position: absolute;
   transform-origin: center bottom;
-  width: 430px;
+  width: 288px;
   z-index: 5;
 }
 
