@@ -3815,11 +3815,35 @@ textarea.form-control {
 }
 
 .client-back-link {
-  color: #4c5d75;
+  background: #ffffff;
+  border: 1px solid #cfe1ff;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(31, 115, 255, .12);
+  color: #155bd6;
   display: inline-block;
   font-weight: 850;
   margin-bottom: .7rem;
+  padding: .55rem .9rem;
   text-decoration: none;
+}
+
+.client-back-link:hover {
+  background: #eaf3ff;
+  color: #0f4fbd;
+}
+
+.client-status-box {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.client-status-box small {
+  color: #52627a;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-transform: uppercase;
 }
 
 .client-status-pill {

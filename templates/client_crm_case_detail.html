@@ -7,7 +7,10 @@
       <span data-i18n="case_type">Case type</span>
       <h1>{{ case.title }}</h1>
     </div>
-    <div class="client-status-pill" data-i18n-text="{{ case.status }}">{{ case.status }}</div>
+    <div class="client-status-box">
+      <small data-i18n="your_case_status">Your case status</small>
+      <div class="client-status-pill" data-i18n-text="{{ case.status }}">{{ case.status }}</div>
+    </div>
   </div>
 
   <div class="client-case-grid">
