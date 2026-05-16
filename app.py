@@ -1396,6 +1396,11 @@ def render_motion_form_response(templates, lawyers, law_firms, references, motio
             "middle_name": client.middle_name or "",
             "last_name": client.last_name,
             "alien_number": client.a_number or "",
+            "search_text": " ".join(
+                part
+                for part in [client.full_name, client.a_number, client.email, client.phone, client.username]
+                if part
+            ),
         }
         for client in clients
     ]
