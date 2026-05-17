@@ -173,7 +173,7 @@
             <div class="form-text">Use this when the same answer should appear in more than one place, such as an A-number repeated on each page.</div>
           </div>
           <div class="mb-3">
-            <label class="form-label">Question text</label>
+            <label class="form-label" id="question-prompt-label">Question text</label>
             <textarea class="form-control" name="prompt" id="question-prompt" rows="3" required></textarea>
           </div>
           <div class="row g-3">
@@ -246,7 +246,7 @@
           </div>
           <div class="builder-modal-actions">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button class="btn btn-primary">Save question</button>
+            <button class="btn btn-primary" id="question-save-button">Save question</button>
           </div>
         </div>
       </form>
@@ -278,6 +278,7 @@
 
   const questionIdInput = document.getElementById("question-id");
   const promptInput = document.getElementById("question-prompt");
+  const promptLabel = document.getElementById("question-prompt-label");
   const fieldInput = document.getElementById("question-field-key");
   const inputTypeSelect = document.getElementById("question-input-type");
   const renderModeSelect = document.getElementById("question-render-mode");
@@ -300,6 +301,7 @@
   const questionModal = questionModalElement ? new bootstrap.Modal(questionModalElement) : null;
   const questionModalTitle = document.getElementById("question-modal-title");
   const questionModalHelp = document.getElementById("question-modal-help");
+  const questionSaveButton = document.getElementById("question-save-button");
   const reuseQuestionPanel = document.getElementById("reuse-question-panel");
   const reuseQuestionSelect = document.getElementById("reuse-question-select");
   const pdfScroll = document.querySelector(".visual-pdf-scroll");
@@ -344,6 +346,13 @@
     if (!visible && manualFieldToggle) {
       manualFieldToggle.checked = false;
       manualFieldModeInput.value = "";
+      promptInput.required = true;
+      promptInput.placeholder = "";
+      promptLabel.textContent = "Question text";
+      questionSaveButton.textContent = "Save question";
+      if (reuseQuestionSelect) {
+        reuseQuestionSelect.disabled = false;
+      }
     }
   }
 
@@ -362,6 +371,9 @@
         ? "Create a new question for this PDF spot, or reuse an existing question so the same answer appears here too."
         : "Create a question that can later be placed on the PDF.";
       promptInput.value = "";
+      promptInput.required = true;
+      promptLabel.textContent = "Question text";
+      questionSaveButton.textContent = "Save question";
       fieldInput.value = "";
       inputTypeSelect.value = "text";
       renderModeSelect.value = "normal";
@@ -379,6 +391,9 @@
       ? "This will place the selected existing question at the PDF spot you clicked. Any text edits here update that question everywhere it is used."
       : "Update how this question appears to the client and where it maps in the generated PDF.";
     promptInput.value = question.prompt || "";
+    promptInput.required = true;
+    promptLabel.textContent = "Question text";
+    questionSaveButton.textContent = "Save question";
     fieldInput.value = question.fieldKey || "";
     inputTypeSelect.value = question.inputType || "text";
     renderModeSelect.value = question.renderMode || "normal";
@@ -445,6 +460,9 @@
       ? "This creates a text box that agencies can fill during PDF review. It will not be asked to the client."
       : "Create a new question for this PDF spot, or reuse an existing question so the same answer appears here too.";
     promptInput.placeholder = enabled ? "Example: Officer notes, preparer certification, attorney-only field" : "";
+    promptInput.required = !enabled;
+    promptLabel.textContent = enabled ? "Internal label, optional" : "Question text";
+    questionSaveButton.textContent = enabled ? "Save text box" : "Save question";
   });
 
   const questionSortList = document.getElementById("question-sort-list");
