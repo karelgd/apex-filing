@@ -157,6 +157,7 @@ def create_app():
             "is_agency_owner": is_agency_owner,
             "is_agency_staff": is_agency_staff,
             "can_generate_forms_for_current_user": can_generate_forms_for_current_user,
+            "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
         }
 
     register_routes(app)
@@ -194,11 +195,28 @@ def can_generate_forms_for_current_user():
     )
 
 
+def can_use_motion_creation_for_current_user():
+    return current_user.is_authenticated and current_user.role == "agency" and (
+        is_agency_owner() or isinstance(current_user, AgencyPreparer)
+    )
+
+
 def agency_owner_required(view):
     @wraps(view)
     @login_required
     def wrapped(*args, **kwargs):
         if current_user.role != "agency" or not is_agency_owner():
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def agency_motion_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped(*args, **kwargs):
+        if not can_use_motion_creation_for_current_user():
             abort(403)
         return view(*args, **kwargs)
 
@@ -2081,7 +2099,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/tools/motions")
-    @agency_owner_required
+    @agency_motion_required
     def agency_motions():
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2095,7 +2113,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/tools/motions/templates/new", methods=["GET", "POST"])
-    @agency_owner_required
+    @agency_motion_required
     def motion_template_new():
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2122,7 +2140,7 @@ def register_routes(app):
         return render_template("motion_template_form.html", template=None)
 
     @app.route("/agency/tools/motions/templates/<int:template_id>/edit", methods=["GET", "POST"])
-    @agency_owner_required
+    @agency_motion_required
     def motion_template_edit(template_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2148,7 +2166,7 @@ def register_routes(app):
         return render_template("motion_template_form.html", template=template)
 
     @app.route("/agency/tools/motions/templates/<int:template_id>/delete", methods=["POST"])
-    @agency_owner_required
+    @agency_motion_required
     def motion_template_delete(template_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2164,7 +2182,7 @@ def register_routes(app):
         return redirect(url_for("agency_motions"))
 
     @app.route("/agency/tools/motions/new", methods=["GET", "POST"])
-    @agency_owner_required
+    @agency_motion_required
     def motion_create():
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2189,7 +2207,7 @@ def register_routes(app):
         return render_motion_form_response(templates, lawyers, law_firms, references)
 
     @app.route("/agency/tools/motions/<int:motion_id>/edit", methods=["GET", "POST"])
-    @agency_owner_required
+    @agency_motion_required
     def motion_edit(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2210,7 +2228,7 @@ def register_routes(app):
         return render_motion_form_response(templates, lawyers, law_firms, references, motion=motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>")
-    @agency_owner_required
+    @agency_motion_required
     def motion_detail(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2220,7 +2238,7 @@ def register_routes(app):
         return render_template("motion_detail.html", motion=motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>/download")
-    @agency_owner_required
+    @agency_motion_required
     def motion_download(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2235,7 +2253,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/tools/motions/<int:motion_id>/pdf")
-    @agency_owner_required
+    @agency_motion_required
     def motion_pdf(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2245,7 +2263,7 @@ def register_routes(app):
         return motion_pdf_response(motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>/delete", methods=["POST"])
-    @agency_owner_required
+    @agency_motion_required
     def motion_delete(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
