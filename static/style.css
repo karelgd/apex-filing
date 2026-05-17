@@ -3290,8 +3290,8 @@ body {
 
 .visual-pdf-scroll {
   background: #eef4fb;
-  max-height: calc(100vh - 170px);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .visual-pdf-page {
