@@ -43,6 +43,50 @@
         {% endfor %}
       </select>
     </div>
+    {% if template and pdf_pages %}
+      <div class="col-12">
+        <div class="review-pdf-editor">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h2 class="h5 mb-1">Visual PDF review</h2>
+              <p class="text-secondary mb-0">Review client answers directly over the PDF. Agency-only text boxes can be completed here before generating.</p>
+            </div>
+            <span class="badge text-bg-primary">Editable preview</span>
+          </div>
+          <div class="review-pdf-pages">
+            {% for page in pdf_pages %}
+              <div class="visual-pdf-page review-pdf-page" data-page-number="{{ page.number }}" data-pdf-width="{{ page.width }}" data-pdf-height="{{ page.height }}">
+                <div class="visual-pdf-page-label">Page {{ page.number }}</div>
+                <img src="{{ url_for('case_review_pdf_page', case_id=case.id, page_number=page.number) }}" alt="PDF page {{ page.number }}">
+                {% for question in questions %}
+                  {% set answer = answers.get(question.id) %}
+                  {% for mapping in question_visual_mappings(question) %}
+                    {% if mapping.page == page.number %}
+                      {% set value = answer.answer_text if answer else '' %}
+                      {% if question.input_type == 'checkbox' %}
+                        <select class="review-pdf-input review-pdf-checkbox" name="question_{{ question.id }}" data-answer-key="question_{{ question.id }}" title="{{ question.prompt }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                          <option value=""></option>
+                          <option value="Yes" {% if value == 'Yes' %}selected{% endif %}>X</option>
+                          <option value="No" {% if value == 'No' %}selected{% endif %}>No</option>
+                        </select>
+                      {% else %}
+                        <input class="review-pdf-input" name="question_{{ question.id }}" data-answer-key="question_{{ question.id }}" value="{{ value }}" title="{{ question.prompt }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                      {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                {% endfor %}
+                {% for field in manual_fields %}
+                  {% if field.page_number == page.number %}
+                    {% set manual_value = manual_values.get(field.id) %}
+                    <input class="review-pdf-input review-pdf-manual-input" name="manual_field_{{ field.id }}" value="{{ manual_value.value_text if manual_value else '' }}" title="{{ field.label }}" placeholder="{{ field.label }}" style="left: {{ (field.x|float / page.width * 100)|round(4) }}%; top: {{ (field.y|float / page.height * 100)|round(4) }}%; width: {{ (field.width|float / page.width * 100)|round(4) }}%; height: {{ (field.height|float / page.height * 100)|round(4) }}%;">
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
     {% for question in questions %}
       {% set answer = answers.get(question.id) %}
       <div class="col-12 review-question">
@@ -54,15 +98,15 @@
           {% endif %}
         </label>
         {% if question.input_type == 'checkbox' %}
-          <select class="form-select" name="question_{{ question.id }}">
+          <select class="form-select" name="question_{{ question.id }}" data-answer-key="question_{{ question.id }}">
             <option value="">No answer</option>
             <option value="Yes" {% if answer and answer.answer_text == 'Yes' %}selected{% endif %}>Yes</option>
             <option value="No" {% if answer and answer.answer_text == 'No' %}selected{% endif %}>No</option>
           </select>
         {% elif question.input_type == 'textarea' %}
-          <textarea class="form-control" name="question_{{ question.id }}" rows="4">{{ answer.answer_text if answer else '' }}</textarea>
+          <textarea class="form-control" name="question_{{ question.id }}" rows="4" data-answer-key="question_{{ question.id }}">{{ answer.answer_text if answer else '' }}</textarea>
         {% else %}
-          <input class="form-control" type="{{ question.input_type }}" name="question_{{ question.id }}" value="{{ answer.answer_text if answer else '' }}">
+          <input class="form-control" type="{{ question.input_type }}" name="question_{{ question.id }}" value="{{ answer.answer_text if answer else '' }}" data-answer-key="question_{{ question.id }}">
         {% endif %}
       </div>
     {% else %}
@@ -87,4 +131,25 @@
     {% endfor %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll("[data-answer-key]").forEach((input) => {
+    input.addEventListener("input", () => {
+      document.querySelectorAll(`[data-answer-key="${input.dataset.answerKey}"]`).forEach((match) => {
+        if (match !== input) {
+          match.value = input.value;
+        }
+      });
+    });
+    input.addEventListener("change", () => {
+      document.querySelectorAll(`[data-answer-key="${input.dataset.answerKey}"]`).forEach((match) => {
+        if (match !== input) {
+          match.value = input.value;
+        }
+      });
+    });
+  });
+</script>
 {% endblock %}

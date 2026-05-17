@@ -64,6 +64,29 @@
         {% endfor %}
       </div>
     </div>
+    <div class="card mt-3">
+      <div class="card-header bg-white">
+        <div class="fw-semibold">PDF-only agency text boxes</div>
+        <div class="small text-secondary">These do not appear in the client questionnaire. Agencies fill them during PDF review.</div>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for field in manual_fields %}
+          <div class="list-group-item builder-manual-field-item" draggable="true" data-manual-field-id="{{ field.id }}">
+            <div class="builder-question-row">
+              <div class="builder-question-body">
+                <strong>{{ field.label }}</strong>
+                <div class="small text-secondary">Page {{ field.page_number }} - PDF-only text box</div>
+              </div>
+              <div class="builder-question-actions">
+                <span class="badge text-bg-secondary">Agency review</span>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="list-group-item text-secondary">No agency-only PDF text boxes yet.</div>
+        {% endfor %}
+      </div>
+    </div>
   </section>
 
   <section class="visual-builder-right">
@@ -93,6 +116,18 @@
                   {% endif %}
                 {% endfor %}
               {% endfor %}
+              {% for field in manual_fields %}
+                {% if field.page_number == page.number %}
+                  <div class="pdf-placement-marker pdf-manual-marker"
+                       data-manual-field-id="{{ field.id }}"
+                       title="Agency text box: {{ field.label }}"
+                       style="left: {{ (field.x|float / page.width * 100)|round(4) }}%; top: {{ (field.y|float / page.height * 100)|round(4) }}%; width: {{ (field.width|float / page.width * 100)|round(4) }}%; height: {{ (field.height|float / page.height * 100)|round(4) }}%;">
+                    <span>T</span>
+                    <button type="button" class="remove-pdf-placement" aria-label="Remove agency text box">x</button>
+                    <span class="pdf-placement-resize" aria-hidden="true"></span>
+                  </div>
+                {% endif %}
+              {% endfor %}
             </div>
           {% endfor %}
         {% else %}
@@ -114,6 +149,7 @@
         <input type="hidden" name="placement_y" id="question-placement-y">
         <input type="hidden" name="placement_width" id="question-placement-width">
         <input type="hidden" name="placement_height" id="question-placement-height">
+        <input type="hidden" name="manual_field_mode" id="manual-field-mode">
         <div class="modal-header">
           <div>
             <h2 class="modal-title h5" id="question-modal-title">Edit question</h2>
@@ -123,6 +159,10 @@
         </div>
         <div class="modal-body">
           <div class="mb-3 d-none" id="reuse-question-panel">
+            <label class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="manual-field-toggle">
+              <span class="form-check-label">This is only a PDF text box for agency review, not a client question</span>
+            </label>
             <label class="form-label">Reuse existing question, optional</label>
             <select class="form-select" id="reuse-question-select">
               <option value="">Create a new question here</option>
@@ -253,6 +293,8 @@
   const placementYInput = document.getElementById("question-placement-y");
   const placementWidthInput = document.getElementById("question-placement-width");
   const placementHeightInput = document.getElementById("question-placement-height");
+  const manualFieldModeInput = document.getElementById("manual-field-mode");
+  const manualFieldToggle = document.getElementById("manual-field-toggle");
   const questionForm = document.getElementById("question-form");
   const questionModalElement = document.getElementById("question-modal");
   const questionModal = questionModalElement ? new bootstrap.Modal(questionModalElement) : null;
@@ -298,6 +340,10 @@
     reuseQuestionPanel.classList.toggle("d-none", !visible);
     if (!visible && reuseQuestionSelect) {
       reuseQuestionSelect.value = "";
+    }
+    if (!visible && manualFieldToggle) {
+      manualFieldToggle.checked = false;
+      manualFieldModeInput.value = "";
     }
   }
 
@@ -364,6 +410,11 @@
     setReusePanelVisible(true);
     if (reuseQuestionSelect) {
       reuseQuestionSelect.value = "";
+      reuseQuestionSelect.disabled = false;
+    }
+    if (manualFieldToggle) {
+      manualFieldToggle.checked = false;
+      manualFieldModeInput.value = "";
     }
     loadQuestionIntoForm("", { placementMode: true });
     setPlacementValues(placement);
@@ -377,6 +428,23 @@
       preservePlacement: true
     });
     reuseQuestionSelect.value = questionIdInput.value || "";
+  });
+
+  manualFieldToggle?.addEventListener("change", () => {
+    const enabled = manualFieldToggle.checked;
+    manualFieldModeInput.value = enabled ? "1" : "";
+    if (reuseQuestionSelect) {
+      reuseQuestionSelect.disabled = enabled;
+      if (enabled) {
+        reuseQuestionSelect.value = "";
+        questionIdInput.value = "";
+      }
+    }
+    questionModalTitle.textContent = enabled ? "Add agency PDF text box" : "Add question placement";
+    questionModalHelp.textContent = enabled
+      ? "This creates a text box that agencies can fill during PDF review. It will not be asked to the client."
+      : "Create a new question for this PDF spot, or reuse an existing question so the same answer appears here too.";
+    promptInput.placeholder = enabled ? "Example: Officer notes, preparer certification, attorney-only field" : "";
   });
 
   const questionSortList = document.getElementById("question-sort-list");
@@ -455,8 +523,19 @@
     }
   });
 
+  document.querySelectorAll(".builder-manual-field-item").forEach((item) => {
+    item.addEventListener("dragstart", (event) => {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-manual-field-id", item.dataset.manualFieldId || "");
+    });
+  });
+
   function placementUrl(questionId) {
     return pdfScroll.dataset.placementUrlTemplate.replace("/0/visual-placement", `/${questionId}/visual-placement`);
+  }
+
+  function manualFieldPlacementUrl(fieldId) {
+    return pdfScroll.dataset.placementUrlTemplate.replace("/questions/0/visual-placement", `/manual-fields/${fieldId}/visual-placement`);
   }
 
   function defaultPlacementSize(questionId) {
@@ -538,6 +617,33 @@
     page.addEventListener("drop", async (event) => {
       event.preventDefault();
       page.classList.remove("is-drop-target");
+      const manualFieldId = event.dataTransfer.getData("application/x-manual-field-id");
+      if (manualFieldId) {
+        const point = pointToPdf(page, event.clientX, event.clientY);
+        const response = await fetch(manualFieldPlacementUrl(manualFieldId), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify({
+            page: Number(page.dataset.pageNumber),
+            x: point.x,
+            y: point.y,
+            width: 170,
+            height: 20
+          })
+        });
+        if (!response.ok) {
+          alert("The text box placement could not be saved.");
+          return;
+        }
+        if (pdfScroll) {
+          sessionStorage.setItem(pdfScrollKey, String(pdfScroll.scrollTop));
+        }
+        window.location.reload();
+        return;
+      }
       const questionId = event.dataTransfer.getData("text/plain");
       if (!questionId || !questionsById[questionId]) {
         return;
@@ -619,7 +725,23 @@
       marker.releasePointerCapture(event.pointerId);
       marker.classList.remove("is-adjusting");
       const questionId = marker.dataset.questionId;
+      const manualFieldId = marker.dataset.manualFieldId;
       const placement = markerPlacement(marker);
+      if (manualFieldId) {
+        dragState = null;
+        const response = await fetch(manualFieldPlacementUrl(manualFieldId), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify(placement)
+        });
+        if (!response.ok) {
+          alert("The text box placement could not be saved.");
+        }
+        return;
+      }
       if (marker.dataset.placementId) {
         placement.placement_id = marker.dataset.placementId;
       }
@@ -635,6 +757,22 @@
   document.querySelectorAll(".remove-pdf-placement").forEach((button) => {
     button.addEventListener("click", async () => {
       const marker = button.closest(".pdf-placement-marker");
+      const manualFieldId = marker?.dataset.manualFieldId;
+      if (manualFieldId) {
+        if (!confirm("Remove this agency-only PDF text box?")) {
+          return;
+        }
+        const response = await fetch(manualFieldPlacementUrl(manualFieldId), {
+          method: "DELETE",
+          headers: { "X-CSRFToken": csrfToken }
+        });
+        if (!response.ok) {
+          alert("The text box could not be removed.");
+          return;
+        }
+        marker.remove();
+        return;
+      }
       const questionId = marker?.dataset.questionId;
       if (!questionId || !confirm("Remove this question from the PDF page? The question itself will stay in the questionnaire.")) {
         return;

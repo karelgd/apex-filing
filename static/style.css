@@ -3349,6 +3349,15 @@ body {
   z-index: 6;
 }
 
+.pdf-manual-marker {
+  background: rgba(20, 184, 166, .2);
+  border-color: #14b8a6;
+}
+
+.pdf-manual-marker > span {
+  background: #14b8a6;
+}
+
 .pdf-placement-marker.is-adjusting {
   background: rgba(45, 199, 185, .24);
   border-color: #10b9b0;
@@ -3419,6 +3428,57 @@ body {
 
 .builder-question-item.is-dragging {
   opacity: .52;
+}
+
+.review-pdf-editor {
+  background: #f8fbff;
+  border: 1px solid #dbe9fb;
+  border-radius: 18px;
+  padding: 1rem;
+}
+
+.review-pdf-pages {
+  display: grid;
+  gap: 1.25rem;
+  justify-items: center;
+  max-height: 760px;
+  overflow-y: auto;
+  padding: .35rem;
+}
+
+.review-pdf-page {
+  box-shadow: 0 14px 36px rgba(16, 42, 82, .14);
+  margin: 0;
+}
+
+.review-pdf-input {
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(29, 118, 255, .65);
+  border-radius: 3px;
+  color: #07142f;
+  font-size: 9px;
+  line-height: 1;
+  min-height: 12px;
+  padding: 1px 3px;
+  position: absolute;
+  z-index: 4;
+}
+
+.review-pdf-input:focus {
+  background: #ffffff;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, .2);
+  outline: none;
+}
+
+.review-pdf-checkbox {
+  padding: 0;
+  text-align: center;
+}
+
+.review-pdf-manual-input {
+  background: rgba(240, 253, 250, .78);
+  border-color: rgba(20, 184, 166, .9);
 }
 
 @media (max-width: 1180px) {

@@ -478,6 +478,22 @@ class PdfQuestionPlacement(db.Model):
     question = db.relationship("CaseQuestion", back_populates="placements")
 
 
+class PdfManualField(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey("form_template.id"), nullable=False)
+    label = db.Column(db.String(180), nullable=False)
+    render_mode = db.Column(db.String(30), default="normal", nullable=False)
+    render_box_count = db.Column(db.Integer, default=0, nullable=False)
+    page_number = db.Column(db.Integer, nullable=False)
+    x = db.Column(db.Numeric(10, 2), nullable=False)
+    y = db.Column(db.Numeric(10, 2), nullable=False)
+    width = db.Column(db.Numeric(10, 2), nullable=False, default=120)
+    height = db.Column(db.Numeric(10, 2), nullable=False, default=18)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    template = db.relationship("FormTemplate")
+
+
 class CaseAnswer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     case_id = db.Column(db.Integer, db.ForeignKey("case.id"), nullable=False)
@@ -489,6 +505,19 @@ class CaseAnswer(db.Model):
     question = db.relationship("CaseQuestion")
 
     __table_args__ = (db.UniqueConstraint("case_id", "question_id", name="uq_case_answer_question"),)
+
+
+class CasePdfManualValue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.Integer, db.ForeignKey("case.id"), nullable=False)
+    manual_field_id = db.Column(db.Integer, db.ForeignKey("pdf_manual_field.id"), nullable=False)
+    value_text = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    case = db.relationship("Case")
+    manual_field = db.relationship("PdfManualField")
+
+    __table_args__ = (db.UniqueConstraint("case_id", "manual_field_id", name="uq_case_manual_pdf_value"),)
 
 
 class AgencyDocument(db.Model):

@@ -46,6 +46,7 @@ from models import (
     Case,
     CaseAnswer,
     CaseDocument,
+    CasePdfManualValue,
     CaseQuestion,
     Client,
     CrmAppointment,
@@ -68,6 +69,7 @@ from models import (
     MotionTemplate,
     OplaOffice,
     PdfField,
+    PdfManualField,
     PdfQuestionPlacement,
     SubscriptionTool,
     db,
@@ -435,6 +437,17 @@ def question_visual_mappings(question):
     return mappings
 
 
+def manual_field_visual_mapping(field):
+    return {
+        "id": field.id,
+        "page": field.page_number,
+        "x": float(field.x or 0),
+        "y": float(field.y or 0),
+        "width": float(field.width or 120),
+        "height": float(field.height or 18),
+    }
+
+
 def apply_visual_placement(question, page_number, x, y, width, height, placement=None):
     placement = placement or PdfQuestionPlacement(question=question)
     placement.page_number = page_number
@@ -449,6 +462,15 @@ def apply_visual_placement(question, page_number, x, y, width, height, placement
     question.pdf_width = None
     question.pdf_height = None
     return placement
+
+
+def apply_manual_field_placement(field, page_number, x, y, width, height):
+    field.page_number = page_number
+    field.x = x
+    field.y = y
+    field.width = width
+    field.height = height
+    return field
 
 
 def visual_placement_from_request(template, payload):
@@ -1093,6 +1115,16 @@ def assign_case_people_from_form(case):
         abort(403)
     if case.preparer_id and not AgencyPreparer.query.filter_by(id=case.preparer_id, agency_id=case.agency_id).first():
         abort(403)
+
+
+def save_case_manual_pdf_values(case, manual_fields, existing_values):
+    for field in manual_fields:
+        form_key = f"manual_field_{field.id}"
+        if form_key not in request.form:
+            continue
+        value = existing_values.get(field.id) or CasePdfManualValue(case_id=case.id, manual_field_id=field.id)
+        value.value_text = request.form.get(form_key, "").strip()
+        db.session.add(value)
 
 
 def update_case_progress(case):
@@ -1967,6 +1999,36 @@ def register_routes(app):
         template = db.session.get(FormTemplate, template_id) or abort(404)
         questions = CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order).all()
         if request.method == "POST":
+            if request.form.get("manual_field_mode"):
+                if not request.form.get("placement_page"):
+                    flash("Right-click the PDF where this agency text box should appear.", "warning")
+                    return redirect(url_for("apex_form_builder", template_id=template.id))
+                placement_payload = {
+                    "page": request.form.get("placement_page"),
+                    "x": request.form.get("placement_x"),
+                    "y": request.form.get("placement_y"),
+                    "width": request.form.get("placement_width"),
+                    "height": request.form.get("placement_height"),
+                }
+                placement = visual_placement_from_request(template, placement_payload)
+                manual_field = PdfManualField(
+                    template_id=template.id,
+                    label=request.form.get("prompt", "").strip() or "Agency PDF text box",
+                    render_mode=request.form.get("render_mode") or "normal",
+                    page_number=placement["page_number"],
+                    x=placement["x"],
+                    y=placement["y"],
+                    width=placement["width"],
+                    height=placement["height"],
+                )
+                try:
+                    manual_field.render_box_count = max(0, int(request.form.get("render_box_count") or 0))
+                except ValueError:
+                    manual_field.render_box_count = 0
+                db.session.add(manual_field)
+                db.session.commit()
+                flash("Agency-only PDF text box added.", "success")
+                return redirect(url_for("apex_form_builder", template_id=template.id))
             question_id = request.form.get("question_id")
             question = db.session.get(CaseQuestion, int(question_id)) if question_id else CaseQuestion(case_type=template.code)
             question.prompt = request.form["prompt"].strip()
@@ -2023,6 +2085,7 @@ def register_routes(app):
             "apex_form_builder.html",
             template=template,
             questions=questions,
+            manual_fields=PdfManualField.query.filter_by(template_id=template.id).order_by(PdfManualField.page_number, PdfManualField.y, PdfManualField.x).all(),
             pdf_fields=pdf_fields,
             pdf_field_options=pdf_field_options,
             pdf_pages=template_pdf_pages(template),
@@ -2094,6 +2157,30 @@ def register_routes(app):
         )
         db.session.commit()
         return {"status": "ok", "mappings": question_visual_mappings(question)}
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/manual-fields/<int:field_id>/visual-placement", methods=["POST", "DELETE"])
+    @role_required("apex")
+    def apex_form_manual_field_visual_placement(template_id, field_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        field = db.session.get(PdfManualField, field_id) or abort(404)
+        if field.template_id != template.id:
+            abort(404)
+        if request.method == "DELETE":
+            CasePdfManualValue.query.filter_by(manual_field_id=field.id).delete(synchronize_session=False)
+            db.session.delete(field)
+            db.session.commit()
+            return {"status": "ok"}
+        placement_values = visual_placement_from_request(template, request.get_json(silent=True) or {})
+        apply_manual_field_placement(
+            field,
+            placement_values["page_number"],
+            placement_values["x"],
+            placement_values["y"],
+            placement_values["width"],
+            placement_values["height"],
+        )
+        db.session.commit()
+        return {"status": "ok", "mapping": manual_field_visual_mapping(field)}
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/<int:question_id>/delete", methods=["POST"])
     @role_required("apex")
@@ -3416,11 +3503,15 @@ def register_routes(app):
         case = query_case_for_role(case_id)
         questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
         answers = {answer.question_id: answer for answer in case.answers}
+        template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
+        manual_fields = PdfManualField.query.filter_by(template_id=template.id).order_by(PdfManualField.page_number, PdfManualField.y, PdfManualField.x).all() if template else []
+        manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
         if request.method == "POST":
             for question in questions:
                 answer = answers.get(question.id) or CaseAnswer(case_id=case.id, question_id=question.id)
                 answer.answer_text = request.form.get(f"question_{question.id}", "").strip()
                 db.session.add(answer)
+            save_case_manual_pdf_values(case, manual_fields, manual_values)
             case.status = request.form.get("status", case.status)
             assign_case_people_from_form(case)
             update_case_progress(case)
@@ -3432,9 +3523,38 @@ def register_routes(app):
             case=case,
             questions=questions,
             answers=answers,
+            template=template,
+            pdf_pages=template_pdf_pages(template) if template else [],
+            manual_fields=manual_fields,
+            manual_values=manual_values,
             translators=AgencyTranslator.query.filter_by(agency_id=case.agency_id).order_by(AgencyTranslator.full_name).all(),
             preparers=AgencyPreparer.query.filter_by(agency_id=case.agency_id).order_by(AgencyPreparer.full_name).all(),
         )
+
+    @app.route("/cases/<int:case_id>/review/pdf-page/<int:page_number>.png")
+    @role_required("apex", "agency")
+    def case_review_pdf_page(case_id, page_number):
+        case = query_case_for_role(case_id)
+        template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first() or abort(404)
+        pdf_path = template_pdf_path(template)
+        if not pdf_path or not os.path.exists(pdf_path):
+            abort(404)
+        try:
+            import fitz
+        except ImportError:
+            abort(500)
+        document = None
+        try:
+            document = fitz.open(pdf_path)
+            if page_number < 1 or page_number > document.page_count:
+                abort(404)
+            page = document.load_page(page_number - 1)
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(1.6, 1.6), alpha=False)
+            data = pixmap.tobytes("png")
+        finally:
+            if document:
+                document.close()
+        return send_file(BytesIO(data), mimetype="image/png", download_name=f"{template.code}-review-page-{page_number}.png")
 
     @app.route("/cases/<int:case_id>/generate", methods=["POST"])
     @role_required("apex", "agency")
@@ -3447,12 +3567,16 @@ def register_routes(app):
             return redirect(url_for("case_review", case_id=case.id))
         questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
         answers = {answer.question_id: answer for answer in case.answers}
+        template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
+        manual_fields = PdfManualField.query.filter_by(template_id=template.id).all() if template else []
+        manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
         for question in questions:
             form_key = f"question_{question.id}"
             if form_key in request.form:
                 answer = answers.get(question.id) or CaseAnswer(case_id=case.id, question_id=question.id)
                 answer.answer_text = request.form.get(form_key, "").strip()
                 db.session.add(answer)
+        save_case_manual_pdf_values(case, manual_fields, manual_values)
         assign_case_people_from_form(case)
         update_case_progress(case)
         if case.progress_percentage < 100:
@@ -4012,7 +4136,9 @@ def fill_pdf_with_visual_mappings(case, template):
     answers = {answer.question_id: answer.answer_text or "" for answer in case.answers}
     questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
     mapped_questions = [question for question in questions if question_visual_mappings(question)]
-    if not mapped_questions:
+    manual_fields = PdfManualField.query.filter_by(template_id=template.id).all()
+    manual_values = {value.manual_field_id: value.value_text or "" for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
+    if not mapped_questions and not manual_fields:
         return None
     folder = f"cases/{case.id}/generated"
     os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
@@ -4045,6 +4171,25 @@ def fill_pdf_with_visual_mappings(case, template):
                 else:
                     page.insert_textbox(rect, answer_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
                 placed_count += 1
+        for field in manual_fields:
+            value_text = (manual_values.get(field.id) or "").strip()
+            if not value_text:
+                continue
+            page_index = (field.page_number or 1) - 1
+            if page_index < 0 or page_index >= document.page_count:
+                continue
+            page = document.load_page(page_index)
+            rect = fitz.Rect(
+                float(field.x or 0),
+                float(field.y or 0),
+                float(field.x or 0) + float(field.width or 120),
+                float(field.y or 0) + float(field.height or 16),
+            )
+            if field.render_mode == "split_boxes":
+                overlay_split_box_text_on_rect(page, rect, value_text, field.render_box_count)
+            else:
+                page.insert_textbox(rect, value_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+            placed_count += 1
         if not placed_count:
             document.close()
             return None
