@@ -117,11 +117,21 @@
         <div class="modal-header">
           <div>
             <h2 class="modal-title h5" id="question-modal-title">Edit question</h2>
-            <p class="text-secondary small mb-0">Update how this question appears to the client and where it maps in the generated PDF.</p>
+            <p class="text-secondary small mb-0" id="question-modal-help">Update how this question appears to the client and where it maps in the generated PDF.</p>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
+          <div class="mb-3 d-none" id="reuse-question-panel">
+            <label class="form-label">Reuse existing question, optional</label>
+            <select class="form-select" id="reuse-question-select">
+              <option value="">Create a new question here</option>
+              {% for question in questions %}
+                <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Use this when the same answer should appear in more than one place, such as an A-number repeated on each page.</div>
+          </div>
           <div class="mb-3">
             <label class="form-label">Question text</label>
             <textarea class="form-control" name="prompt" id="question-prompt" rows="3" required></textarea>
@@ -247,6 +257,9 @@
   const questionModalElement = document.getElementById("question-modal");
   const questionModal = questionModalElement ? new bootstrap.Modal(questionModalElement) : null;
   const questionModalTitle = document.getElementById("question-modal-title");
+  const questionModalHelp = document.getElementById("question-modal-help");
+  const reuseQuestionPanel = document.getElementById("reuse-question-panel");
+  const reuseQuestionSelect = document.getElementById("reuse-question-select");
   const pdfScroll = document.querySelector(".visual-pdf-scroll");
   const pdfScrollKey = "apex-form-builder-pdf-scroll-{{ template.id }}";
 
@@ -260,16 +273,48 @@
     }
   }
 
-  function loadQuestionIntoForm(questionId) {
+  function currentPlacementValues() {
+    return {
+      page: placementPageInput.value,
+      x: placementXInput.value,
+      y: placementYInput.value,
+      width: placementWidthInput.value,
+      height: placementHeightInput.value
+    };
+  }
+
+  function setPlacementValues(placement) {
+    placementPageInput.value = placement?.page || "";
+    placementXInput.value = placement?.x || "";
+    placementYInput.value = placement?.y || "";
+    placementWidthInput.value = placement?.width || "";
+    placementHeightInput.value = placement?.height || "";
+  }
+
+  function setReusePanelVisible(visible) {
+    if (!reuseQuestionPanel) {
+      return;
+    }
+    reuseQuestionPanel.classList.toggle("d-none", !visible);
+    if (!visible && reuseQuestionSelect) {
+      reuseQuestionSelect.value = "";
+    }
+  }
+
+  function loadQuestionIntoForm(questionId, options = {}) {
+    const placement = options.preservePlacement ? currentPlacementValues() : null;
     questionIdInput.value = questionId || "";
-    placementPageInput.value = "";
-    placementXInput.value = "";
-    placementYInput.value = "";
-    placementWidthInput.value = "";
-    placementHeightInput.value = "";
+    if (placement) {
+      setPlacementValues(placement);
+    } else {
+      setPlacementValues(null);
+    }
     const question = questionsById[questionId];
     if (!question) {
-      questionModalTitle.textContent = "Add question";
+      questionModalTitle.textContent = options.placementMode ? "Add question placement" : "Add question";
+      questionModalHelp.textContent = options.placementMode
+        ? "Create a new question for this PDF spot, or reuse an existing question so the same answer appears here too."
+        : "Create a question that can later be placed on the PDF.";
       promptInput.value = "";
       fieldInput.value = "";
       inputTypeSelect.value = "text";
@@ -283,7 +328,10 @@
       showIfValueInput.value = "";
       return;
     }
-    questionModalTitle.textContent = "Edit question";
+    questionModalTitle.textContent = options.placementMode ? "Reuse question placement" : "Edit question";
+    questionModalHelp.textContent = options.placementMode
+      ? "This will place the selected existing question at the PDF spot you clicked. Any text edits here update that question everywhere it is used."
+      : "Update how this question appears to the client and where it maps in the generated PDF.";
     promptInput.value = question.prompt || "";
     fieldInput.value = question.fieldKey || "";
     inputTypeSelect.value = question.inputType || "text";
@@ -298,12 +346,14 @@
   }
 
   document.getElementById("add-question-button")?.addEventListener("click", () => {
+    setReusePanelVisible(false);
     loadQuestionIntoForm("");
     questionModal?.show();
     questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
   });
   document.querySelectorAll(".edit-question").forEach((button) => {
     button.addEventListener("click", () => {
+      setReusePanelVisible(false);
       loadQuestionIntoForm(button.dataset.questionId);
       questionModal?.show();
       questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
@@ -311,15 +361,23 @@
   });
 
   function openNewQuestionAtPlacement(placement) {
-    loadQuestionIntoForm("");
-    placementPageInput.value = placement.page;
-    placementXInput.value = placement.x;
-    placementYInput.value = placement.y;
-    placementWidthInput.value = placement.width;
-    placementHeightInput.value = placement.height;
+    setReusePanelVisible(true);
+    if (reuseQuestionSelect) {
+      reuseQuestionSelect.value = "";
+    }
+    loadQuestionIntoForm("", { placementMode: true });
+    setPlacementValues(placement);
     questionModal?.show();
     questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
   }
+
+  reuseQuestionSelect?.addEventListener("change", () => {
+    loadQuestionIntoForm(reuseQuestionSelect.value, {
+      placementMode: true,
+      preservePlacement: true
+    });
+    reuseQuestionSelect.value = questionIdInput.value || "";
+  });
 
   const questionSortList = document.getElementById("question-sort-list");
   const csrfToken = document.querySelector("#question-bulk-actions input[name='csrf_token']")?.value || "";
