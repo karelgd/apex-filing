@@ -268,7 +268,18 @@
   const placementModal = placementModalElement ? new bootstrap.Modal(placementModalElement) : null;
   const placementForm = document.getElementById("placement-form");
   const placementQuestionSelect = document.getElementById("placement-question-id");
+  const pdfScrollKey = "apex-form-builder-pdf-scroll-{{ template.id }}";
   let pendingPlacement = null;
+
+  if (pdfScroll) {
+    const savedPdfScroll = sessionStorage.getItem(pdfScrollKey);
+    if (savedPdfScroll !== null) {
+      requestAnimationFrame(() => {
+        pdfScroll.scrollTop = Number(savedPdfScroll) || 0;
+        sessionStorage.removeItem(pdfScrollKey);
+      });
+    }
+  }
 
   function loadQuestionIntoForm(questionId) {
     questionIdInput.value = questionId || "";
@@ -440,6 +451,9 @@
       return false;
     }
     if (reloadOnSuccess) {
+      if (pdfScroll) {
+        sessionStorage.setItem(pdfScrollKey, String(pdfScroll.scrollTop));
+      }
       window.location.reload();
     }
     return true;
