@@ -3284,11 +3284,6 @@ body {
   min-width: 0;
 }
 
-.visual-question-form {
-  position: relative;
-  z-index: 1;
-}
-
 .visual-pdf-card {
   overflow: hidden;
 }
@@ -3381,9 +3376,6 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .visual-question-form {
-    position: static;
-  }
 }
 
 h1,

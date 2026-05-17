@@ -15,106 +15,20 @@
 
 <div class="visual-builder-grid">
   <section class="visual-builder-left">
-    <form method="post" class="card card-body visual-question-form" id="question-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <h2 class="h5 mb-3">Add or update question</h2>
-      <div class="mb-3">
-        <label class="form-label">Existing question to update</label>
-        <select class="form-select" name="question_id" id="question-select">
-          <option value="">Create new question</option>
-          {% for question in questions %}
-            <option value="{{ question.id }}" data-prompt="{{ question.prompt }}">{{ question.sort_order }}. {{ question.prompt }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Question text</label>
-        <textarea class="form-control" name="prompt" id="question-prompt" rows="3" required></textarea>
-      </div>
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label">Answer type</label>
-          <select class="form-select" name="input_type" id="question-input-type">
-            <option value="text">Text</option>
-            <option value="textarea">Long answer</option>
-            <option value="date">Date</option>
-            <option value="number">Number</option>
-            <option value="checkbox">Checkbox</option>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Order</label>
-          <input class="form-control" type="number" name="sort_order" id="question-sort-order" min="1" value="{{ questions|length + 1 }}">
-        </div>
-      </div>
-      <div class="mb-3 mt-3">
-        <label class="form-label">Mapped PDF field / internal key</label>
-        <input class="form-control" name="field_key" id="question-field-key" list="pdf-fields" required>
-        <datalist id="pdf-fields">
-          {% for field in pdf_field_options %}
-            <option value="{{ field.name }}">{{ field.label }}</option>
-          {% endfor %}
-        </datalist>
-        <div class="form-text">For visual mapping, this can be a readable internal key. Drag the question onto the PDF to set exact placement.</div>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">PDF answer rendering</label>
-        <select class="form-select" name="render_mode" id="question-render-mode">
-          <option value="normal">Normal text</option>
-          <option value="split_boxes">Separate characters into boxes</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Number of boxes, optional</label>
-        <input class="form-control" type="number" name="render_box_count" id="question-render-box-count" min="0" value="0">
-      </div>
-      <label class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" name="required" id="question-required" checked>
-        <span class="form-check-label">Required when visible</span>
-      </label>
-      <label class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" name="client_visible" id="question-client-visible" checked>
-        <span class="form-check-label">Send to client questionnaire</span>
-      </label>
-      <div class="conditional-box">
-        <h3 class="h6">Show only if</h3>
-        <div class="mb-2">
-          <select class="form-select" name="show_if_question_id" id="question-show-if-id">
-            <option value="">Always show</option>
-            {% for question in questions %}
-              <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="row g-2">
-          <div class="col-md-5">
-            <select class="form-select" name="show_if_operator" id="question-show-if-operator">
-              <option value="equals">equals</option>
-              <option value="not_equals">does not equal</option>
-              <option value="contains">contains</option>
-            </select>
-          </div>
-          <div class="col-md-7">
-            <input class="form-control" name="show_if_value" id="question-show-if-value" placeholder="Yes">
-          </div>
-        </div>
-      </div>
-      <button class="btn btn-primary mt-3">Save question</button>
-    </form>
-
-    <div class="card mt-3">
+    <div class="card">
       <form id="question-bulk-actions" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       </form>
       <div class="card-header bg-white d-flex justify-content-between align-items-center gap-3 flex-wrap">
         <span class="fw-semibold">Questions</span>
-        {% if questions %}
-          <div class="d-flex gap-2 flex-wrap">
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-sm btn-primary" type="button" id="add-question-button">Add Question</button>
+          {% if questions %}
             <button class="btn btn-sm btn-outline-primary" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_client_visibility', template_id=template.id) }}" name="visibility_action" value="show">Show to Client</button>
             <button class="btn btn-sm btn-outline-secondary" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_client_visibility', template_id=template.id) }}" name="visibility_action" value="hide">Agency Only</button>
             <button class="btn btn-sm btn-outline-danger" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_bulk_delete', template_id=template.id) }}" onclick="return confirm('Delete all marked questions? They will not be shown to clients or included in generated PDFs.')">Delete Marked</button>
-          </div>
-        {% endif %}
+          {% endif %}
+        </div>
       </div>
       <div class="list-group list-group-flush" id="question-sort-list" data-reorder-url="{{ url_for('apex_form_questions_reorder', template_id=template.id) }}">
         {% for question in questions %}
@@ -184,6 +98,102 @@
     </div>
   </section>
 </div>
+
+<div class="modal fade" id="question-modal" tabindex="-1" aria-labelledby="question-modal-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <form method="post" id="question-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="question_id" id="question-id">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h5" id="question-modal-title">Edit question</h2>
+            <p class="text-secondary small mb-0">Update how this question appears to the client and where it maps in the generated PDF.</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Question text</label>
+            <textarea class="form-control" name="prompt" id="question-prompt" rows="3" required></textarea>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Answer type</label>
+              <select class="form-select" name="input_type" id="question-input-type">
+                <option value="text">Text</option>
+                <option value="textarea">Long answer</option>
+                <option value="date">Date</option>
+                <option value="number">Number</option>
+                <option value="checkbox">Checkbox</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Order</label>
+              <input class="form-control" type="number" name="sort_order" id="question-sort-order" min="1" value="{{ questions|length + 1 }}">
+            </div>
+          </div>
+          <div class="mb-3 mt-3">
+            <label class="form-label">Mapped PDF field / internal key</label>
+            <input class="form-control" name="field_key" id="question-field-key" list="pdf-fields" required>
+            <datalist id="pdf-fields">
+              {% for field in pdf_field_options %}
+                <option value="{{ field.name }}">{{ field.label }}</option>
+              {% endfor %}
+            </datalist>
+            <div class="form-text">For visual mapping, this can be a readable internal key. Drag the question onto the PDF to set exact placement.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">PDF answer rendering</label>
+            <select class="form-select" name="render_mode" id="question-render-mode">
+              <option value="normal">Normal text</option>
+              <option value="split_boxes">Separate characters into boxes</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Number of boxes, optional</label>
+            <input class="form-control" type="number" name="render_box_count" id="question-render-box-count" min="0" value="0">
+          </div>
+          <label class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="required" id="question-required" checked>
+            <span class="form-check-label">Required when visible</span>
+          </label>
+          <label class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="client_visible" id="question-client-visible" checked>
+            <span class="form-check-label">Send to client questionnaire</span>
+          </label>
+          <div class="conditional-box">
+            <h3 class="h6">Show only if</h3>
+            <div class="mb-2">
+              <select class="form-select" name="show_if_question_id" id="question-show-if-id">
+                <option value="">Always show</option>
+                {% for question in questions %}
+                  <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-5">
+                <select class="form-select" name="show_if_operator" id="question-show-if-operator">
+                  <option value="equals">equals</option>
+                  <option value="not_equals">does not equal</option>
+                  <option value="contains">contains</option>
+                </select>
+              </div>
+              <div class="col-md-7">
+                <input class="form-control" name="show_if_value" id="question-show-if-value" placeholder="Yes">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary">Save question</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -206,7 +216,7 @@
     {% endfor %}
   };
 
-  const questionSelect = document.getElementById("question-select");
+  const questionIdInput = document.getElementById("question-id");
   const promptInput = document.getElementById("question-prompt");
   const fieldInput = document.getElementById("question-field-key");
   const inputTypeSelect = document.getElementById("question-input-type");
@@ -219,11 +229,15 @@
   const showIfOperatorSelect = document.getElementById("question-show-if-operator");
   const showIfValueInput = document.getElementById("question-show-if-value");
   const questionForm = document.getElementById("question-form");
+  const questionModalElement = document.getElementById("question-modal");
+  const questionModal = questionModalElement ? new bootstrap.Modal(questionModalElement) : null;
+  const questionModalTitle = document.getElementById("question-modal-title");
 
   function loadQuestionIntoForm(questionId) {
-    questionSelect.value = questionId || "";
+    questionIdInput.value = questionId || "";
     const question = questionsById[questionId];
     if (!question) {
+      questionModalTitle.textContent = "Add question";
       promptInput.value = "";
       fieldInput.value = "";
       inputTypeSelect.value = "text";
@@ -237,6 +251,7 @@
       showIfValueInput.value = "";
       return;
     }
+    questionModalTitle.textContent = "Edit question";
     promptInput.value = question.prompt || "";
     fieldInput.value = question.fieldKey || "";
     inputTypeSelect.value = question.inputType || "text";
@@ -250,12 +265,16 @@
     showIfValueInput.value = question.showIfValue || "";
   }
 
-  questionSelect?.addEventListener("change", () => loadQuestionIntoForm(questionSelect.value));
+  document.getElementById("add-question-button")?.addEventListener("click", () => {
+    loadQuestionIntoForm("");
+    questionModal?.show();
+    questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
+  });
   document.querySelectorAll(".edit-question").forEach((button) => {
     button.addEventListener("click", () => {
       loadQuestionIntoForm(button.dataset.questionId);
-      questionForm?.scrollIntoView({ behavior: "smooth", block: "start" });
-      promptInput?.focus();
+      questionModal?.show();
+      questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
     });
   });
 
@@ -273,10 +292,6 @@
       const number = item.querySelector(".question-order-number");
       if (number) {
         number.textContent = index + 1;
-      }
-      const option = questionSelect?.querySelector(`option[value="${item.dataset.questionId}"]`);
-      if (option) {
-        option.textContent = `${index + 1}. ${option.dataset.prompt || ""}`;
       }
     });
   }
