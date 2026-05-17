@@ -44,7 +44,11 @@
       <div>
         <label class="form-label">Type</label>
         <select class="form-select" name="activity_type">
-          {% for type in ['Payment', 'Discount', 'Refund'] %}<option value="{{ type }}">{{ type }}</option>{% endfor %}
+          {% for type in ['Payment', 'Discount', 'Refund'] %}
+            {% if type != 'Refund' or is_agency_owner() %}
+              <option value="{{ type }}">{{ type }}</option>
+            {% endif %}
+          {% endfor %}
         </select>
       </div>
       <div>
@@ -71,13 +75,15 @@
       {% for activity in invoice.activities %}
         <div class="crm-record">
           <div><strong>{{ activity.activity_type }} - ${{ '%.2f'|format(activity.amount or 0) }}</strong><small>{{ activity.activity_date.strftime('%b %d, %Y') }}{% if activity.description %} &middot; {{ activity.description }}{% endif %}</small></div>
-          <div class="crm-row-actions">
-            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_invoice_activity_edit', activity_id=activity.id) }}">Edit</a>
-            <form method="post" action="{{ url_for('crm_invoice_activity_delete', activity_id=activity.id) }}" onsubmit="return confirm('Delete this invoice activity?')">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn btn-sm btn-outline-danger">Delete</button>
-            </form>
-          </div>
+          {% if is_agency_owner() %}
+            <div class="crm-row-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_invoice_activity_edit', activity_id=activity.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('crm_invoice_activity_delete', activity_id=activity.id) }}" onsubmit="return confirm('Delete this invoice activity?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </div>
+          {% endif %}
         </div>
       {% else %}
         <p class="text-secondary mb-0">No invoice activity yet.</p>

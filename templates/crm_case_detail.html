@@ -91,10 +91,12 @@
         </div>
         <div class="crm-row-actions">
           <a class="btn btn-sm btn-primary" href="{{ url_for('case_review', case_id=case.form_filler_case.id) }}">Review Answers</a>
-          <form method="post" action="{{ url_for('generate_form', case_id=case.form_filler_case.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm btn-success">Generate PDF</button>
-          </form>
+          {% if can_generate_forms_for_current_user() %}
+            <form method="post" action="{{ url_for('generate_form', case_id=case.form_filler_case.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-success">Generate PDF</button>
+            </form>
+          {% endif %}
         </div>
       </div>
     {% else %}

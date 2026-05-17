@@ -33,6 +33,22 @@
         <label class="form-label">Address</label>
         <textarea class="form-control" name="address" rows="3"></textarea>
       </div>
+      {% if person_type in ['preparer', 'case_manager'] %}
+        <hr>
+        <h3 class="h6 mb-3">Login account</h3>
+        <p class="text-secondary small">Optional. If filled, this person can sign in through Agency Login.</p>
+        <div class="mb-3">
+          <label class="form-label">Username</label>
+          <input class="form-control" name="username" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <div class="input-group password-group">
+            <input class="form-control" type="password" name="password" autocomplete="new-password">
+            <button class="btn btn-outline-secondary password-toggle" type="button" aria-label="Show password" data-show-label="Show" data-hide-label="Hide">Show</button>
+          </div>
+        </div>
+      {% endif %}
       <button class="btn btn-primary">Save</button>
     </form>
   </div>
@@ -47,6 +63,7 @@
                 <strong>{{ person.full_name }}</strong>
                 <div class="text-secondary small">
                   {% if person_type == 'translator' %}{{ person.language }}{% else %}{{ person_label|title }}{% endif %}
+                  {% if person_type in ['preparer', 'case_manager'] and person.username %} &middot; Login: {{ person.username }}{% endif %}
                   {% if person.email %} &middot; {{ person.email }}{% endif %}
                   {% if person.phone %} &middot; {{ person.phone }}{% endif %}
                 </div>

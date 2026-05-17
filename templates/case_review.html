@@ -71,7 +71,9 @@
   </div>
   <div class="mt-4">
     <button class="btn btn-primary">Save review edits</button>
-    <button class="btn btn-success" formaction="{{ url_for('generate_form', case_id=case.id) }}" {% if not case.agency.has_tool('Form Filler') %}disabled{% endif %}>Generate Form</button>
+    {% if can_generate_forms_for_current_user() %}
+      <button class="btn btn-success" formaction="{{ url_for('generate_form', case_id=case.id) }}" {% if not case.agency.has_tool('Form Filler') %}disabled{% endif %}>Generate Form</button>
+    {% endif %}
     <a class="btn btn-outline-secondary" href="{{ url_for('case_list') }}">Back to cases</a>
   </div>
 </form>

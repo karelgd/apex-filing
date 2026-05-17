@@ -4,6 +4,7 @@ import importlib.util
 import json
 import re
 import uuid
+from functools import wraps
 from io import BytesIO
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -125,6 +126,10 @@ def create_app():
             return db.session.get(ApexUser, user_id)
         if role == "agency":
             return db.session.get(AgencyUser, user_id)
+        if role == "agency_preparer":
+            return db.session.get(AgencyPreparer, user_id)
+        if role == "agency_case_manager":
+            return db.session.get(AgencyCaseManager, user_id)
         if role == "client":
             return db.session.get(Client, user_id)
         return None
@@ -149,6 +154,9 @@ def create_app():
             "crm_case_services": CRM_CASE_SERVICES,
             "subscription_tools": SUBSCRIPTION_TOOLS,
             "states": US_STATES,
+            "is_agency_owner": is_agency_owner,
+            "is_agency_staff": is_agency_staff,
+            "can_generate_forms_for_current_user": can_generate_forms_for_current_user,
         }
 
     register_routes(app)
@@ -168,6 +176,33 @@ def role_required(*roles):
         return login_required(wrapped)
 
     return decorator
+
+
+def is_agency_owner():
+    return current_user.is_authenticated and isinstance(current_user, AgencyUser)
+
+
+def is_agency_staff():
+    return current_user.is_authenticated and current_user.role == "agency" and not is_agency_owner()
+
+
+def can_generate_forms_for_current_user():
+    return current_user.is_authenticated and (
+        current_user.role == "apex"
+        or is_agency_owner()
+        or isinstance(current_user, AgencyPreparer)
+    )
+
+
+def agency_owner_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped(*args, **kwargs):
+        if current_user.role != "agency" or not is_agency_owner():
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped
 
 
 def agency_for_user():
@@ -659,6 +694,38 @@ def populate_crm_person_from_form(person):
     person.phone = request.form.get("phone", "").strip()
     person.email = request.form.get("email", "").strip()
     person.address = request.form.get("address", "").strip()
+
+
+def username_taken(username, current_record=None):
+    if not username:
+        return False
+    for model in (ApexUser, AgencyUser, Client, AgencyPreparer, AgencyCaseManager):
+        record = model.query.filter_by(username=username).first()
+        if not record:
+            continue
+        if current_record and isinstance(record, current_record.__class__) and record.id == current_record.id:
+            continue
+        return True
+    return False
+
+
+def populate_staff_login_from_form(person, label):
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    if not username:
+        person.username = None
+        person.password_hash = None
+        return True
+    if username_taken(username, person):
+        flash("That username is already in use. Please choose another one.", "danger")
+        return False
+    if not password and not person.password_hash:
+        flash(f"Password is required when creating a {label} login account.", "danger")
+        return False
+    person.username = username
+    if password:
+        person.set_password(password)
+    return True
 
 
 def populate_lawyer_from_form(lawyer):
@@ -1548,7 +1615,11 @@ def register_routes(app):
             if role == "apex":
                 user = ApexUser.query.filter_by(username=username).first()
             elif role == "agency":
-                user = AgencyUser.query.filter_by(username=username).first()
+                user = (
+                    AgencyUser.query.filter_by(username=username).first()
+                    or AgencyPreparer.query.filter_by(username=username).first()
+                    or AgencyCaseManager.query.filter_by(username=username).first()
+                )
             else:
                 user = Client.query.filter_by(username=username).first()
             if not user or not user.check_password(password):
@@ -2010,7 +2081,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/tools/motions")
-    @role_required("agency")
+    @agency_owner_required
     def agency_motions():
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2024,7 +2095,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/tools/motions/templates/new", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def motion_template_new():
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2051,7 +2122,7 @@ def register_routes(app):
         return render_template("motion_template_form.html", template=None)
 
     @app.route("/agency/tools/motions/templates/<int:template_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def motion_template_edit(template_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2077,7 +2148,7 @@ def register_routes(app):
         return render_template("motion_template_form.html", template=template)
 
     @app.route("/agency/tools/motions/templates/<int:template_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def motion_template_delete(template_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2093,7 +2164,7 @@ def register_routes(app):
         return redirect(url_for("agency_motions"))
 
     @app.route("/agency/tools/motions/new", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def motion_create():
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2118,7 +2189,7 @@ def register_routes(app):
         return render_motion_form_response(templates, lawyers, law_firms, references)
 
     @app.route("/agency/tools/motions/<int:motion_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def motion_edit(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2139,7 +2210,7 @@ def register_routes(app):
         return render_motion_form_response(templates, lawyers, law_firms, references, motion=motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>")
-    @role_required("agency")
+    @agency_owner_required
     def motion_detail(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2149,7 +2220,7 @@ def register_routes(app):
         return render_template("motion_detail.html", motion=motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>/download")
-    @role_required("agency")
+    @agency_owner_required
     def motion_download(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2164,7 +2235,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/tools/motions/<int:motion_id>/pdf")
-    @role_required("agency")
+    @agency_owner_required
     def motion_pdf(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2174,7 +2245,7 @@ def register_routes(app):
         return motion_pdf_response(motion)
 
     @app.route("/agency/tools/motions/<int:motion_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def motion_delete(motion_id):
         agency = current_user.agency
         if not can_use_motion_creation(agency):
@@ -2187,7 +2258,7 @@ def register_routes(app):
         return redirect(url_for("agency_motions"))
 
     @app.route("/agency/translators", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def translator_list():
         agency = current_user.agency
         if request.method == "POST":
@@ -2206,7 +2277,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/translators/<int:translator_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def translator_edit(translator_id):
         translator = AgencyTranslator.query.filter_by(id=translator_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
@@ -2217,7 +2288,7 @@ def register_routes(app):
         return render_template("person_form.html", agency=current_user.agency, person=translator, person_type="translator", title="Edit Translator")
 
     @app.route("/agency/translators/<int:translator_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def translator_delete(translator_id):
         translator = AgencyTranslator.query.filter_by(id=translator_id, agency_id=current_user.agency_id).first() or abort(404)
         Case.query.filter_by(translator_id=translator.id).update({"translator_id": None})
@@ -2227,12 +2298,14 @@ def register_routes(app):
         return redirect(url_for("translator_list"))
 
     @app.route("/agency/preparers", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def preparer_list():
         agency = current_user.agency
         if request.method == "POST":
             preparer = AgencyPreparer(agency_id=agency.id)
             populate_preparer_from_form(preparer)
+            if not populate_staff_login_from_form(preparer, "form preparer"):
+                return redirect(url_for("preparer_list"))
             db.session.add(preparer)
             db.session.commit()
             flash("Form preparer saved.", "success")
@@ -2246,18 +2319,20 @@ def register_routes(app):
         )
 
     @app.route("/agency/preparers/<int:preparer_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def preparer_edit(preparer_id):
         preparer = AgencyPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
             populate_preparer_from_form(preparer)
+            if not populate_staff_login_from_form(preparer, "form preparer"):
+                return render_template("person_form.html", agency=current_user.agency, person=preparer, person_type="preparer", title="Edit Form Preparer")
             db.session.commit()
             flash("Form preparer updated.", "success")
             return redirect(url_for("preparer_list"))
         return render_template("person_form.html", agency=current_user.agency, person=preparer, person_type="preparer", title="Edit Form Preparer")
 
     @app.route("/agency/preparers/<int:preparer_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def preparer_delete(preparer_id):
         preparer = AgencyPreparer.query.filter_by(id=preparer_id, agency_id=current_user.agency_id).first() or abort(404)
         Case.query.filter_by(preparer_id=preparer.id).update({"preparer_id": None})
@@ -2268,12 +2343,14 @@ def register_routes(app):
         return redirect(url_for("preparer_list"))
 
     @app.route("/agency/case-managers", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def case_manager_list():
         agency = current_user.agency
         if request.method == "POST":
             manager = AgencyCaseManager(agency_id=agency.id)
             populate_crm_person_from_form(manager)
+            if not populate_staff_login_from_form(manager, "case manager"):
+                return redirect(url_for("case_manager_list"))
             db.session.add(manager)
             db.session.commit()
             flash("Case manager saved.", "success")
@@ -2287,18 +2364,20 @@ def register_routes(app):
         )
 
     @app.route("/agency/case-managers/<int:manager_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def case_manager_edit(manager_id):
         manager = AgencyCaseManager.query.filter_by(id=manager_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
             populate_crm_person_from_form(manager)
+            if not populate_staff_login_from_form(manager, "case manager"):
+                return render_template("person_form.html", agency=current_user.agency, person=manager, person_type="case_manager", title="Edit Case Manager")
             db.session.commit()
             flash("Case manager updated.", "success")
             return redirect(url_for("case_manager_list"))
         return render_template("person_form.html", agency=current_user.agency, person=manager, person_type="case_manager", title="Edit Case Manager")
 
     @app.route("/agency/case-managers/<int:manager_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def case_manager_delete(manager_id):
         manager = AgencyCaseManager.query.filter_by(id=manager_id, agency_id=current_user.agency_id).first() or abort(404)
         CrmCase.query.filter_by(case_manager_id=manager.id).update({"case_manager_id": None})
@@ -2308,22 +2387,22 @@ def register_routes(app):
         return redirect(url_for("case_manager_list"))
 
     @app.route("/agency/crm-preparers", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def crm_preparer_list():
         return redirect(url_for("preparer_list"))
 
     @app.route("/agency/crm-preparers/<int:preparer_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def crm_preparer_edit(preparer_id):
         return redirect(url_for("preparer_list"))
 
     @app.route("/agency/crm-preparers/<int:preparer_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def crm_preparer_delete(preparer_id):
         return redirect(url_for("preparer_list"))
 
     @app.route("/agency/lawyers", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def lawyer_list():
         agency = current_user.agency
         if request.method == "POST":
@@ -2339,7 +2418,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/lawyers/<int:lawyer_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def lawyer_edit(lawyer_id):
         lawyer = AgencyLawyer.query.filter_by(id=lawyer_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
@@ -2350,7 +2429,7 @@ def register_routes(app):
         return render_template("lawyer_form.html", lawyer=lawyer)
 
     @app.route("/agency/lawyers/<int:lawyer_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def lawyer_delete(lawyer_id):
         lawyer = AgencyLawyer.query.filter_by(id=lawyer_id, agency_id=current_user.agency_id).first() or abort(404)
         MotionDraft.query.filter_by(lawyer_id=lawyer.id).update({"lawyer_id": None})
@@ -2360,7 +2439,7 @@ def register_routes(app):
         return redirect(url_for("lawyer_list"))
 
     @app.route("/agency/law-firms", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def law_firm_list():
         agency = current_user.agency
         if request.method == "POST":
@@ -2376,7 +2455,7 @@ def register_routes(app):
         )
 
     @app.route("/agency/law-firms/<int:firm_id>/edit", methods=["GET", "POST"])
-    @role_required("agency")
+    @agency_owner_required
     def law_firm_edit(firm_id):
         firm = AgencyLawFirm.query.filter_by(id=firm_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
@@ -2387,7 +2466,7 @@ def register_routes(app):
         return render_template("law_firm_form.html", firm=firm)
 
     @app.route("/agency/law-firms/<int:firm_id>/delete", methods=["POST"])
-    @role_required("agency")
+    @agency_owner_required
     def law_firm_delete(firm_id):
         firm = AgencyLawFirm.query.filter_by(id=firm_id, agency_id=current_user.agency_id).first() or abort(404)
         MotionDraft.query.filter_by(law_firm_id=firm.id).update({"law_firm_id": None})
@@ -2764,6 +2843,8 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
+        if request.form.get("activity_type") == "Refund" and not is_agency_owner():
+            abort(403)
         activity = CrmInvoiceActivity(agency_id=current_user.agency_id, invoice_id=invoice.id)
         populate_invoice_activity_from_form(activity)
         db.session.add(activity)
@@ -2779,6 +2860,8 @@ def register_routes(app):
         if not can_use_crm(current_user.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
+        if not is_agency_owner():
+            abort(403)
         activity = CrmInvoiceActivity.query.filter_by(id=activity_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
             populate_invoice_activity_from_form(activity)
@@ -2794,6 +2877,8 @@ def register_routes(app):
         if not can_use_crm(current_user.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
+        if not is_agency_owner():
+            abort(403)
         activity = CrmInvoiceActivity.query.filter_by(id=activity_id, agency_id=current_user.agency_id).first() or abort(404)
         invoice = activity.invoice
         invoice_id = invoice.id
@@ -3141,6 +3226,8 @@ def register_routes(app):
     @role_required("apex", "agency")
     def generate_form(case_id):
         case = query_case_for_role(case_id)
+        if not can_generate_forms_for_current_user():
+            abort(403)
         if not can_use_form_filler(case.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("case_review", case_id=case.id))
@@ -4551,6 +4638,16 @@ def ensure_sqlite_schema():
         for column, ddl in crm_case_additions.items():
             if column not in existing_crm_case:
                 db.session.execute(text(f"ALTER TABLE crm_case ADD COLUMN {column} {ddl}"))
+    for table_name in ("agency_preparer", "agency_case_manager"):
+        if table_name in inspector.get_table_names():
+            existing_staff = {column["name"] for column in inspector.get_columns(table_name)}
+            staff_additions = {
+                "username": "VARCHAR(80)",
+                "password_hash": "VARCHAR(255)",
+            }
+            for column, ddl in staff_additions.items():
+                if column not in existing_staff:
+                    db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column} {ddl}"))
     reference_table_additions = {
         "immigration_court": {
             "address_line1": "VARCHAR(180)",

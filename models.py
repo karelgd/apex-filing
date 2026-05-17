@@ -16,12 +16,14 @@ agency_subscriptions = db.Table(
 
 
 class PasswordMixin:
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255))
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
 
 
@@ -126,6 +128,10 @@ class AgencyUser(UserMixin, PasswordMixin, db.Model):
     def role(self):
         return "agency"
 
+    @property
+    def staff_role(self):
+        return "owner"
+
     def get_id(self):
         return f"agency:{self.id}"
 
@@ -143,10 +149,11 @@ class AgencyTranslator(db.Model):
     agency = db.relationship("Agency", backref=db.backref("translators", cascade="all, delete-orphan"))
 
 
-class AgencyPreparer(db.Model):
+class AgencyPreparer(UserMixin, PasswordMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     full_name = db.Column(db.String(160), nullable=False)
+    username = db.Column(db.String(80), unique=True)
     title = db.Column(db.String(100))
     phone = db.Column(db.String(40))
     email = db.Column(db.String(160))
@@ -155,17 +162,40 @@ class AgencyPreparer(db.Model):
 
     agency = db.relationship("Agency", backref=db.backref("preparers", cascade="all, delete-orphan"))
 
+    @property
+    def role(self):
+        return "agency"
 
-class AgencyCaseManager(db.Model):
+    @property
+    def staff_role(self):
+        return "form_preparer"
+
+    def get_id(self):
+        return f"agency_preparer:{self.id}"
+
+
+class AgencyCaseManager(UserMixin, PasswordMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     full_name = db.Column(db.String(160), nullable=False)
+    username = db.Column(db.String(80), unique=True)
     phone = db.Column(db.String(40))
     email = db.Column(db.String(160))
     address = db.Column(db.String(240))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency", backref=db.backref("case_managers", cascade="all, delete-orphan"))
+
+    @property
+    def role(self):
+        return "agency"
+
+    @property
+    def staff_role(self):
+        return "case_manager"
+
+    def get_id(self):
+        return f"agency_case_manager:{self.id}"
 
 
 class AgencyCrmPreparer(db.Model):
