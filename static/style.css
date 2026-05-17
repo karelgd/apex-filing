@@ -3382,6 +3382,23 @@ body {
   width: 9px;
 }
 
+.builder-question-modal .modal-dialog {
+  margin-bottom: 1rem;
+  margin-top: 1rem;
+  max-height: calc(100vh - 2rem);
+}
+
+.builder-question-modal .modal-content {
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+}
+
+.builder-question-modal .modal-body {
+  max-height: calc(100vh - 9rem);
+  overflow-y: auto;
+  padding-bottom: 0;
+}
+
 .builder-modal-actions {
   align-items: center;
   background: linear-gradient(180deg, rgba(255,255,255,.88), #ffffff 35%);
