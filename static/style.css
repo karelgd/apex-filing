@@ -3382,6 +3382,20 @@ body {
   width: 9px;
 }
 
+.builder-modal-actions {
+  align-items: center;
+  background: linear-gradient(180deg, rgba(255,255,255,.88), #ffffff 35%);
+  border-top: 1px solid #dce8f6;
+  bottom: -1rem;
+  display: flex;
+  gap: .65rem;
+  justify-content: flex-end;
+  margin: 1.2rem -1rem -1rem;
+  padding: 1rem;
+  position: sticky;
+  z-index: 3;
+}
+
 .builder-question-item {
   cursor: grab;
 }
