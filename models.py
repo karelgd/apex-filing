@@ -460,8 +460,22 @@ class CaseQuestion(db.Model):
     show_if_value = db.Column(db.String(255))
 
     show_if_question = db.relationship("CaseQuestion", remote_side=[id])
+    placements = db.relationship("PdfQuestionPlacement", back_populates="question", cascade="all, delete-orphan")
 
     __table_args__ = (db.UniqueConstraint("case_type", "field_key", name="uq_case_question_key"),)
+
+
+class PdfQuestionPlacement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    question_id = db.Column(db.Integer, db.ForeignKey("case_question.id"), nullable=False)
+    page_number = db.Column(db.Integer, nullable=False)
+    x = db.Column(db.Numeric(10, 2), nullable=False)
+    y = db.Column(db.Numeric(10, 2), nullable=False)
+    width = db.Column(db.Numeric(10, 2), nullable=False, default=120)
+    height = db.Column(db.Numeric(10, 2), nullable=False, default=18)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    question = db.relationship("CaseQuestion", back_populates="placements")
 
 
 class CaseAnswer(db.Model):

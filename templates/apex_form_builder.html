@@ -3,7 +3,7 @@
 <div class="d-flex justify-content-between align-items-start mb-4">
   <div>
     <h1 class="h3 mb-1">{{ template.label }} Builder</h1>
-    <p class="text-secondary mb-0">Edit questionnaire questions, then drag each question onto the exact place where its answer belongs on the PDF.</p>
+    <p class="text-secondary mb-0">Right-click the PDF to manually create questions exactly where their answers should appear.</p>
     <div class="small text-secondary mt-1">
       PDF: {{ template.pdf_original_filename or 'Not uploaded' }} -
       Type: {{ template.pdf_kind }} -
@@ -32,14 +32,14 @@
       </div>
       <div class="list-group list-group-flush" id="question-sort-list" data-reorder-url="{{ url_for('apex_form_questions_reorder', template_id=template.id) }}">
         {% for question in questions %}
-          {% set mapping = question_visual_mapping(question) %}
+          {% set mappings = question_visual_mappings(question) %}
           <div class="list-group-item builder-question-item" draggable="true" data-question-id="{{ question.id }}">
             <div class="builder-question-row">
               <div class="builder-question-body">
                 <strong><span class="question-order-number">{{ question.sort_order }}</span>. {{ question.prompt }}</strong>
                 <div class="small text-secondary">
                   Key: <code>{{ question.field_key }}</code> - Type: {{ question.input_type }}
-                  {% if mapping %}- Placed on page {{ mapping.page }}{% endif %}
+                  {% if mappings %}- {{ mappings|length }} PDF placement{{ 's' if mappings|length != 1 else '' }}{% endif %}
                 </div>
                 {% if question.show_if_question %}
                   <div class="small text-primary">Shows if "{{ question.show_if_question.prompt }}" {{ question.show_if_operator }} "{{ question.show_if_value }}"</div>
@@ -60,7 +60,7 @@
             </div>
           </div>
         {% else %}
-          <div class="list-group-item text-secondary">No questions yet.</div>
+          <div class="list-group-item text-secondary">No questions yet. Right-click the PDF preview to create the first one.</div>
         {% endfor %}
       </div>
     </div>
@@ -70,7 +70,7 @@
     <div class="card visual-pdf-card">
       <div class="card-header bg-white">
         <div class="fw-semibold">PDF visual mapper</div>
-        <div class="small text-secondary">Drag a question onto the PDF, or right-click any PDF area and choose a question number. Move or resize markers with the mouse; click X to remove only that PDF placement.</div>
+        <div class="small text-secondary">Right-click the PDF to create a question there, or drag an existing question to reuse it in another spot. Move or resize markers with the mouse; click X to remove only that placement.</div>
       </div>
       <div class="card-body visual-pdf-scroll" data-placement-url-template="{{ url_for('apex_form_question_visual_placement', template_id=template.id, question_id=0) }}">
         {% if pdf_pages %}
@@ -79,17 +79,19 @@
               <div class="visual-pdf-page-label">Page {{ page.number }}</div>
               <img src="{{ url_for('apex_form_builder_pdf_page', template_id=template.id, page_number=page.number) }}" alt="PDF page {{ page.number }}">
               {% for question in questions %}
-                {% set mapping = question_visual_mapping(question) %}
-                {% if mapping and mapping.page == page.number %}
-                  <div class="pdf-placement-marker"
-                       data-question-id="{{ question.id }}"
-                       title="Question {{ question.sort_order }}: {{ question.prompt }}"
-                       style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
-                    <span>{{ question.sort_order }}</span>
-                    <button type="button" class="remove-pdf-placement" aria-label="Remove placement">x</button>
-                    <span class="pdf-placement-resize" aria-hidden="true"></span>
-                  </div>
-                {% endif %}
+                {% for mapping in question_visual_mappings(question) %}
+                  {% if mapping.page == page.number %}
+                    <div class="pdf-placement-marker"
+                         data-question-id="{{ question.id }}"
+                         data-placement-id="{{ mapping.id or '' }}"
+                         title="Question {{ question.sort_order }}: {{ question.prompt }}"
+                         style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                      <span>{{ question.sort_order }}</span>
+                      <button type="button" class="remove-pdf-placement" aria-label="Remove placement">x</button>
+                      <span class="pdf-placement-resize" aria-hidden="true"></span>
+                    </div>
+                  {% endif %}
+                {% endfor %}
               {% endfor %}
             </div>
           {% endfor %}
@@ -107,6 +109,11 @@
       <form method="post" id="question-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="question_id" id="question-id">
+        <input type="hidden" name="placement_page" id="question-placement-page">
+        <input type="hidden" name="placement_x" id="question-placement-x">
+        <input type="hidden" name="placement_y" id="question-placement-y">
+        <input type="hidden" name="placement_width" id="question-placement-width">
+        <input type="hidden" name="placement_height" id="question-placement-height">
         <div class="modal-header">
           <div>
             <h2 class="modal-title h5" id="question-modal-title">Edit question</h2>
@@ -137,7 +144,7 @@
           </div>
           <div class="mb-3 mt-3">
             <label class="form-label">Mapped PDF field / internal key</label>
-            <input class="form-control" name="field_key" id="question-field-key" list="pdf-fields" required>
+            <input class="form-control" name="field_key" id="question-field-key" list="pdf-fields">
             <datalist id="pdf-fields">
               {% for field in pdf_field_options %}
                 <option value="{{ field.name }}">{{ field.label }}</option>
@@ -197,35 +204,6 @@
   </div>
 </div>
 
-<div class="modal fade" id="placement-modal" tabindex="-1" aria-labelledby="placement-modal-title" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <form id="placement-form">
-        <div class="modal-header">
-          <div>
-            <h2 class="modal-title h5" id="placement-modal-title">Add question placement</h2>
-            <p class="text-secondary small mb-0">Choose the question whose answer should appear in the selected PDF area.</p>
-          </div>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <label class="form-label">Question number</label>
-          <select class="form-select" id="placement-question-id" required>
-            <option value="">Select question</option>
-            {% for question in questions %}
-              <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
-            {% endfor %}
-          </select>
-          <div class="form-text">The saved mapping is attached to this question internally, so changing question order later will not break generation.</div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-primary">Place question</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -260,17 +238,17 @@
   const showIfIdSelect = document.getElementById("question-show-if-id");
   const showIfOperatorSelect = document.getElementById("question-show-if-operator");
   const showIfValueInput = document.getElementById("question-show-if-value");
+  const placementPageInput = document.getElementById("question-placement-page");
+  const placementXInput = document.getElementById("question-placement-x");
+  const placementYInput = document.getElementById("question-placement-y");
+  const placementWidthInput = document.getElementById("question-placement-width");
+  const placementHeightInput = document.getElementById("question-placement-height");
   const questionForm = document.getElementById("question-form");
   const questionModalElement = document.getElementById("question-modal");
   const questionModal = questionModalElement ? new bootstrap.Modal(questionModalElement) : null;
   const questionModalTitle = document.getElementById("question-modal-title");
-  const placementModalElement = document.getElementById("placement-modal");
-  const placementModal = placementModalElement ? new bootstrap.Modal(placementModalElement) : null;
-  const placementForm = document.getElementById("placement-form");
-  const placementQuestionSelect = document.getElementById("placement-question-id");
   const pdfScroll = document.querySelector(".visual-pdf-scroll");
   const pdfScrollKey = "apex-form-builder-pdf-scroll-{{ template.id }}";
-  let pendingPlacement = null;
 
   if (pdfScroll) {
     const savedPdfScroll = sessionStorage.getItem(pdfScrollKey);
@@ -284,6 +262,11 @@
 
   function loadQuestionIntoForm(questionId) {
     questionIdInput.value = questionId || "";
+    placementPageInput.value = "";
+    placementXInput.value = "";
+    placementYInput.value = "";
+    placementWidthInput.value = "";
+    placementHeightInput.value = "";
     const question = questionsById[questionId];
     if (!question) {
       questionModalTitle.textContent = "Add question";
@@ -326,6 +309,17 @@
       questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
     });
   });
+
+  function openNewQuestionAtPlacement(placement) {
+    loadQuestionIntoForm("");
+    placementPageInput.value = placement.page;
+    placementXInput.value = placement.x;
+    placementYInput.value = placement.y;
+    placementWidthInput.value = placement.width;
+    placementHeightInput.value = placement.height;
+    questionModal?.show();
+    questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
+  }
 
   const questionSortList = document.getElementById("question-sort-list");
   const csrfToken = document.querySelector("#question-bulk-actions input[name='csrf_token']")?.value || "";
@@ -506,31 +500,15 @@
       }
       event.preventDefault();
       const point = pointToPdf(page, event.clientX, event.clientY);
-      pendingPlacement = {
+      const size = defaultPlacementSize("");
+      openNewQuestionAtPlacement({
         page: Number(page.dataset.pageNumber),
         x: point.x,
-        y: point.y
-      };
-      placementQuestionSelect.value = "";
-      placementModal?.show();
+        y: point.y,
+        width: size.width,
+        height: size.height
+      });
     });
-  });
-
-  placementForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const questionId = placementQuestionSelect.value;
-    if (!questionId || !pendingPlacement) {
-      return;
-    }
-    const size = defaultPlacementSize(questionId);
-    const saved = await savePlacement(questionId, {
-      ...pendingPlacement,
-      width: size.width,
-      height: size.height
-    });
-    if (saved) {
-      placementModal?.hide();
-    }
   });
 
   document.querySelectorAll(".pdf-placement-marker").forEach((marker) => {
@@ -584,6 +562,9 @@
       marker.classList.remove("is-adjusting");
       const questionId = marker.dataset.questionId;
       const placement = markerPlacement(marker);
+      if (marker.dataset.placementId) {
+        placement.placement_id = marker.dataset.placementId;
+      }
       dragState = null;
       await savePlacement(questionId, placement, false);
     });
@@ -600,7 +581,8 @@
       if (!questionId || !confirm("Remove this question from the PDF page? The question itself will stay in the questionnaire.")) {
         return;
       }
-      const response = await fetch(placementUrl(questionId), {
+      const removeUrl = marker.dataset.placementId ? `${placementUrl(questionId)}?placement_id=${marker.dataset.placementId}` : placementUrl(questionId);
+      const response = await fetch(removeUrl, {
         method: "DELETE",
         headers: { "X-CSRFToken": csrfToken }
       });

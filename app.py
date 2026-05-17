@@ -68,6 +68,7 @@ from models import (
     MotionTemplate,
     OplaOffice,
     PdfField,
+    PdfQuestionPlacement,
     SubscriptionTool,
     db,
 )
@@ -160,6 +161,7 @@ def create_app():
             "can_generate_forms_for_current_user": can_generate_forms_for_current_user,
             "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
             "question_visual_mapping": question_visual_mapping,
+            "question_visual_mappings": question_visual_mappings,
         }
 
     register_routes(app)
@@ -341,6 +343,7 @@ def delete_case_question(question):
         {"mapped_question_id": None},
         synchronize_session=False,
     )
+    PdfQuestionPlacement.query.filter_by(question_id=question.id).delete(synchronize_session=False)
     CaseAnswer.query.filter_by(question_id=question.id).delete(synchronize_session=False)
     db.session.delete(question)
 
@@ -401,14 +404,77 @@ def template_pdf_pages(template):
 
 
 def question_visual_mapping(question):
-    if not question.pdf_page_number or question.pdf_x is None or question.pdf_y is None:
-        return None
+    mappings = question_visual_mappings(question)
+    return mappings[0] if mappings else None
+
+
+def question_visual_mappings(question):
+    mappings = [
+        {
+            "id": placement.id,
+            "page": placement.page_number,
+            "x": float(placement.x or 0),
+            "y": float(placement.y or 0),
+            "width": float(placement.width or 0),
+            "height": float(placement.height or 0),
+        }
+        for placement in sorted(question.placements, key=lambda item: (item.page_number, item.y, item.x, item.id))
+    ]
+    if mappings or not question.pdf_page_number or question.pdf_x is None or question.pdf_y is None:
+        return mappings
+    mappings.append(
+        {
+            "id": None,
+            "page": question.pdf_page_number,
+            "x": float(question.pdf_x or 0),
+            "y": float(question.pdf_y or 0),
+            "width": float(question.pdf_width or 0),
+            "height": float(question.pdf_height or 0),
+        }
+    )
+    return mappings
+
+
+def apply_visual_placement(question, page_number, x, y, width, height, placement=None):
+    placement = placement or PdfQuestionPlacement(question=question)
+    placement.page_number = page_number
+    placement.x = x
+    placement.y = y
+    placement.width = width
+    placement.height = height
+    db.session.add(placement)
+    question.pdf_page_number = None
+    question.pdf_x = None
+    question.pdf_y = None
+    question.pdf_width = None
+    question.pdf_height = None
+    return placement
+
+
+def visual_placement_from_request(template, payload):
+    try:
+        page_number = int(payload.get("page"))
+        x = Decimal(str(payload.get("x")))
+        y = Decimal(str(payload.get("y")))
+        width = Decimal(str(payload.get("width") or 140))
+        height = Decimal(str(payload.get("height") or 18))
+    except (TypeError, ValueError, InvalidOperation):
+        abort(400)
+    page = next((item for item in template_pdf_pages(template) if item["number"] == page_number), None)
+    if not page:
+        abort(400)
+    page_width = Decimal(str(page["width"]))
+    page_height = Decimal(str(page["height"]))
+    x = max(Decimal("0"), min(x, max(Decimal("0"), page_width - Decimal("8"))))
+    y = max(Decimal("0"), min(y, max(Decimal("0"), page_height - Decimal("8"))))
+    width = max(Decimal("8"), min(width, page_width - x))
+    height = max(Decimal("8"), min(height, page_height - y))
     return {
-        "page": question.pdf_page_number,
-        "x": float(question.pdf_x or 0),
-        "y": float(question.pdf_y or 0),
-        "width": float(question.pdf_width or 0),
-        "height": float(question.pdf_height or 0),
+        "page_number": page_number,
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
     }
 
 
@@ -1347,13 +1413,8 @@ def save_form_template_from_request():
     if not pdf_path and template.pdf_stored_filename:
         existing_pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
         pdf_path = existing_pdf_path if os.path.exists(existing_pdf_path) else None
-    seeded_count = 0
-    if not question_lines.strip():
-        seeded_count = seed_questions_from_pdf_fields(template)
-        if not seeded_count and pdf_path:
-            seeded_count = seed_questions_from_pdf_text(code, pdf_path)
     db.session.commit()
-    return seeded_count
+    return 0
 
 
 def motion_profile_block(motion):
@@ -1895,11 +1956,8 @@ def register_routes(app):
     @role_required("apex")
     def apex_form_template_new():
         if request.method == "POST":
-            seeded_count = save_form_template_from_request()
-            if seeded_count:
-                flash(f"Questionnaire created with {seeded_count} draft questions extracted from the PDF.", "success")
-            else:
-                flash("Questionnaire created.", "success")
+            save_form_template_from_request()
+            flash("Questionnaire created. Open the builder and right-click the PDF to add questions.", "success")
             return redirect(url_for("apex_form_filler_admin"))
         return render_template("apex_form_template_form.html")
 
@@ -1912,7 +1970,10 @@ def register_routes(app):
             question_id = request.form.get("question_id")
             question = db.session.get(CaseQuestion, int(question_id)) if question_id else CaseQuestion(case_type=template.code)
             question.prompt = request.form["prompt"].strip()
-            question.field_key = request.form["field_key"].strip()
+            field_key = request.form.get("field_key", "").strip()
+            if not field_key:
+                field_key = f"{template.code.lower().replace('-', '')}_question_{uuid.uuid4().hex[:8]}"
+            question.field_key = field_key
             question.input_type = request.form["input_type"]
             question.render_mode = request.form.get("render_mode") or "normal"
             try:
@@ -1927,6 +1988,24 @@ def register_routes(app):
             question.show_if_operator = request.form.get("show_if_operator") or "equals"
             question.show_if_value = request.form.get("show_if_value", "").strip()
             db.session.add(question)
+            db.session.flush()
+            if request.form.get("placement_page"):
+                placement_payload = {
+                    "page": request.form.get("placement_page"),
+                    "x": request.form.get("placement_x"),
+                    "y": request.form.get("placement_y"),
+                    "width": request.form.get("placement_width"),
+                    "height": request.form.get("placement_height"),
+                }
+                placement = visual_placement_from_request(template, placement_payload)
+                apply_visual_placement(
+                    question,
+                    placement["page_number"],
+                    placement["x"],
+                    placement["y"],
+                    placement["width"],
+                    placement["height"],
+                )
             db.session.commit()
             flash("Question saved.", "success")
             return redirect(url_for("apex_form_builder", template_id=template.id))
@@ -1981,38 +2060,40 @@ def register_routes(app):
         if question.case_type != template.code:
             abort(404)
         if request.method == "DELETE":
-            question.pdf_page_number = None
-            question.pdf_x = None
-            question.pdf_y = None
-            question.pdf_width = None
-            question.pdf_height = None
+            placement_id = request.args.get("placement_id", type=int)
+            if placement_id:
+                placement = PdfQuestionPlacement.query.filter_by(id=placement_id, question_id=question.id).first() or abort(404)
+                db.session.delete(placement)
+            else:
+                PdfQuestionPlacement.query.filter_by(question_id=question.id).delete(synchronize_session=False)
+                question.pdf_page_number = None
+                question.pdf_x = None
+                question.pdf_y = None
+                question.pdf_width = None
+                question.pdf_height = None
             db.session.commit()
-            return {"status": "ok", "mapping": None}
+            return {"status": "ok", "mappings": question_visual_mappings(question)}
         payload = request.get_json(silent=True) or {}
-        try:
-            page_number = int(payload.get("page"))
-            x = Decimal(str(payload.get("x")))
-            y = Decimal(str(payload.get("y")))
-            width = Decimal(str(payload.get("width") or 140))
-            height = Decimal(str(payload.get("height") or 18))
-        except (TypeError, ValueError, InvalidOperation):
-            abort(400)
-        page = next((item for item in template_pdf_pages(template) if item["number"] == page_number), None)
-        if not page:
-            abort(400)
-        page_width = Decimal(str(page["width"]))
-        page_height = Decimal(str(page["height"]))
-        x = max(Decimal("0"), min(x, max(Decimal("0"), page_width - Decimal("8"))))
-        y = max(Decimal("0"), min(y, max(Decimal("0"), page_height - Decimal("8"))))
-        width = max(Decimal("8"), min(width, page_width - x))
-        height = max(Decimal("8"), min(height, page_height - y))
-        question.pdf_page_number = page_number
-        question.pdf_x = x
-        question.pdf_y = y
-        question.pdf_width = width
-        question.pdf_height = height
+        placement_values = visual_placement_from_request(template, payload)
+        placement = None
+        placement_id = payload.get("placement_id")
+        if placement_id:
+            try:
+                placement_id = int(placement_id)
+            except (TypeError, ValueError):
+                abort(400)
+            placement = PdfQuestionPlacement.query.filter_by(id=placement_id, question_id=question.id).first() or abort(404)
+        apply_visual_placement(
+            question,
+            placement_values["page_number"],
+            placement_values["x"],
+            placement_values["y"],
+            placement_values["width"],
+            placement_values["height"],
+            placement=placement,
+        )
         db.session.commit()
-        return {"status": "ok", "mapping": question_visual_mapping(question)}
+        return {"status": "ok", "mappings": question_visual_mappings(question)}
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/<int:question_id>/delete", methods=["POST"])
     @role_required("apex")
@@ -3930,7 +4011,7 @@ def fill_pdf_with_visual_mappings(case, template):
         return None
     answers = {answer.question_id: answer.answer_text or "" for answer in case.answers}
     questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
-    mapped_questions = [question for question in questions if question_visual_mapping(question)]
+    mapped_questions = [question for question in questions if question_visual_mappings(question)]
     if not mapped_questions:
         return None
     folder = f"cases/{case.id}/generated"
@@ -3947,22 +4028,23 @@ def fill_pdf_with_visual_mappings(case, template):
                 continue
             if question.input_type == "checkbox" and answer_text != "Yes":
                 continue
-            page_index = (question.pdf_page_number or 1) - 1
-            if page_index < 0 or page_index >= document.page_count:
-                continue
-            page = document.load_page(page_index)
-            x = float(question.pdf_x or 0)
-            y = float(question.pdf_y or 0)
-            width = float(question.pdf_width or 120)
-            height = float(question.pdf_height or 16)
-            rect = fitz.Rect(x, y, x + width, y + height)
-            if question.input_type == "checkbox":
-                page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
-            elif question.render_mode == "split_boxes":
-                overlay_split_box_text_on_rect(page, rect, answer_text, question.render_box_count)
-            else:
-                page.insert_textbox(rect, answer_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
-            placed_count += 1
+            for mapping in question_visual_mappings(question):
+                page_index = (mapping["page"] or 1) - 1
+                if page_index < 0 or page_index >= document.page_count:
+                    continue
+                page = document.load_page(page_index)
+                x = float(mapping["x"] or 0)
+                y = float(mapping["y"] or 0)
+                width = float(mapping["width"] or 120)
+                height = float(mapping["height"] or 16)
+                rect = fitz.Rect(x, y, x + width, y + height)
+                if question.input_type == "checkbox":
+                    page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
+                elif question.render_mode == "split_boxes":
+                    overlay_split_box_text_on_rect(page, rect, answer_text, question.render_box_count)
+                else:
+                    page.insert_textbox(rect, answer_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+                placed_count += 1
         if not placed_count:
             document.close()
             return None
@@ -4802,6 +4884,22 @@ def ensure_sqlite_schema():
         for column, ddl in question_additions.items():
             if column not in existing_question:
                 db.session.execute(text(f"ALTER TABLE case_question ADD COLUMN {column} {ddl}"))
+    if "case_question" in inspector.get_table_names() and "pdf_question_placement" not in inspector.get_table_names():
+        db.session.execute(
+            text(
+                "CREATE TABLE pdf_question_placement ("
+                "id INTEGER NOT NULL PRIMARY KEY, "
+                "question_id INTEGER NOT NULL, "
+                "page_number INTEGER NOT NULL, "
+                "x NUMERIC(10, 2) NOT NULL, "
+                "y NUMERIC(10, 2) NOT NULL, "
+                "width NUMERIC(10, 2) NOT NULL, "
+                "height NUMERIC(10, 2) NOT NULL, "
+                "created_at DATETIME NOT NULL, "
+                "FOREIGN KEY(question_id) REFERENCES case_question (id)"
+                ")"
+            )
+        )
     if "case" in inspector.get_table_names():
         existing_case = {column["name"] for column in inspector.get_columns("case")}
         case_additions = {
