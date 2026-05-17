@@ -268,6 +268,7 @@
   const placementModal = placementModalElement ? new bootstrap.Modal(placementModalElement) : null;
   const placementForm = document.getElementById("placement-form");
   const placementQuestionSelect = document.getElementById("placement-question-id");
+  const pdfScroll = document.querySelector(".visual-pdf-scroll");
   const pdfScrollKey = "apex-form-builder-pdf-scroll-{{ template.id }}";
   let pendingPlacement = null;
 
@@ -328,7 +329,6 @@
 
   const questionSortList = document.getElementById("question-sort-list");
   const csrfToken = document.querySelector("#question-bulk-actions input[name='csrf_token']")?.value || "";
-  const pdfScroll = document.querySelector(".visual-pdf-scroll");
   let draggedQuestion = null;
 
   function questionItems() {
