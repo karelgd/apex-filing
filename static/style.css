@@ -3232,6 +3232,36 @@ body {
   color: #155bd6;
 }
 
+.sidebar-group {
+  margin-bottom: .22rem;
+}
+
+.sidebar-group-toggle {
+  cursor: pointer;
+  justify-content: space-between;
+  list-style: none;
+  user-select: none;
+}
+
+.sidebar-group-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-group-toggle::after {
+  color: #8a97aa;
+  content: ">";
+  font-size: .75rem;
+  transition: transform .16s ease;
+}
+
+.sidebar-group[open] > .sidebar-group-toggle::after {
+  transform: rotate(90deg);
+}
+
+.sidebar-submenu {
+  padding: .1rem 0 .35rem;
+}
+
 .tool-link.muted {
   background: #f7f9fc;
   color: #98a2b3;

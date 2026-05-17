@@ -67,17 +67,29 @@
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_knowledge_base' else '' }}" href="{{ url_for('agency_knowledge_base') }}">Knowledge Base</a>
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           {% if is_agency_owner() %}
-            <a class="tool-link {{ 'active' if request.endpoint in ['translator_list', 'translator_edit'] else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
-            <a class="tool-link {{ 'active' if request.endpoint in ['preparer_list', 'preparer_edit', 'crm_preparer_list', 'crm_preparer_edit'] else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
-            <a class="tool-link {{ 'active' if request.endpoint in ['case_manager_list', 'case_manager_edit'] else '' }}" href="{{ url_for('case_manager_list') }}">Case Managers</a>
-            <a class="tool-link {{ 'active' if request.endpoint in ['lawyer_list', 'lawyer_edit'] else '' }}" href="{{ url_for('lawyer_list') }}">Lawyers</a>
-            <a class="tool-link {{ 'active' if request.endpoint in ['law_firm_list', 'law_firm_edit'] else '' }}" href="{{ url_for('law_firm_list') }}">Law Firms</a>
+            {% set staff_endpoints = ['translator_list', 'translator_edit', 'preparer_list', 'preparer_edit', 'crm_preparer_list', 'crm_preparer_edit', 'case_manager_list', 'case_manager_edit', 'lawyer_list', 'lawyer_edit', 'law_firm_list', 'law_firm_edit'] %}
+            <details class="sidebar-group" {% if request.endpoint in staff_endpoints %}open{% endif %}>
+              <summary class="tool-link sidebar-group-toggle {{ 'active' if request.endpoint in staff_endpoints else '' }}">Staff</summary>
+              <div class="sidebar-submenu">
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['translator_list', 'translator_edit'] else '' }}" href="{{ url_for('translator_list') }}">Translators</a>
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['preparer_list', 'preparer_edit', 'crm_preparer_list', 'crm_preparer_edit'] else '' }}" href="{{ url_for('preparer_list') }}">Form Preparers</a>
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['case_manager_list', 'case_manager_edit'] else '' }}" href="{{ url_for('case_manager_list') }}">Case Managers</a>
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['lawyer_list', 'lawyer_edit'] else '' }}" href="{{ url_for('lawyer_list') }}">Lawyers</a>
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['law_firm_list', 'law_firm_edit'] else '' }}" href="{{ url_for('law_firm_list') }}">Law Firms</a>
+              </div>
+            </details>
           {% endif %}
           <span class="sidebar-label mt-4">Subscriptions</span>
           {% if current_user.agency.has_tool('CRM') %}
-            <a class="tool-link {{ 'active' if request.endpoint in ['agency_crm', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail'] else '' }}" href="{{ url_for('agency_crm') }}">CRM</a>
-            <a class="tool-link tool-sublink {{ 'active' if request.endpoint == 'crm_calendar' else '' }}" href="{{ url_for('crm_calendar') }}">Calendar</a>
-            <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['crm_reports', 'crm_reports_download'] else '' }}" href="{{ url_for('crm_reports') }}">Reports</a>
+            {% set crm_endpoints = ['agency_crm', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail', 'crm_calendar', 'crm_reports', 'crm_reports_download'] %}
+            <details class="sidebar-group" {% if request.endpoint in crm_endpoints %}open{% endif %}>
+              <summary class="tool-link sidebar-group-toggle {{ 'active' if request.endpoint in crm_endpoints else '' }}">CRM</summary>
+              <div class="sidebar-submenu">
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['agency_crm', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail'] else '' }}" href="{{ url_for('agency_crm') }}">Overview</a>
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint == 'crm_calendar' else '' }}" href="{{ url_for('crm_calendar') }}">Calendar</a>
+                <a class="tool-link tool-sublink {{ 'active' if request.endpoint in ['crm_reports', 'crm_reports_download'] else '' }}" href="{{ url_for('crm_reports') }}">Reports</a>
+              </div>
+            </details>
           {% endif %}
           {% if current_user.agency.has_tool('Form Filler') %}
             <a class="tool-link {{ 'active' if request.endpoint in ['agency_form_filler', 'case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
