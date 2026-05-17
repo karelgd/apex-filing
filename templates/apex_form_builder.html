@@ -70,7 +70,7 @@
     <div class="card visual-pdf-card">
       <div class="card-header bg-white">
         <div class="fw-semibold">PDF visual mapper</div>
-        <div class="small text-secondary">Drag a question from the left and drop it onto the PDF field area. Click the small X on a marker to remove only that PDF placement.</div>
+        <div class="small text-secondary">Drag a question onto the PDF, or right-click any PDF area and choose a question number. Move or resize markers with the mouse; click X to remove only that PDF placement.</div>
       </div>
       <div class="card-body visual-pdf-scroll" data-placement-url-template="{{ url_for('apex_form_question_visual_placement', template_id=template.id, question_id=0) }}">
         {% if pdf_pages %}
@@ -83,9 +83,11 @@
                 {% if mapping and mapping.page == page.number %}
                   <div class="pdf-placement-marker"
                        data-question-id="{{ question.id }}"
+                       title="Question {{ question.sort_order }}: {{ question.prompt }}"
                        style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
                     <span>{{ question.sort_order }}</span>
                     <button type="button" class="remove-pdf-placement" aria-label="Remove placement">x</button>
+                    <span class="pdf-placement-resize" aria-hidden="true"></span>
                   </div>
                 {% endif %}
               {% endfor %}
@@ -194,6 +196,36 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="placement-modal" tabindex="-1" aria-labelledby="placement-modal-title" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="placement-form">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h5" id="placement-modal-title">Add question placement</h2>
+            <p class="text-secondary small mb-0">Choose the question whose answer should appear in the selected PDF area.</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Question number</label>
+          <select class="form-select" id="placement-question-id" required>
+            <option value="">Select question</option>
+            {% for question in questions %}
+              <option value="{{ question.id }}">{{ question.sort_order }}. {{ question.prompt }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">The saved mapping is attached to this question internally, so changing question order later will not break generation.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary">Place question</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -232,6 +264,11 @@
   const questionModalElement = document.getElementById("question-modal");
   const questionModal = questionModalElement ? new bootstrap.Modal(questionModalElement) : null;
   const questionModalTitle = document.getElementById("question-modal-title");
+  const placementModalElement = document.getElementById("placement-modal");
+  const placementModal = placementModalElement ? new bootstrap.Modal(placementModalElement) : null;
+  const placementForm = document.getElementById("placement-form");
+  const placementQuestionSelect = document.getElementById("placement-question-id");
+  let pendingPlacement = null;
 
   function loadQuestionIntoForm(questionId) {
     questionIdInput.value = questionId || "";
@@ -370,6 +407,62 @@
     return { width: 170, height: 20 };
   }
 
+  function pageMetrics(page) {
+    const image = page.querySelector("img");
+    const bounds = image.getBoundingClientRect();
+    return {
+      image,
+      bounds,
+      pdfWidth: Number(page.dataset.pdfWidth),
+      pdfHeight: Number(page.dataset.pdfHeight)
+    };
+  }
+
+  function pointToPdf(page, clientX, clientY) {
+    const metrics = pageMetrics(page);
+    return {
+      x: Math.max(0, (clientX - metrics.bounds.left) / metrics.bounds.width * metrics.pdfWidth),
+      y: Math.max(0, (clientY - metrics.bounds.top) / metrics.bounds.height * metrics.pdfHeight)
+    };
+  }
+
+  async function savePlacement(questionId, placement, reloadOnSuccess = true) {
+    const response = await fetch(placementUrl(questionId), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken
+      },
+      body: JSON.stringify(placement)
+    });
+    if (!response.ok) {
+      alert("The placement could not be saved.");
+      return false;
+    }
+    if (reloadOnSuccess) {
+      window.location.reload();
+    }
+    return true;
+  }
+
+  function markerPlacement(marker) {
+    const page = marker.closest(".visual-pdf-page");
+    const metrics = pageMetrics(page);
+    const pageRect = metrics.image.getBoundingClientRect();
+    const markerRect = marker.getBoundingClientRect();
+    const x = (markerRect.left - pageRect.left) / pageRect.width * metrics.pdfWidth;
+    const y = (markerRect.top - pageRect.top) / pageRect.height * metrics.pdfHeight;
+    const width = markerRect.width / pageRect.width * metrics.pdfWidth;
+    const height = markerRect.height / pageRect.height * metrics.pdfHeight;
+    return {
+      page: Number(page.dataset.pageNumber),
+      x: Math.max(0, x),
+      y: Math.max(0, y),
+      width: Math.max(8, width),
+      height: Math.max(8, height)
+    };
+  }
+
   document.querySelectorAll(".visual-pdf-page").forEach((page) => {
     page.addEventListener("dragover", (event) => {
       event.preventDefault();
@@ -383,32 +476,106 @@
       if (!questionId || !questionsById[questionId]) {
         return;
       }
-      const image = page.querySelector("img");
-      const bounds = image.getBoundingClientRect();
-      const pdfWidth = Number(page.dataset.pdfWidth);
-      const pdfHeight = Number(page.dataset.pdfHeight);
       const size = defaultPlacementSize(questionId);
-      const x = Math.max(0, (event.clientX - bounds.left) / bounds.width * pdfWidth);
-      const y = Math.max(0, (event.clientY - bounds.top) / bounds.height * pdfHeight);
-      const response = await fetch(placementUrl(questionId), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken
-        },
-        body: JSON.stringify({
-          page: Number(page.dataset.pageNumber),
-          x,
-          y,
-          width: size.width,
-          height: size.height
-        })
+      const point = pointToPdf(page, event.clientX, event.clientY);
+      await savePlacement(questionId, {
+        page: Number(page.dataset.pageNumber),
+        x: point.x,
+        y: point.y,
+        width: size.width,
+        height: size.height
       });
-      if (!response.ok) {
-        alert("The placement could not be saved.");
+    });
+    page.addEventListener("contextmenu", (event) => {
+      if (event.target.closest(".pdf-placement-marker")) {
         return;
       }
-      window.location.reload();
+      event.preventDefault();
+      const point = pointToPdf(page, event.clientX, event.clientY);
+      pendingPlacement = {
+        page: Number(page.dataset.pageNumber),
+        x: point.x,
+        y: point.y
+      };
+      placementQuestionSelect.value = "";
+      placementModal?.show();
+    });
+  });
+
+  placementForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const questionId = placementQuestionSelect.value;
+    if (!questionId || !pendingPlacement) {
+      return;
+    }
+    const size = defaultPlacementSize(questionId);
+    const saved = await savePlacement(questionId, {
+      ...pendingPlacement,
+      width: size.width,
+      height: size.height
+    });
+    if (saved) {
+      placementModal?.hide();
+    }
+  });
+
+  document.querySelectorAll(".pdf-placement-marker").forEach((marker) => {
+    let dragState = null;
+    marker.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".remove-pdf-placement")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const resize = Boolean(event.target.closest(".pdf-placement-resize"));
+      const page = marker.closest(".visual-pdf-page");
+      const pageRect = page.querySelector("img").getBoundingClientRect();
+      const markerRect = marker.getBoundingClientRect();
+      dragState = {
+        resize,
+        startX: event.clientX,
+        startY: event.clientY,
+        left: markerRect.left - pageRect.left,
+        top: markerRect.top - pageRect.top,
+        width: markerRect.width,
+        height: markerRect.height,
+        pageRect
+      };
+      marker.setPointerCapture(event.pointerId);
+      marker.classList.add("is-adjusting");
+    });
+    marker.addEventListener("pointermove", (event) => {
+      if (!dragState) {
+        return;
+      }
+      const deltaX = event.clientX - dragState.startX;
+      const deltaY = event.clientY - dragState.startY;
+      if (dragState.resize) {
+        const width = Math.max(12, Math.min(dragState.width + deltaX, dragState.pageRect.width - dragState.left));
+        const height = Math.max(12, Math.min(dragState.height + deltaY, dragState.pageRect.height - dragState.top));
+        marker.style.width = `${width / dragState.pageRect.width * 100}%`;
+        marker.style.height = `${height / dragState.pageRect.height * 100}%`;
+      } else {
+        const left = Math.max(0, Math.min(dragState.left + deltaX, dragState.pageRect.width - dragState.width));
+        const top = Math.max(0, Math.min(dragState.top + deltaY, dragState.pageRect.height - dragState.height));
+        marker.style.left = `${left / dragState.pageRect.width * 100}%`;
+        marker.style.top = `${top / dragState.pageRect.height * 100}%`;
+      }
+    });
+    marker.addEventListener("pointerup", async (event) => {
+      if (!dragState) {
+        return;
+      }
+      marker.releasePointerCapture(event.pointerId);
+      marker.classList.remove("is-adjusting");
+      const questionId = marker.dataset.questionId;
+      const placement = markerPlacement(marker);
+      dragState = null;
+      await savePlacement(questionId, placement, false);
+    });
+    marker.addEventListener("pointercancel", () => {
+      marker.classList.remove("is-adjusting");
+      dragState = null;
     });
   });
 

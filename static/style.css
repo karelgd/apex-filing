@@ -3335,6 +3335,7 @@ body {
   border: 2px solid #1d76ff;
   border-radius: 4px;
   color: #06224a;
+  cursor: move;
   display: flex;
   font-size: .72rem;
   font-weight: 900;
@@ -3344,7 +3345,13 @@ body {
   min-width: 14px;
   padding: 0 .15rem;
   position: absolute;
+  touch-action: none;
   z-index: 6;
+}
+
+.pdf-placement-marker.is-adjusting {
+  background: rgba(45, 199, 185, .24);
+  border-color: #10b9b0;
 }
 
 .remove-pdf-placement {
@@ -3361,6 +3368,18 @@ body {
   line-height: 1;
   padding: 0;
   width: 16px;
+}
+
+.pdf-placement-resize {
+  background: #ffffff;
+  border-bottom: 2px solid #1d76ff;
+  border-right: 2px solid #1d76ff;
+  bottom: 1px;
+  cursor: nwse-resize;
+  height: 9px;
+  position: absolute;
+  right: 1px;
+  width: 9px;
 }
 
 .builder-question-item {
