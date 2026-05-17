@@ -306,16 +306,38 @@
   const reuseQuestionSelect = document.getElementById("reuse-question-select");
   const pdfScroll = document.querySelector(".visual-pdf-scroll");
   const pdfScrollKey = "apex-form-builder-pdf-scroll-{{ template.id }}";
+  const windowScrollKey = "apex-form-builder-window-scroll-{{ template.id }}";
 
-  if (pdfScroll) {
+  function restoreBuilderScrollPosition() {
     const savedPdfScroll = sessionStorage.getItem(pdfScrollKey);
-    if (savedPdfScroll !== null) {
-      requestAnimationFrame(() => {
+    const savedWindowScroll = sessionStorage.getItem(windowScrollKey);
+    if (savedPdfScroll === null && savedWindowScroll === null) {
+      return;
+    }
+    const restore = () => {
+      if (pdfScroll && savedPdfScroll !== null) {
         pdfScroll.scrollTop = Number(savedPdfScroll) || 0;
+      }
+      if (savedWindowScroll !== null) {
+        window.scrollTo(0, Number(savedWindowScroll) || 0);
+      }
+    };
+    requestAnimationFrame(restore);
+    window.addEventListener("load", restore, { once: true });
+    sessionStorage.removeItem(windowScrollKey);
+    if (savedPdfScroll !== null) {
         sessionStorage.removeItem(pdfScrollKey);
-      });
     }
   }
+
+  function saveBuilderScrollPosition() {
+    sessionStorage.setItem(windowScrollKey, String(window.scrollY || document.documentElement.scrollTop || 0));
+    if (pdfScroll) {
+      sessionStorage.setItem(pdfScrollKey, String(pdfScroll.scrollTop || 0));
+    }
+  }
+
+  restoreBuilderScrollPosition();
 
   function currentPlacementValues() {
     return {
@@ -412,6 +434,8 @@
     questionModal?.show();
     questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
   });
+
+  questionForm?.addEventListener("submit", saveBuilderScrollPosition);
   document.querySelectorAll(".edit-question").forEach((button) => {
     button.addEventListener("click", () => {
       setReusePanelVisible(false);
@@ -600,9 +624,7 @@
       return false;
     }
     if (reloadOnSuccess) {
-      if (pdfScroll) {
-        sessionStorage.setItem(pdfScrollKey, String(pdfScroll.scrollTop));
-      }
+      saveBuilderScrollPosition();
       window.location.reload();
     }
     return true;
@@ -656,9 +678,7 @@
           alert("The text box placement could not be saved.");
           return;
         }
-        if (pdfScroll) {
-          sessionStorage.setItem(pdfScrollKey, String(pdfScroll.scrollTop));
-        }
+        saveBuilderScrollPosition();
         window.location.reload();
         return;
       }
