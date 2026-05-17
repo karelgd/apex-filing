@@ -3,7 +3,7 @@
 <div class="d-flex justify-content-between align-items-start mb-4">
   <div>
     <h1 class="h3 mb-1">{{ template.label }} Builder</h1>
-    <p class="text-secondary mb-0">Map questions to PDF fields and add simple conditional skip logic.</p>
+    <p class="text-secondary mb-0">Edit questionnaire questions, then drag each question onto the exact place where its answer belongs on the PDF.</p>
     <div class="small text-secondary mt-1">
       PDF: {{ template.pdf_original_filename or 'Not uploaded' }} -
       Type: {{ template.pdf_kind }} -
@@ -13,9 +13,9 @@
   <a class="btn btn-outline-secondary" href="{{ url_for('apex_form_filler_admin') }}">Back to Form Filler Admin</a>
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-5">
-    <form method="post" class="card card-body" id="question-form">
+<div class="visual-builder-grid">
+  <section class="visual-builder-left">
+    <form method="post" class="card card-body visual-question-form" id="question-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <h2 class="h5 mb-3">Add or update question</h2>
       <div class="mb-3">
@@ -55,7 +55,7 @@
             <option value="{{ field.name }}">{{ field.label }}</option>
           {% endfor %}
         </datalist>
-        <div class="form-text">Use a detected PDF field when the answer should be placed into the official form. For checkbox groups, use mappings like <code>Yes=PDF_FIELD_FOR_YES;No=PDF_FIELD_FOR_NO</code>.</div>
+        <div class="form-text">For visual mapping, this can be a readable internal key. Drag the question onto the PDF to set exact placement.</div>
       </div>
       <div class="mb-3">
         <label class="form-label">PDF answer rendering</label>
@@ -63,12 +63,10 @@
           <option value="normal">Normal text</option>
           <option value="split_boxes">Separate characters into boxes</option>
         </select>
-        <div class="form-text">Use separate characters for A-number, SSN, I-94, and other fields made of many small boxes.</div>
       </div>
       <div class="mb-3">
         <label class="form-label">Number of boxes, optional</label>
         <input class="form-control" type="number" name="render_box_count" id="question-render-box-count" min="0" value="0">
-        <div class="form-text">Use 0 to match the answer length. Set this when the PDF has extra empty boxes after the answer.</div>
       </div>
       <label class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="required" id="question-required" checked>
@@ -103,14 +101,13 @@
       </div>
       <button class="btn btn-primary mt-3">Save question</button>
     </form>
-  </div>
-  <div class="col-lg-7">
-    <div class="card">
+
+    <div class="card mt-3">
       <form id="question-bulk-actions" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       </form>
       <div class="card-header bg-white d-flex justify-content-between align-items-center gap-3 flex-wrap">
-        <span class="fw-semibold">Current questionnaire</span>
+        <span class="fw-semibold">Questions</span>
         {% if questions %}
           <div class="d-flex gap-2 flex-wrap">
             <button class="btn btn-sm btn-outline-primary" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_client_visibility', template_id=template.id) }}" name="visibility_action" value="show">Show to Client</button>
@@ -121,11 +118,15 @@
       </div>
       <div class="list-group list-group-flush" id="question-sort-list" data-reorder-url="{{ url_for('apex_form_questions_reorder', template_id=template.id) }}">
         {% for question in questions %}
+          {% set mapping = question_visual_mapping(question) %}
           <div class="list-group-item builder-question-item" draggable="true" data-question-id="{{ question.id }}">
             <div class="builder-question-row">
               <div class="builder-question-body">
                 <strong><span class="question-order-number">{{ question.sort_order }}</span>. {{ question.prompt }}</strong>
-                <div class="small text-secondary">Field: <code>{{ question.field_key }}</code> - Type: {{ question.input_type }}{% if question.render_mode == 'split_boxes' %} - Box characters{% if question.render_box_count %} ({{ question.render_box_count }}){% endif %}{% endif %}</div>
+                <div class="small text-secondary">
+                  Key: <code>{{ question.field_key }}</code> - Type: {{ question.input_type }}
+                  {% if mapping %}- Placed on page {{ mapping.page }}{% endif %}
+                </div>
                 {% if question.show_if_question %}
                   <div class="small text-primary">Shows if "{{ question.show_if_question.prompt }}" {{ question.show_if_operator }} "{{ question.show_if_value }}"</div>
                 {% endif %}
@@ -133,6 +134,7 @@
               <div class="builder-question-actions">
                 <span class="badge {{ 'text-bg-primary' if question.client_visible else 'text-bg-secondary' }}">{{ 'Client' if question.client_visible else 'Agency only' }}</span>
                 <span class="badge text-bg-light border">{{ 'Required' if question.required else 'Optional' }}</span>
+                <button class="btn btn-sm btn-outline-primary edit-question" type="button" data-question-id="{{ question.id }}">Edit</button>
                 <label class="form-check mt-1" title="Mark this question for a bulk action">
                   <input class="form-check-input" type="checkbox" name="question_ids" value="{{ question.id }}" form="question-bulk-actions" aria-label="Mark question {{ question.sort_order }} for bulk action">
                 </label>
@@ -148,35 +150,39 @@
         {% endfor %}
       </div>
     </div>
-    <div class="card mt-3">
-      <div class="card-header bg-white fw-semibold">Detected PDF fields</div>
-      <div class="card-body">
-        {% for field in pdf_field_options %}
-          <div class="border rounded p-2 mb-2 bg-light">
-            <div class="d-flex justify-content-between gap-3">
-              <div>
-                <div class="fw-semibold">{{ field.label }}</div>
-                <code class="small">{{ field.name }}</code>
-                <div class="small text-secondary">
-                  {% if field.page %}Page {{ field.page }}{% else %}Page unknown{% endif %}
-                  {% if field.type %} - {{ field.type }}{% endif %}
-                </div>
-              </div>
-              <button class="btn btn-sm btn-outline-primary use-pdf-field" type="button" data-field-name="{{ field.name }}">Use</button>
+  </section>
+
+  <section class="visual-builder-right">
+    <div class="card visual-pdf-card">
+      <div class="card-header bg-white">
+        <div class="fw-semibold">PDF visual mapper</div>
+        <div class="small text-secondary">Drag a question from the left and drop it onto the PDF field area. Click the small X on a marker to remove only that PDF placement.</div>
+      </div>
+      <div class="card-body visual-pdf-scroll" data-placement-url-template="{{ url_for('apex_form_question_visual_placement', template_id=template.id, question_id=0) }}">
+        {% if pdf_pages %}
+          {% for page in pdf_pages %}
+            <div class="visual-pdf-page" data-page-number="{{ page.number }}" data-pdf-width="{{ page.width }}" data-pdf-height="{{ page.height }}">
+              <div class="visual-pdf-page-label">Page {{ page.number }}</div>
+              <img src="{{ url_for('apex_form_builder_pdf_page', template_id=template.id, page_number=page.number) }}" alt="PDF page {{ page.number }}">
+              {% for question in questions %}
+                {% set mapping = question_visual_mapping(question) %}
+                {% if mapping and mapping.page == page.number %}
+                  <div class="pdf-placement-marker"
+                       data-question-id="{{ question.id }}"
+                       style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                    <span>{{ question.sort_order }}</span>
+                    <button type="button" class="remove-pdf-placement" aria-label="Remove placement">x</button>
+                  </div>
+                {% endif %}
+              {% endfor %}
             </div>
-          </div>
+          {% endfor %}
         {% else %}
-          {% if template.pdf_stored_filename %}
-            <p class="text-secondary mb-0">
-              No embedded editable PDF fields were detected. This template can still use the draft questions extracted from the visible PDF text, then later use coordinate overlay mapping for Adobe-visible output.
-            </p>
-          {% else %}
-            <p class="text-secondary mb-0">Upload an official USCIS PDF template to detect fields or extract draft questions.</p>
-          {% endif %}
-        {% endfor %}
+          <div class="text-secondary">Upload a PDF template first to use visual mapping.</div>
+        {% endif %}
       </div>
     </div>
-  </div>
+  </section>
 </div>
 {% endblock %}
 
@@ -212,9 +218,11 @@
   const showIfIdSelect = document.getElementById("question-show-if-id");
   const showIfOperatorSelect = document.getElementById("question-show-if-operator");
   const showIfValueInput = document.getElementById("question-show-if-value");
+  const questionForm = document.getElementById("question-form");
 
-  questionSelect?.addEventListener("change", () => {
-    const question = questionsById[questionSelect.value];
+  function loadQuestionIntoForm(questionId) {
+    questionSelect.value = questionId || "";
+    const question = questionsById[questionId];
     if (!question) {
       promptInput.value = "";
       fieldInput.value = "";
@@ -240,17 +248,20 @@
     showIfIdSelect.value = question.showIfQuestionId || "";
     showIfOperatorSelect.value = question.showIfOperator || "equals";
     showIfValueInput.value = question.showIfValue || "";
-  });
+  }
 
-  document.querySelectorAll(".use-pdf-field").forEach((button) => {
+  questionSelect?.addEventListener("change", () => loadQuestionIntoForm(questionSelect.value));
+  document.querySelectorAll(".edit-question").forEach((button) => {
     button.addEventListener("click", () => {
-      fieldInput.value = button.dataset.fieldName || "";
-      fieldInput.focus();
+      loadQuestionIntoForm(button.dataset.questionId);
+      questionForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+      promptInput?.focus();
     });
   });
 
   const questionSortList = document.getElementById("question-sort-list");
   const csrfToken = document.querySelector("#question-bulk-actions input[name='csrf_token']")?.value || "";
+  const pdfScroll = document.querySelector(".visual-pdf-scroll");
   let draggedQuestion = null;
 
   function questionItems() {
@@ -327,6 +338,82 @@
       alert("The new order could not be saved. The page will reload to restore the last saved order.");
       window.location.reload();
     }
+  });
+
+  function placementUrl(questionId) {
+    return pdfScroll.dataset.placementUrlTemplate.replace("/0/visual-placement", `/${questionId}/visual-placement`);
+  }
+
+  function defaultPlacementSize(questionId) {
+    const question = questionsById[questionId] || {};
+    if (question.inputType === "checkbox") {
+      return { width: 14, height: 14 };
+    }
+    if (question.renderMode === "split_boxes") {
+      return { width: 190, height: 18 };
+    }
+    return { width: 170, height: 20 };
+  }
+
+  document.querySelectorAll(".visual-pdf-page").forEach((page) => {
+    page.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      page.classList.add("is-drop-target");
+    });
+    page.addEventListener("dragleave", () => page.classList.remove("is-drop-target"));
+    page.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      page.classList.remove("is-drop-target");
+      const questionId = event.dataTransfer.getData("text/plain");
+      if (!questionId || !questionsById[questionId]) {
+        return;
+      }
+      const image = page.querySelector("img");
+      const bounds = image.getBoundingClientRect();
+      const pdfWidth = Number(page.dataset.pdfWidth);
+      const pdfHeight = Number(page.dataset.pdfHeight);
+      const size = defaultPlacementSize(questionId);
+      const x = Math.max(0, (event.clientX - bounds.left) / bounds.width * pdfWidth);
+      const y = Math.max(0, (event.clientY - bounds.top) / bounds.height * pdfHeight);
+      const response = await fetch(placementUrl(questionId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify({
+          page: Number(page.dataset.pageNumber),
+          x,
+          y,
+          width: size.width,
+          height: size.height
+        })
+      });
+      if (!response.ok) {
+        alert("The placement could not be saved.");
+        return;
+      }
+      window.location.reload();
+    });
+  });
+
+  document.querySelectorAll(".remove-pdf-placement").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const marker = button.closest(".pdf-placement-marker");
+      const questionId = marker?.dataset.questionId;
+      if (!questionId || !confirm("Remove this question from the PDF page? The question itself will stay in the questionnaire.")) {
+        return;
+      }
+      const response = await fetch(placementUrl(questionId), {
+        method: "DELETE",
+        headers: { "X-CSRFToken": csrfToken }
+      });
+      if (!response.ok) {
+        alert("The placement could not be removed.");
+        return;
+      }
+      marker.remove();
+    });
   });
 </script>
 {% endblock %}

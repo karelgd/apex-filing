@@ -17,6 +17,7 @@ from flask import (
     render_template,
     Response,
     request,
+    send_file,
     send_from_directory,
     url_for,
 )
@@ -158,6 +159,7 @@ def create_app():
             "is_agency_staff": is_agency_staff,
             "can_generate_forms_for_current_user": can_generate_forms_for_current_user,
             "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
+            "question_visual_mapping": question_visual_mapping,
         }
 
     register_routes(app)
@@ -361,6 +363,53 @@ def readable_pdf_field_name(field_name):
     label = label.replace("Family Name", "Family Name (Last Name)")
     label = label.replace("Middle Name", "Middle Name")
     return label or field_name
+
+
+def template_pdf_path(template):
+    if not template or not template.pdf_stored_filename:
+        return None
+    return os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
+
+
+def template_pdf_pages(template):
+    pdf_path = template_pdf_path(template)
+    if not pdf_path or not os.path.exists(pdf_path):
+        return []
+    try:
+        import fitz
+    except ImportError:
+        return []
+    document = None
+    try:
+        document = fitz.open(pdf_path)
+        pages = []
+        for index in range(document.page_count):
+            page = document.load_page(index)
+            pages.append(
+                {
+                    "number": index + 1,
+                    "width": round(page.rect.width, 2),
+                    "height": round(page.rect.height, 2),
+                }
+            )
+        return pages
+    except Exception:
+        return []
+    finally:
+        if document:
+            document.close()
+
+
+def question_visual_mapping(question):
+    if not question.pdf_page_number or question.pdf_x is None or question.pdf_y is None:
+        return None
+    return {
+        "page": question.pdf_page_number,
+        "x": float(question.pdf_x or 0),
+        "y": float(question.pdf_y or 0),
+        "width": float(question.pdf_width or 0),
+        "height": float(question.pdf_height or 0),
+    }
 
 
 def short_pdf_field_key(field_name):
@@ -1897,7 +1946,73 @@ def register_routes(app):
             questions=questions,
             pdf_fields=pdf_fields,
             pdf_field_options=pdf_field_options,
+            pdf_pages=template_pdf_pages(template),
         )
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/pdf-page/<int:page_number>.png")
+    @role_required("apex")
+    def apex_form_builder_pdf_page(template_id, page_number):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        pdf_path = template_pdf_path(template)
+        if not pdf_path or not os.path.exists(pdf_path):
+            abort(404)
+        try:
+            import fitz
+        except ImportError:
+            abort(500)
+        document = None
+        try:
+            document = fitz.open(pdf_path)
+            if page_number < 1 or page_number > document.page_count:
+                abort(404)
+            page = document.load_page(page_number - 1)
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(1.6, 1.6), alpha=False)
+            data = pixmap.tobytes("png")
+        finally:
+            if document:
+                document.close()
+        return send_file(BytesIO(data), mimetype="image/png", download_name=f"{template.code}-page-{page_number}.png")
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/<int:question_id>/visual-placement", methods=["POST", "DELETE"])
+    @role_required("apex")
+    def apex_form_question_visual_placement(template_id, question_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        question = db.session.get(CaseQuestion, question_id) or abort(404)
+        if question.case_type != template.code:
+            abort(404)
+        if request.method == "DELETE":
+            question.pdf_page_number = None
+            question.pdf_x = None
+            question.pdf_y = None
+            question.pdf_width = None
+            question.pdf_height = None
+            db.session.commit()
+            return {"status": "ok", "mapping": None}
+        payload = request.get_json(silent=True) or {}
+        try:
+            page_number = int(payload.get("page"))
+            x = Decimal(str(payload.get("x")))
+            y = Decimal(str(payload.get("y")))
+            width = Decimal(str(payload.get("width") or 140))
+            height = Decimal(str(payload.get("height") or 18))
+        except (TypeError, ValueError, InvalidOperation):
+            abort(400)
+        page = next((item for item in template_pdf_pages(template) if item["number"] == page_number), None)
+        if not page:
+            abort(400)
+        page_width = Decimal(str(page["width"]))
+        page_height = Decimal(str(page["height"]))
+        x = max(Decimal("0"), min(x, max(Decimal("0"), page_width - Decimal("8"))))
+        y = max(Decimal("0"), min(y, max(Decimal("0"), page_height - Decimal("8"))))
+        width = max(Decimal("8"), min(width, page_width - x))
+        height = max(Decimal("8"), min(height, page_height - y))
+        question.pdf_page_number = page_number
+        question.pdf_x = x
+        question.pdf_y = y
+        question.pdf_width = width
+        question.pdf_height = height
+        db.session.commit()
+        return {"status": "ok", "mapping": question_visual_mapping(question)}
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/questions/<int:question_id>/delete", methods=["POST"])
     @role_required("apex")
@@ -3790,6 +3905,9 @@ def generate_case_pdf(case):
     template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
     if not template or not template.pdf_stored_filename:
         return create_answer_summary_pdf(case)
+    visual = fill_pdf_with_visual_mappings(case, template)
+    if visual:
+        return visual
     if template.pdf_generation_strategy in ("acroform_fill_need_appearances", "acroform_widgets"):
         filled = fill_pdf_widgets_with_pymupdf(case, template)
         if filled:
@@ -3800,6 +3918,78 @@ def generate_case_pdf(case):
             return filled
     # USCIS XFA/hybrid fallback: preserve the original PDF; do not mutate XFA/XML.
     return create_preserved_template_answer_packet(case, template)
+
+
+def fill_pdf_with_visual_mappings(case, template):
+    try:
+        import fitz
+    except ImportError:
+        return None
+    source_path = template_pdf_path(template)
+    if not source_path or not os.path.exists(source_path):
+        return None
+    answers = {answer.question_id: answer.answer_text or "" for answer in case.answers}
+    questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+    mapped_questions = [question for question in questions if question_visual_mapping(question)]
+    if not mapped_questions:
+        return None
+    folder = f"cases/{case.id}/generated"
+    os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
+    filename = f"{folder}/{case.case_type.lower()}_visual_filled_{uuid.uuid4().hex[:8]}.pdf"
+    output_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    document = None
+    try:
+        document = fitz.open(source_path)
+        placed_count = 0
+        for question in mapped_questions:
+            answer_text = (answers.get(question.id) or "").strip()
+            if not answer_text:
+                continue
+            if question.input_type == "checkbox" and answer_text != "Yes":
+                continue
+            page_index = (question.pdf_page_number or 1) - 1
+            if page_index < 0 or page_index >= document.page_count:
+                continue
+            page = document.load_page(page_index)
+            x = float(question.pdf_x or 0)
+            y = float(question.pdf_y or 0)
+            width = float(question.pdf_width or 120)
+            height = float(question.pdf_height or 16)
+            rect = fitz.Rect(x, y, x + width, y + height)
+            if question.input_type == "checkbox":
+                page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
+            elif question.render_mode == "split_boxes":
+                overlay_split_box_text_on_rect(page, rect, answer_text, question.render_box_count)
+            else:
+                page.insert_textbox(rect, answer_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+            placed_count += 1
+        if not placed_count:
+            document.close()
+            return None
+        document.save(output_path, garbage=4, deflate=True, clean=True)
+        document.close()
+        return filename
+    except Exception:
+        if document:
+            document.close()
+        return None
+
+
+def overlay_split_box_text_on_rect(page, rect, value, box_count=0):
+    try:
+        import fitz
+    except ImportError:
+        return
+    text = str(value or "")
+    if not text:
+        return
+    count = int(box_count or 0) or len(text)
+    count = max(1, count)
+    cell_width = rect.width / count
+    baseline_y = rect.y0 + min(rect.height - 2, 11)
+    for index, character in enumerate(text[:count]):
+        x = rect.x0 + (cell_width * index) + (cell_width * 0.35)
+        page.insert_text(fitz.Point(x, baseline_y), character, fontsize=9, fontname="helv", color=(0, 0, 0))
 
 
 def fill_acroform_pdf(case, template):
@@ -4603,6 +4793,11 @@ def ensure_sqlite_schema():
             "client_visible": "BOOLEAN DEFAULT 1 NOT NULL",
             "render_mode": "VARCHAR(30) DEFAULT 'normal' NOT NULL",
             "render_box_count": "INTEGER DEFAULT 0 NOT NULL",
+            "pdf_page_number": "INTEGER",
+            "pdf_x": "NUMERIC(10, 2)",
+            "pdf_y": "NUMERIC(10, 2)",
+            "pdf_width": "NUMERIC(10, 2)",
+            "pdf_height": "NUMERIC(10, 2)",
         }
         for column, ddl in question_additions.items():
             if column not in existing_question:
