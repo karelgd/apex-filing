@@ -3285,9 +3285,8 @@ body {
 }
 
 .visual-question-form {
-  position: sticky;
-  top: 1rem;
-  z-index: 2;
+  position: relative;
+  z-index: 1;
 }
 
 .visual-pdf-card {
