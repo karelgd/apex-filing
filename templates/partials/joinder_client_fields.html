@@ -1,0 +1,60 @@
+<div class="row g-3">
+  <div class="col-md-4">
+    <label class="form-label">Alien Number</label>
+    <input class="form-control" name="alien_number" value="{{ client.alien_number if client else '' }}" required>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">First Name</label>
+    <input class="form-control" name="first_name" value="{{ client.first_name if client else '' }}" required>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Last Name</label>
+    <input class="form-control" name="last_name" value="{{ client.last_name if client else '' }}" required>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Phone</label>
+    <input class="form-control" name="phone" value="{{ client.phone if client else '' }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Email</label>
+    <input class="form-control" type="email" name="email" value="{{ client.email if client else '' }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Contract Value</label>
+    <input class="form-control" type="number" step="0.01" min="0" name="contract_value" value="{{ client.contract_value if client else '0' }}">
+  </div>
+  <div class="col-md-5">
+    <label class="form-label">Address</label>
+    <input class="form-control" name="address" value="{{ client.address if client else '' }}">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">City</label>
+    <input class="form-control" name="city" value="{{ client.city if client else '' }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label">State</label>
+    <select class="form-select" name="state">
+      <option value="">State</option>
+      {% for state in states %}
+        <option value="{{ state }}" {% if client and client.state == state %}selected{% endif %}>{{ state }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label">Status</label>
+    <select class="form-select" name="status">
+      {% for status in statuses %}
+        <option value="{{ status }}" {% if client and client.status == status %}selected{% endif %}>{{ status }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Case Manager</label>
+    <select class="form-select" name="case_manager_id">
+      <option value="">Not assigned</option>
+      {% for manager in case_managers %}
+        <option value="{{ manager.id }}" {% if client and client.case_manager_id == manager.id %}selected{% endif %}>{{ manager.full_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>

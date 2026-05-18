@@ -97,6 +97,9 @@
           {% if current_user.agency.has_tool('Motion Creation') and can_use_motion_creation_for_current_user() %}
             <a class="tool-link {{ 'active' if request.endpoint in ['agency_motions', 'motion_template_new', 'motion_template_edit', 'motion_template_delete', 'motion_create', 'motion_edit', 'motion_detail', 'motion_download', 'motion_pdf', 'motion_delete'] else '' }}" href="{{ url_for('agency_motions') }}">Motion Creation</a>
           {% endif %}
+          {% if current_user.agency.has_tool('Joinder') and can_use_joinder_for_current_user() %}
+            <a class="tool-link {{ 'active' if request.endpoint in ['agency_joinder', 'joinder_search_pdf', 'joinder_client_create', 'joinder_client_detail', 'joinder_client_edit', 'joinder_document_upload', 'joinder_document_view', 'joinder_document_download', 'joinder_document_delete', 'joinder_note_create'] else '' }}" href="{{ url_for('agency_joinder') }}">Joinder</a>
+          {% endif %}
           {% if current_user.agency.has_tool('Power of Attorney Creator') %}
             <span class="tool-link muted">Power of Attorney</span>
           {% endif %}

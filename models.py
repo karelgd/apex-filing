@@ -703,6 +703,82 @@ class CrmClientDocument(db.Model):
     case = db.relationship("CrmCase", back_populates="documents")
 
 
+class JoinderClient(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    primary_client_id = db.Column(db.Integer, db.ForeignKey("joinder_client.id"))
+    case_manager_id = db.Column(db.Integer, db.ForeignKey("agency_case_manager.id"))
+    alien_number = db.Column(db.String(40), nullable=False)
+    first_name = db.Column(db.String(80), nullable=False)
+    last_name = db.Column(db.String(80), nullable=False)
+    phone = db.Column(db.String(40))
+    email = db.Column(db.String(160))
+    address = db.Column(db.String(180))
+    city = db.Column(db.String(80))
+    state = db.Column(db.String(2))
+    contract_value = db.Column(db.Numeric(10, 2), default=0, nullable=False)
+    status = db.Column(db.String(40), default="New", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("joinder_clients", cascade="all, delete-orphan"))
+    case_manager = db.relationship("AgencyCaseManager")
+    primary_client = db.relationship("JoinderClient", remote_side=[id], backref=db.backref("dependents", cascade="all"))
+    documents = db.relationship("JoinderDocument", back_populates="client", cascade="all, delete-orphan", order_by="JoinderDocument.uploaded_at.desc()")
+    notes = db.relationship("JoinderNote", back_populates="client", cascade="all, delete-orphan", order_by="JoinderNote.created_at.desc()")
+    activity_logs = db.relationship("JoinderActivityLog", back_populates="client", cascade="all, delete-orphan", order_by="JoinderActivityLog.created_at.desc()")
+
+    @property
+    def full_name(self):
+        return " ".join(part for part in [self.first_name, self.last_name] if part)
+
+    @property
+    def display_address(self):
+        return ", ".join(part for part in [self.address, self.city, self.state] if part)
+
+    @property
+    def root_client(self):
+        return self.primary_client or self
+
+
+class JoinderDocument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("joinder_client.id"), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(240))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    client = db.relationship("JoinderClient", back_populates="documents")
+
+
+class JoinderNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("joinder_client.id"), nullable=False)
+    note_text = db.Column(db.Text, nullable=False)
+    created_by = db.Column(db.String(160))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    client = db.relationship("JoinderClient", back_populates="notes")
+
+
+class JoinderActivityLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("joinder_client.id"), nullable=False)
+    user_label = db.Column(db.String(160), nullable=False)
+    action = db.Column(db.String(80), nullable=False)
+    detail = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    client = db.relationship("JoinderClient", back_populates="activity_logs")
+
+
 class KnowledgeBaseModule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(140), nullable=False)

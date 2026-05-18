@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="crm-hero">
+  <div>
+    <span class="crm-kicker">Joinder</span>
+    <h1>Joinder Workspace</h1>
+    <p>Search Joinder clients, manage documents, and track principal/dependent groups.</p>
+  </div>
+  <a class="btn btn-primary crm-action-btn" href="{{ url_for('joinder_client_create') }}">Create Client</a>
+</section>
+
+<section class="crm-summary-grid">
+  <div class="crm-summary-card">
+    <span>Total Clients</span>
+    <strong>{{ total_clients }}</strong>
+  </div>
+  <div class="crm-summary-card">
+    <span>Total Contract Value</span>
+    <strong>${{ '%.2f'|format(total_value or 0) }}</strong>
+  </div>
+</section>
+
+<section class="crm-panel">
+  <div class="crm-panel-head">
+    <div>
+      <h2>Client Search</h2>
+      <p>Filter by created date, case manager, name, Alien number, phone, email, city, or address.</p>
+    </div>
+    {% if searched %}
+      <a class="btn btn-outline-primary crm-action-btn" href="{{ url_for('joinder_search_pdf') }}{% if request.query_string %}?{{ request.query_string.decode('utf-8') }}{% endif %}">Download PDF</a>
+    {% endif %}
+  </div>
+  <form class="crm-report-filters" method="get">
+    <input type="hidden" name="searched" value="1">
+    <div>
+      <label class="form-label">Search</label>
+      <input class="form-control" name="q" value="{{ filters.q }}" placeholder="Name, Alien number, phone, email...">
+    </div>
+    <div>
+      <label class="form-label">Case manager</label>
+      <select class="form-select" name="case_manager_id">
+        <option value="">All case managers</option>
+        {% for manager in case_managers %}
+          <option value="{{ manager.id }}" {% if filters.case_manager_id == manager.id|string %}selected{% endif %}>{{ manager.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">Created from</label>
+      <input class="form-control" type="date" name="created_from" value="{{ filters.created_from }}">
+    </div>
+    <div>
+      <label class="form-label">Created to</label>
+      <input class="form-control" type="date" name="created_to" value="{{ filters.created_to }}">
+    </div>
+    <div class="crm-report-filter-actions">
+      <button class="btn btn-primary">Search</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('agency_joinder') }}">Clear</a>
+    </div>
+  </form>
+</section>
+
+{% if searched %}
+  <section class="crm-panel mt-4">
+    <div class="crm-panel-head">
+      <div>
+        <h2>Results</h2>
+        <p>{{ clients|length }} matching client{{ '' if clients|length == 1 else 's' }}</p>
+      </div>
+    </div>
+    <div class="joinder-results">
+      <div class="joinder-result-head">
+        <span>Created</span>
+        <span>Name</span>
+        <span>Alien #</span>
+        <span>Phone</span>
+        <span>Email</span>
+        <span>Contract</span>
+        <span>Status</span>
+        <span>Related Case</span>
+        <span>Actions</span>
+      </div>
+      {% for client in clients %}
+        <div class="joinder-result-row">
+          <span>{{ client.created_at.strftime('%m/%d/%Y') }}</span>
+          <span><strong>{{ client.full_name }}</strong></span>
+          <span>{{ client.alien_number }}</span>
+          <span>{{ client.phone or '-' }}</span>
+          <span>{{ client.email or '-' }}</span>
+          <span>${{ '%.2f'|format(client.contract_value or 0) }}</span>
+          <span><span class="badge text-bg-primary">{{ client.status }}</span></span>
+          <span>
+            {% for related in related_clients(client) %}
+              <a href="{{ url_for('joinder_client_detail', client_id=related.id) }}">{{ related.full_name }}</a>{% if not loop.last %}, {% endif %}
+            {% else %}
+              <span class="text-secondary">-</span>
+            {% endfor %}
+          </span>
+          <span class="joinder-row-actions">
+            <a class="btn btn-sm btn-primary" href="{{ url_for('joinder_client_detail', client_id=client.id) }}">View</a>
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('joinder_client_edit', client_id=client.id) }}">Edit</a>
+            <form method="post" enctype="multipart/form-data" action="{{ url_for('joinder_document_upload', client_id=client.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="{{ request.full_path }}">
+              <label class="btn btn-sm btn-outline-secondary mb-0">
+                Upload Doc
+                <input class="d-none joinder-inline-upload" type="file" name="document">
+              </label>
+            </form>
+          </span>
+        </div>
+      {% else %}
+        <div class="crm-empty-state">No clients matched those criteria.</div>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".joinder-inline-upload").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.files.length) {
+        input.closest("form").submit();
+      }
+    });
+  });
+</script>
+{% endblock %}

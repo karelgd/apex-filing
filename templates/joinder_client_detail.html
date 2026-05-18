@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="crm-record-hero">
+  <div class="crm-record-avatar">{{ client.first_name[:1] }}{{ client.last_name[:1] }}</div>
+  <div>
+    <span class="crm-kicker">Joinder Client</span>
+    <h1>{{ client.full_name }}</h1>
+    <p>
+      <strong>Alien #:</strong> {{ client.alien_number }} <span class="mx-2">-</span>
+      <strong>Status:</strong> {{ client.status }} <span class="mx-2">-</span>
+      <strong>Contract:</strong> ${{ '%.2f'|format(client.contract_value or 0) }}
+    </p>
+  </div>
+  <div class="ms-auto d-flex gap-2">
+    <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('agency_joinder', searched=1) }}">Back to Joinder</a>
+    <a class="btn btn-primary crm-action-btn" href="{{ url_for('joinder_client_edit', client_id=client.id) }}">Edit Client</a>
+  </div>
+</section>
+
+<section class="crm-panel">
+  <div class="crm-detail-list">
+    <div><span>Phone</span><strong>{{ client.phone or '-' }}</strong></div>
+    <div><span>Email</span><strong>{{ client.email or '-' }}</strong></div>
+    <div><span>Address</span><strong>{{ client.display_address or '-' }}</strong></div>
+    <div><span>Case Manager</span><strong>{{ client.case_manager.full_name if client.case_manager else 'Not assigned' }}</strong></div>
+    <div><span>Created</span><strong>{{ client.created_at.strftime('%m/%d/%Y %I:%M %p') }}</strong></div>
+    <div>
+      <span>Related Case</span>
+      <strong>
+        {% for related in related_clients %}
+          <a href="{{ url_for('joinder_client_detail', client_id=related.id) }}">{{ related.full_name }}</a>{% if not loop.last %}, {% endif %}
+        {% else %}
+          -
+        {% endfor %}
+      </strong>
+    </div>
+  </div>
+</section>
+
+<section class="crm-folder-panel mt-4">
+  <div class="crm-folder-tabs" role="tablist">
+    <button class="crm-folder-tab active" type="button" data-tab-target="documents">Documents <span>{{ documents|length }}</span></button>
+    <button class="crm-folder-tab" type="button" data-tab-target="notes">Notes <span>{{ client.notes|length }}</span></button>
+    <button class="crm-folder-tab" type="button" data-tab-target="activity">Activity Log <span>{{ client.activity_logs|length }}</span></button>
+  </div>
+
+  <div class="crm-folder-content active" id="documents">
+    <form class="crm-upload mb-4" method="post" enctype="multipart/form-data" action="{{ url_for('joinder_document_upload', client_id=client.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label class="form-label">Upload Document</label>
+        <input class="form-control" type="file" name="document" required>
+      </div>
+      <div>
+        <label class="form-label">Description, optional</label>
+        <input class="form-control" name="description">
+      </div>
+      <button class="btn btn-primary">Upload Doc</button>
+    </form>
+
+    <div class="list-group list-group-flush">
+      {% for document in documents %}
+        <div class="list-group-item d-flex justify-content-between align-items-center gap-3 flex-wrap">
+          <div>
+            <strong>{{ document.original_filename }}</strong>
+            <div class="text-secondary small">{{ document.uploaded_at.strftime('%m/%d/%Y %I:%M %p') }}{% if document.description %} - {{ document.description }}{% endif %}</div>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('joinder_document_view', document_id=document.id) }}" target="_blank">View</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('joinder_document_download', document_id=document.id) }}">Download</a>
+            <form method="post" action="{{ url_for('joinder_document_delete', document_id=document.id) }}" onsubmit="return confirm('Delete this document?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <div class="crm-empty-state">No documents uploaded.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="crm-folder-content" id="notes">
+    <form method="post" action="{{ url_for('joinder_note_create', client_id=client.id) }}" class="mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label">Add Note</label>
+      <textarea class="form-control" name="note_text" rows="3" required></textarea>
+      <button class="btn btn-primary mt-3">Add Note</button>
+    </form>
+    <div class="crm-timeline">
+      {% for note in client.notes %}
+        <div class="crm-timeline-item">
+          <strong>{{ note.created_by or 'Agency user' }}</strong>
+          <span>{{ note.created_at.strftime('%m/%d/%Y %I:%M %p') }}</span>
+          <p>{{ note.note_text }}</p>
+        </div>
+      {% else %}
+        <div class="crm-empty-state">No notes yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="crm-folder-content" id="activity">
+    <div class="crm-timeline">
+      {% for log in client.activity_logs %}
+        <div class="crm-timeline-item">
+          <strong>{{ log.user_label }} - {{ log.action }}</strong>
+          <span>{{ log.created_at.strftime('%m/%d/%Y %I:%M %p') }}</span>
+          {% if log.detail %}<p>{{ log.detail }}</p>{% endif %}
+        </div>
+      {% else %}
+        <div class="crm-empty-state">No activity yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll(".crm-folder-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".crm-folder-tab").forEach((item) => item.classList.remove("active"));
+      document.querySelectorAll(".crm-folder-content").forEach((item) => item.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(tab.dataset.tabTarget)?.classList.add("active");
+    });
+  });
+</script>
+{% endblock %}

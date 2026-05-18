@@ -3481,6 +3481,65 @@ body {
   border-color: rgba(20, 184, 166, .9);
 }
 
+.joinder-results {
+  display: grid;
+  gap: .7rem;
+}
+
+.joinder-result-head,
+.joinder-result-row {
+  align-items: center;
+  display: grid;
+  gap: .85rem;
+  grid-template-columns: .7fr 1.2fr .8fr .85fr 1.25fr .75fr .85fr 1.35fr 1.45fr;
+}
+
+.joinder-result-head {
+  color: #52647d;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  padding: 0 .85rem;
+  text-transform: uppercase;
+}
+
+.joinder-result-row {
+  background: #f8fbff;
+  border: 1px solid #dce8f6;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(31, 67, 112, .08);
+  padding: .85rem;
+}
+
+.joinder-row-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.joinder-form-section {
+  background: #ffffff;
+  border: 1px solid #dce8f6;
+  border-radius: 14px;
+  padding: 1.1rem;
+}
+
+.joinder-form-section h2 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 1180px) {
+  .joinder-result-head {
+    display: none;
+  }
+
+  .joinder-result-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1180px) {
   .visual-builder-grid {
     grid-template-columns: 1fr;

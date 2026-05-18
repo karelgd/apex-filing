@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="crm-hero">
+  <div>
+    <span class="crm-kicker">Joinder Client</span>
+    <h1>{{ 'Edit Client' if client else 'Create Client' }}</h1>
+    <p>{{ 'Update Joinder client information.' if client else 'Create a principal client and optionally add dependents in the same case group.' }}</p>
+  </div>
+  <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('agency_joinder') }}">Back to Joinder</a>
+</section>
+
+<form class="crm-form-card" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="dependent_count" id="dependent-count" value="0">
+  <div class="joinder-form-section">
+    <h2>{{ 'Client Information' if client else 'Principal Client' }}</h2>
+    {% include "partials/joinder_client_fields.html" with context %}
+    {% if not client %}
+      <div class="mt-3">
+        <label class="form-label">Upload document, optional</label>
+        <input class="form-control" type="file" name="document">
+      </div>
+      <div class="mt-3">
+        <label class="form-label">Document description, optional</label>
+        <input class="form-control" name="document_description">
+      </div>
+    {% endif %}
+  </div>
+
+  {% if not client %}
+    <div id="dependent-list" class="mt-4"></div>
+    <button class="btn btn-outline-primary mt-3" type="button" id="add-dependent-button">Add Dependent</button>
+  {% endif %}
+
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary">{{ 'Save Changes' if client else 'Create Client' }}</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('agency_joinder') }}">Cancel</a>
+  </div>
+</form>
+
+<template id="dependent-template">
+  <div class="joinder-form-section mt-4 dependent-block">
+    <div class="d-flex justify-content-between align-items-center gap-3">
+      <h2>Dependent</h2>
+      <button class="btn btn-sm btn-outline-danger remove-dependent" type="button">Remove</button>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Alien Number</label>
+        <input class="form-control" name="__prefix__alien_number" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">First Name</label>
+        <input class="form-control" name="__prefix__first_name" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Last Name</label>
+        <input class="form-control" name="__prefix__last_name" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Phone</label>
+        <input class="form-control" name="__prefix__phone">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Email</label>
+        <input class="form-control" type="email" name="__prefix__email">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Contract Value</label>
+        <input class="form-control" type="number" step="0.01" min="0" name="__prefix__contract_value" value="0">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Address</label>
+        <input class="form-control" name="__prefix__address">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">City</label>
+        <input class="form-control" name="__prefix__city">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">State</label>
+        <select class="form-select" name="__prefix__state">
+          <option value="">State</option>
+          {% for state in states %}
+            <option value="{{ state }}">{{ state }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="__prefix__status">
+          {% for status in statuses %}
+            <option value="{{ status }}">{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Case Manager</label>
+        <select class="form-select" name="__prefix__case_manager_id">
+          <option value="">Not assigned</option>
+          {% for manager in case_managers %}
+            <option value="{{ manager.id }}">{{ manager.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Upload document, optional</label>
+        <input class="form-control" type="file" name="__prefix__document">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Document description, optional</label>
+        <input class="form-control" name="__prefix__document_description">
+      </div>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const addButton = document.getElementById("add-dependent-button");
+  const dependentList = document.getElementById("dependent-list");
+  const dependentCount = document.getElementById("dependent-count");
+  const template = document.getElementById("dependent-template");
+  let dependentIndex = 0;
+
+  addButton?.addEventListener("click", () => {
+    const html = template.innerHTML.replaceAll("__prefix__", `dependent_${dependentIndex}_`);
+    dependentList.insertAdjacentHTML("beforeend", html);
+    dependentIndex += 1;
+    dependentCount.value = dependentIndex;
+  });
+
+  dependentList?.addEventListener("click", (event) => {
+    if (event.target.closest(".remove-dependent")) {
+      event.target.closest(".dependent-block").remove();
+    }
+  });
+</script>
+{% endblock %}

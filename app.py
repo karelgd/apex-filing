@@ -62,6 +62,10 @@ from models import (
     GeneratedForm,
     ImmigrationCourt,
     ImmigrationJudge,
+    JoinderActivityLog,
+    JoinderClient,
+    JoinderDocument,
+    JoinderNote,
     KnowledgeBaseModule,
     KnowledgeBaseTopic,
     MotionDraft,
@@ -162,6 +166,7 @@ def create_app():
             "is_agency_staff": is_agency_staff,
             "can_generate_forms_for_current_user": can_generate_forms_for_current_user,
             "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
+            "can_use_joinder_for_current_user": can_use_joinder_for_current_user,
             "question_visual_mapping": question_visual_mapping,
             "question_visual_mappings": question_visual_mappings,
         }
@@ -1192,6 +1197,16 @@ def can_use_crm(agency):
     return bool(agency and agency.has_tool("CRM"))
 
 
+def can_use_joinder(agency):
+    return bool(agency and agency.has_tool("Joinder"))
+
+
+def can_use_joinder_for_current_user():
+    return current_user.is_authenticated and current_user.role == "agency" and (
+        is_agency_owner() or isinstance(current_user, AgencyCaseManager)
+    )
+
+
 def can_use_crm_form_filler(agency):
     return can_use_crm(agency) and can_use_form_filler(agency)
 
@@ -1371,6 +1386,140 @@ def build_crm_report_data(agency_id, args):
             "open_balance": sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid"),
         },
     }
+
+
+JOINDER_STATUSES = ["New", "Docs Received", "Reviewed", "Rejected", "Approved"]
+
+
+def joinder_user_label():
+    if is_agency_owner():
+        return current_user.username
+    return getattr(current_user, "full_name", None) or getattr(current_user, "username", "Agency user")
+
+
+def joinder_access_required():
+    if not can_use_joinder(current_user.agency):
+        flash("This feature is not included in your current membership.", "warning")
+        return False
+    if not can_use_joinder_for_current_user():
+        abort(403)
+    return True
+
+
+def populate_joinder_client_from_form(client, prefix=""):
+    client.alien_number = request.form[f"{prefix}alien_number"].strip()
+    client.first_name = request.form[f"{prefix}first_name"].strip()
+    client.last_name = request.form[f"{prefix}last_name"].strip()
+    client.phone = request.form.get(f"{prefix}phone", "").strip()
+    client.email = request.form.get(f"{prefix}email", "").strip()
+    client.address = request.form.get(f"{prefix}address", "").strip()
+    client.city = request.form.get(f"{prefix}city", "").strip()
+    client.state = request.form.get(f"{prefix}state", "").strip()
+    client.contract_value = decimal_from_form(f"{prefix}contract_value")
+    client.status = request.form.get(f"{prefix}status") or "New"
+    manager_id = request.form.get(f"{prefix}case_manager_id", "").strip()
+    client.case_manager_id = int(manager_id) if manager_id else None
+    if client.case_manager_id and not AgencyCaseManager.query.filter_by(id=client.case_manager_id, agency_id=client.agency_id).first():
+        abort(403)
+
+
+def joinder_client_snapshot(client):
+    return {
+        "Alien Number": client.alien_number or "",
+        "First Name": client.first_name or "",
+        "Last Name": client.last_name or "",
+        "Phone": client.phone or "",
+        "Email": client.email or "",
+        "Address": client.address or "",
+        "City": client.city or "",
+        "State": client.state or "",
+        "Contract Value": f"{client.contract_value or Decimal('0')}",
+        "Status": client.status or "",
+        "Case Manager": client.case_manager.full_name if client.case_manager else "",
+    }
+
+
+def joinder_log(client, action, detail=""):
+    db.session.add(
+        JoinderActivityLog(
+            agency_id=client.agency_id,
+            client_id=client.id,
+            user_label=joinder_user_label(),
+            action=action,
+            detail=detail,
+        )
+    )
+
+
+def joinder_edit_detail(before, client):
+    after = joinder_client_snapshot(client)
+    changes = []
+    for label, old_value in before.items():
+        new_value = after.get(label, "")
+        if str(old_value or "") != str(new_value or ""):
+            changes.append(f"changed {label} from {old_value or 'blank'} to {new_value or 'blank'}")
+    return "; ".join(changes)
+
+
+def query_joinder_client(client_id):
+    return JoinderClient.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+
+
+def joinder_related_clients(client):
+    if client.primary_client_id:
+        root = client.primary_client
+        related = [root] + [dependent for dependent in root.dependents if dependent.id != client.id]
+        return [item for item in related if item]
+    return list(client.dependents)
+
+
+def build_joinder_search_query(agency_id, args):
+    query = JoinderClient.query.filter_by(agency_id=agency_id)
+    search = args.get("q", "").strip()
+    manager_id = args.get("case_manager_id", "").strip()
+    created_from = args.get("created_from", "").strip()
+    created_to = args.get("created_to", "").strip()
+    if search:
+        like = f"%{search.lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(JoinderClient.first_name + " " + JoinderClient.last_name).like(like),
+                func.lower(JoinderClient.last_name + " " + JoinderClient.first_name).like(like),
+                func.lower(JoinderClient.alien_number).like(like),
+                func.lower(JoinderClient.phone).like(like),
+                func.lower(JoinderClient.email).like(like),
+                func.lower(JoinderClient.address).like(like),
+                func.lower(JoinderClient.city).like(like),
+            )
+        )
+    if manager_id.isdigit():
+        query = query.filter(JoinderClient.case_manager_id == int(manager_id))
+    try:
+        if created_from:
+            query = query.filter(JoinderClient.created_at >= datetime.strptime(created_from, "%Y-%m-%d"))
+        if created_to:
+            query = query.filter(JoinderClient.created_at < datetime.strptime(created_to, "%Y-%m-%d") + timedelta(days=1))
+    except ValueError:
+        flash("One of the dates was invalid and was ignored.", "warning")
+    return query.order_by(JoinderClient.last_name, JoinderClient.first_name)
+
+
+def save_joinder_document(client, file_storage, description=""):
+    saved = save_upload(file_storage, f"joinder/clients/{client.id}")
+    if not saved:
+        return None
+    original, stored = saved
+    document = JoinderDocument(
+        agency_id=client.agency_id,
+        client_id=client.id,
+        original_filename=original,
+        stored_filename=stored,
+        description=description,
+    )
+    db.session.add(document)
+    db.session.flush()
+    joinder_log(client, "Document uploaded", original)
+    return document
 
 
 def build_crm_chart(title, counts):
@@ -2682,6 +2831,7 @@ def register_routes(app):
     def case_manager_delete(manager_id):
         manager = AgencyCaseManager.query.filter_by(id=manager_id, agency_id=current_user.agency_id).first() or abort(404)
         CrmCase.query.filter_by(case_manager_id=manager.id).update({"case_manager_id": None})
+        JoinderClient.query.filter_by(case_manager_id=manager.id).update({"case_manager_id": None})
         db.session.delete(manager)
         db.session.commit()
         flash("Case manager deleted.", "info")
@@ -3381,6 +3531,203 @@ def register_routes(app):
             download_name=document.original_filename,
         )
 
+    @app.route("/agency/joinder")
+    @role_required("agency")
+    def agency_joinder():
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        searched = request.args.get("searched") == "1"
+        clients = build_joinder_search_query(current_user.agency_id, request.args).all() if searched else []
+        total_clients = JoinderClient.query.filter_by(agency_id=current_user.agency_id).count()
+        total_value = (
+            db.session.query(func.coalesce(func.sum(JoinderClient.contract_value), 0))
+            .filter(JoinderClient.agency_id == current_user.agency_id)
+            .scalar()
+            or Decimal("0")
+        )
+        return render_template(
+            "joinder_dashboard.html",
+            clients=clients,
+            searched=searched,
+            total_clients=total_clients,
+            total_value=total_value,
+            case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
+            filters={
+                "q": request.args.get("q", ""),
+                "case_manager_id": request.args.get("case_manager_id", ""),
+                "created_from": request.args.get("created_from", ""),
+                "created_to": request.args.get("created_to", ""),
+            },
+            related_clients=joinder_related_clients,
+        )
+
+    @app.route("/agency/joinder/search.pdf")
+    @role_required("agency")
+    def joinder_search_pdf():
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        clients = build_joinder_search_query(current_user.agency_id, request.args).all()
+        return generate_joinder_search_pdf(clients, request.args)
+
+    @app.route("/agency/joinder/clients/new", methods=["GET", "POST"])
+    @role_required("agency")
+    def joinder_client_create():
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        case_managers = AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all()
+        if request.method == "POST":
+            client = JoinderClient(agency_id=current_user.agency_id)
+            populate_joinder_client_from_form(client)
+            db.session.add(client)
+            db.session.flush()
+            joinder_log(client, "Client created", f"Created {client.full_name}")
+            try:
+                save_joinder_document(client, request.files.get("document"), request.form.get("document_description", "").strip())
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), "danger")
+                return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES)
+            try:
+                dependent_count = int(request.form.get("dependent_count") or 0)
+            except ValueError:
+                dependent_count = 0
+            for index in range(dependent_count):
+                prefix = f"dependent_{index}_"
+                if not request.form.get(f"{prefix}first_name", "").strip() and not request.form.get(f"{prefix}last_name", "").strip():
+                    continue
+                dependent = JoinderClient(agency_id=current_user.agency_id, primary_client_id=client.id)
+                populate_joinder_client_from_form(dependent, prefix=prefix)
+                db.session.add(dependent)
+                db.session.flush()
+                joinder_log(dependent, "Client created", f"Created dependent for {client.full_name}")
+                try:
+                    save_joinder_document(dependent, request.files.get(f"{prefix}document"), request.form.get(f"{prefix}document_description", "").strip())
+                except ValueError as exc:
+                    db.session.rollback()
+                    flash(str(exc), "danger")
+                    return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES)
+            db.session.commit()
+            flash("Joinder client saved.", "success")
+            return redirect(url_for("joinder_client_detail", client_id=client.id))
+        return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES)
+
+    @app.route("/agency/joinder/clients/<int:client_id>")
+    @role_required("agency")
+    def joinder_client_detail(client_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        client = query_joinder_client(client_id)
+        return render_template(
+            "joinder_client_detail.html",
+            client=client,
+            documents=JoinderDocument.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(JoinderDocument.uploaded_at.desc()).all(),
+            related_clients=joinder_related_clients(client),
+            statuses=JOINDER_STATUSES,
+        )
+
+    @app.route("/agency/joinder/clients/<int:client_id>/edit", methods=["GET", "POST"])
+    @role_required("agency")
+    def joinder_client_edit(client_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        client = query_joinder_client(client_id)
+        case_managers = AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all()
+        if request.method == "POST":
+            before = joinder_client_snapshot(client)
+            populate_joinder_client_from_form(client)
+            detail = joinder_edit_detail(before, client)
+            if detail:
+                joinder_log(client, "Client edited", detail)
+            db.session.commit()
+            flash("Joinder client updated.", "success")
+            return redirect(url_for("joinder_client_detail", client_id=client.id))
+        return render_template("joinder_client_form.html", client=client, case_managers=case_managers, statuses=JOINDER_STATUSES)
+
+    @app.route("/agency/joinder/clients/<int:client_id>/documents", methods=["POST"])
+    @role_required("agency")
+    def joinder_document_upload(client_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        client = query_joinder_client(client_id)
+        try:
+            document = save_joinder_document(client, request.files.get("document"), request.form.get("description", "").strip())
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return redirect(request.form.get("next") or url_for("joinder_client_detail", client_id=client.id))
+        if not document:
+            flash("Choose a document to upload.", "warning")
+        else:
+            db.session.commit()
+            flash("Document uploaded.", "success")
+        return redirect(request.form.get("next") or url_for("joinder_client_detail", client_id=client.id))
+
+    @app.route("/agency/joinder/documents/<int:document_id>/view")
+    @role_required("agency")
+    def joinder_document_view(document_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        document = JoinderDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
+        joinder_log(document.client, "Document viewed", document.original_filename)
+        db.session.commit()
+        authorize_upload_access(document.stored_filename)
+        return send_from_directory(app.config["UPLOAD_FOLDER"], document.stored_filename, as_attachment=False)
+
+    @app.route("/agency/joinder/documents/<int:document_id>/download")
+    @role_required("agency")
+    def joinder_document_download(document_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        document = JoinderDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
+        joinder_log(document.client, "Document downloaded", document.original_filename)
+        db.session.commit()
+        authorize_upload_access(document.stored_filename)
+        return send_from_directory(
+            app.config["UPLOAD_FOLDER"],
+            document.stored_filename,
+            as_attachment=True,
+            download_name=document.original_filename,
+        )
+
+    @app.route("/agency/joinder/documents/<int:document_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def joinder_document_delete(document_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        document = JoinderDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
+        client = document.client
+        stored_path = os.path.join(app.config["UPLOAD_FOLDER"], document.stored_filename)
+        joinder_log(client, "Document deleted", document.original_filename)
+        db.session.delete(document)
+        db.session.commit()
+        if os.path.exists(stored_path):
+            try:
+                os.remove(stored_path)
+            except OSError:
+                pass
+        flash("Document deleted.", "info")
+        return redirect(url_for("joinder_client_detail", client_id=client.id))
+
+    @app.route("/agency/joinder/clients/<int:client_id>/notes", methods=["POST"])
+    @role_required("agency")
+    def joinder_note_create(client_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        client = query_joinder_client(client_id)
+        note_text = request.form.get("note_text", "").strip()
+        if note_text:
+            db.session.add(
+                JoinderNote(
+                    agency_id=current_user.agency_id,
+                    client_id=client.id,
+                    note_text=note_text,
+                    created_by=joinder_user_label(),
+                )
+            )
+            joinder_log(client, "Note added", note_text[:180])
+            db.session.commit()
+            flash("Note added.", "success")
+        return redirect(url_for("joinder_client_detail", client_id=client.id))
+
     @app.route("/clients")
     @role_required("apex", "agency")
     def client_list():
@@ -4030,6 +4377,69 @@ def generate_crm_report_pdf(report_data):
         buffer.getvalue(),
         mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+def generate_joinder_search_pdf(clients, args):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    left = 45
+    y = height - 45
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.drawString(left, y, "Joinder Client Search Results")
+    pdf.setFont("Helvetica", 9)
+    pdf.drawRightString(width - left, y, datetime.utcnow().strftime("%m/%d/%Y"))
+    y -= 20
+    filters = []
+    if args.get("q"):
+        filters.append(f"Search: {args.get('q')}")
+    if args.get("created_from") or args.get("created_to"):
+        filters.append(f"Created: {args.get('created_from') or 'any'} to {args.get('created_to') or 'any'}")
+    if args.get("case_manager_id", "").isdigit():
+        manager = db.session.get(AgencyCaseManager, int(args.get("case_manager_id")))
+        if manager:
+            filters.append(f"Case manager: {manager.full_name}")
+    pdf.drawString(left, y, (" | ".join(filters) if filters else "All matching Joinder clients")[:120])
+    y -= 22
+    total_value = sum((client.contract_value or Decimal("0")) for client in clients)
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(left, y, f"Total clients: {len(clients)}")
+    pdf.drawRightString(width - left, y, f"Total contract value: ${float(total_value):,.2f}")
+    y -= 22
+    headers = ["Created", "Name", "Alien #", "Status", "Manager", "Contract"]
+    col_x = [left, 102, 245, 330, 405, 520]
+    pdf.setFont("Helvetica-Bold", 8)
+    for index, header in enumerate(headers):
+        pdf.drawString(col_x[index], y, header)
+    y -= 8
+    pdf.line(left, y, width - left, y)
+    y -= 13
+    pdf.setFont("Helvetica", 8)
+    for client in clients:
+        if y < 60:
+            pdf.showPage()
+            y = height - 45
+            pdf.setFont("Helvetica", 8)
+        row = [
+            client.created_at.strftime("%m/%d/%Y") if client.created_at else "",
+            client.full_name[:27],
+            client.alien_number or "",
+            client.status or "",
+            (client.case_manager.full_name[:20] if client.case_manager else "Not assigned"),
+            f"${float(client.contract_value or 0):,.2f}",
+        ]
+        for index, value in enumerate(row):
+            pdf.drawString(col_x[index], y, str(value))
+        y -= 14
+    if not clients:
+        pdf.drawString(left, y, "No clients matched those criteria.")
+    pdf.save()
+    buffer.seek(0)
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=joinder-search-results.pdf"},
     )
 
 
