@@ -3648,6 +3648,34 @@ def register_routes(app):
             return redirect(url_for("joinder_client_detail", client_id=client.id))
         return render_template("joinder_client_form.html", client=client, case_managers=case_managers, statuses=JOINDER_STATUSES)
 
+    @app.route("/agency/joinder/clients/<int:client_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def joinder_client_delete(client_id):
+        if not joinder_access_required():
+            return redirect(url_for("agency_dashboard"))
+        client = query_joinder_client(client_id)
+        stored_paths = [os.path.join(app.config["UPLOAD_FOLDER"], document.stored_filename) for document in client.documents]
+        if client.primary_client_id:
+            JoinderClient.query.filter_by(primary_client_id=client.id, agency_id=current_user.agency_id).update(
+                {"primary_client_id": client.primary_client_id},
+                synchronize_session=False,
+            )
+        else:
+            JoinderClient.query.filter_by(primary_client_id=client.id, agency_id=current_user.agency_id).update(
+                {"primary_client_id": None},
+                synchronize_session=False,
+            )
+        db.session.delete(client)
+        db.session.commit()
+        for stored_path in stored_paths:
+            if os.path.exists(stored_path):
+                try:
+                    os.remove(stored_path)
+                except OSError:
+                    pass
+        flash("Joinder client deleted.", "info")
+        return redirect(url_for("agency_joinder"))
+
     @app.route("/agency/joinder/clients/<int:client_id>/documents", methods=["POST"])
     @role_required("agency")
     def joinder_document_upload(client_id):

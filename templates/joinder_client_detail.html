@@ -14,6 +14,10 @@
   <div class="ms-auto d-flex gap-2">
     <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('agency_joinder', searched=1) }}">Back to Joinder</a>
     <a class="btn btn-primary crm-action-btn" href="{{ url_for('joinder_client_edit', client_id=client.id) }}">Edit Client</a>
+    <form method="post" action="{{ url_for('joinder_client_delete', client_id=client.id) }}" onsubmit="return confirm('Warning: deleting this Joinder client will remove this client, uploaded documents, notes, and activity logs. Related principal/dependent links will be updated. Are you sure you want to proceed?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-danger crm-action-btn">Delete Client</button>
+    </form>
   </div>
 </section>
 
