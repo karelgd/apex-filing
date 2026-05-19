@@ -2024,6 +2024,18 @@ body {
   color: #5a36a3;
 }
 
+.crm-folder-tab.crm-tab-notes {
+  background: #fff1e8;
+  border-color: #ffc7a8;
+  color: #a64b00;
+}
+
+.crm-folder-tab.crm-tab-activity {
+  background: #eaf9ef;
+  border-color: #abe8bf;
+  color: #0f7a38;
+}
+
 .crm-folder-tab span {
   align-items: center;
   background: rgba(255, 255, 255, .78);
@@ -2059,6 +2071,14 @@ body {
   background: #7b5cff;
 }
 
+.crm-folder-tab.crm-tab-notes.active {
+  background: #ff8a3d;
+}
+
+.crm-folder-tab.crm-tab-activity.active {
+  background: #20b15a;
+}
+
 .crm-folder-tab.active span {
   background: #ffffff;
   color: var(--apex-ink);
@@ -2074,6 +2094,15 @@ body {
 }
 
 .crm-folder-panel.active {
+  display: block;
+}
+
+.crm-folder-content {
+  display: none;
+  padding-top: 1rem;
+}
+
+.crm-folder-content.active {
   display: block;
 }
 

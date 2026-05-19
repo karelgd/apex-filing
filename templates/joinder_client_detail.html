@@ -41,11 +41,11 @@
   </div>
 </section>
 
-<section class="crm-folder-panel mt-4">
+<section class="crm-folder-panel active mt-4">
   <div class="crm-folder-tabs" role="tablist">
-    <button class="crm-folder-tab active" type="button" data-tab-target="documents">Documents <span>{{ documents|length }}</span></button>
-    <button class="crm-folder-tab" type="button" data-tab-target="notes">Notes <span>{{ client.notes|length }}</span></button>
-    <button class="crm-folder-tab" type="button" data-tab-target="activity">Activity Log <span>{{ client.activity_logs|length }}</span></button>
+    <button class="crm-folder-tab crm-tab-documents active" type="button" data-tab-target="documents">Documents <span>{{ documents|length }}</span></button>
+    <button class="crm-folder-tab crm-tab-notes" type="button" data-tab-target="notes">Notes <span>{{ client.notes|length }}</span></button>
+    <button class="crm-folder-tab crm-tab-activity" type="button" data-tab-target="activity">Activity Log <span>{{ client.activity_logs|length }}</span></button>
   </div>
 
   <div class="crm-folder-content active" id="documents">
