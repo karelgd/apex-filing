@@ -1477,6 +1477,7 @@ def build_joinder_search_query(agency_id, args):
     query = JoinderClient.query.filter_by(agency_id=agency_id)
     search = args.get("q", "").strip()
     manager_id = args.get("case_manager_id", "").strip()
+    status = args.get("status", "").strip()
     created_from = args.get("created_from", "").strip()
     created_to = args.get("created_to", "").strip()
     if search:
@@ -1494,6 +1495,8 @@ def build_joinder_search_query(agency_id, args):
         )
     if manager_id.isdigit():
         query = query.filter(JoinderClient.case_manager_id == int(manager_id))
+    if status in JOINDER_STATUSES:
+        query = query.filter(JoinderClient.status == status)
     try:
         if created_from:
             query = query.filter(JoinderClient.created_at >= datetime.strptime(created_from, "%Y-%m-%d"))
@@ -3555,9 +3558,11 @@ def register_routes(app):
             filters={
                 "q": request.args.get("q", ""),
                 "case_manager_id": request.args.get("case_manager_id", ""),
+                "status": request.args.get("status", ""),
                 "created_from": request.args.get("created_from", ""),
                 "created_to": request.args.get("created_to", ""),
             },
+            statuses=JOINDER_STATUSES,
             related_clients=joinder_related_clients,
         )
 
@@ -4396,6 +4401,8 @@ def generate_joinder_search_pdf(clients, args):
         filters.append(f"Search: {args.get('q')}")
     if args.get("created_from") or args.get("created_to"):
         filters.append(f"Created: {args.get('created_from') or 'any'} to {args.get('created_to') or 'any'}")
+    if args.get("status") in JOINDER_STATUSES:
+        filters.append(f"Status: {args.get('status')}")
     if args.get("case_manager_id", "").isdigit():
         manager = db.session.get(AgencyCaseManager, int(args.get("case_manager_id")))
         if manager:

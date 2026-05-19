@@ -46,6 +46,15 @@
       </select>
     </div>
     <div>
+      <label class="form-label">Status</label>
+      <select class="form-select" name="status">
+        <option value="">All statuses</option>
+        {% for status in statuses %}
+          <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
       <label class="form-label">Created from</label>
       <input class="form-control" type="date" name="created_from" value="{{ filters.created_from }}">
     </div>
