@@ -4,12 +4,12 @@
   <div>
     <span class="crm-kicker">Joinder Client</span>
     <h1>{{ 'Edit Client' if client else 'Create Client' }}</h1>
-    <p>{{ 'Update Joinder client information.' if client else 'Create a principal client and optionally add dependents in the same case group.' }}</p>
+    <p>{{ 'Update Joinder client information and related dependents.' if client else 'Create a principal client and optionally add dependents in the same case group.' }}</p>
   </div>
   <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('agency_joinder') }}">Back to Joinder</a>
 </section>
 
-<form class="crm-form-card" method="post" enctype="multipart/form-data">
+<form class="crm-form-card" method="post" enctype="multipart/form-data" id="joinder-client-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="dependent_count" id="dependent-count" value="0">
   <div class="joinder-form-section">
@@ -27,7 +27,60 @@
     {% endif %}
   </div>
 
-  {% if not client %}
+  {% if client and not client.primary_client_id %}
+    <section class="joinder-form-section mt-4">
+      <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <div>
+          <h2>Dependents</h2>
+          <p class="text-muted mb-0">Remove dependents from this related case or add new dependents below.</p>
+        </div>
+        <button class="btn btn-outline-primary" type="button" id="add-dependent-button">Add Dependent</button>
+      </div>
+      {% if existing_dependents %}
+        <div class="crm-table-card mt-3">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Alien Number</th>
+                <th>Status</th>
+                <th class="text-end">Remove</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dependent in existing_dependents %}
+                <tr>
+                  <td>
+                    <a href="{{ url_for('joinder_client_detail', client_id=dependent.id) }}">{{ dependent.full_name }}</a>
+                  </td>
+                  <td>{{ dependent.alien_number }}</td>
+                  <td>{{ dependent.status }}</td>
+                  <td class="text-end">
+                    <label class="form-check d-inline-flex align-items-center gap-2 mb-0">
+                      <input class="form-check-input" type="checkbox" name="remove_dependent_ids" value="{{ dependent.id }}">
+                      <span>Remove from case</span>
+                    </label>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mt-3 mb-0">No dependents are linked to this client yet.</p>
+      {% endif %}
+      <div id="dependent-list" class="mt-4"></div>
+    </section>
+  {% elif client and client.primary_client_id %}
+    <section class="joinder-form-section mt-4">
+      <h2>Related Case</h2>
+      <p class="text-muted mb-0">
+        This client is a dependent of
+        <a href="{{ url_for('joinder_client_detail', client_id=client.primary_client.id) }}">{{ client.primary_client.full_name }}</a>.
+        Edit the principal client to add or remove dependents from the related case.
+      </p>
+    </section>
+  {% else %}
     <div id="dependent-list" class="mt-4"></div>
     <button class="btn btn-outline-primary mt-3" type="button" id="add-dependent-button">Add Dependent</button>
   {% endif %}
@@ -134,6 +187,15 @@
   dependentList?.addEventListener("click", (event) => {
     if (event.target.closest(".remove-dependent")) {
       event.target.closest(".dependent-block").remove();
+    }
+  });
+
+  document.getElementById("joinder-client-form")?.addEventListener("submit", (event) => {
+    if (document.querySelectorAll('input[name="remove_dependent_ids"]:checked').length) {
+      const confirmed = confirm("Warning: selected dependents will be removed from this related case, but their client records will not be deleted. Are you sure you want to proceed?");
+      if (!confirmed) {
+        event.preventDefault();
+      }
     }
   });
 </script>

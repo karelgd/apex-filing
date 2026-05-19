@@ -3591,7 +3591,7 @@ def register_routes(app):
             except ValueError as exc:
                 db.session.rollback()
                 flash(str(exc), "danger")
-                return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES)
+                return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES, existing_dependents=[])
             try:
                 dependent_count = int(request.form.get("dependent_count") or 0)
             except ValueError:
@@ -3610,11 +3610,11 @@ def register_routes(app):
                 except ValueError as exc:
                     db.session.rollback()
                     flash(str(exc), "danger")
-                    return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES)
+                    return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES, existing_dependents=[])
             db.session.commit()
             flash("Joinder client saved.", "success")
             return redirect(url_for("joinder_client_detail", client_id=client.id))
-        return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES)
+        return render_template("joinder_client_form.html", client=None, case_managers=case_managers, statuses=JOINDER_STATUSES, existing_dependents=[])
 
     @app.route("/agency/joinder/clients/<int:client_id>")
     @role_required("agency")
@@ -3637,16 +3637,53 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         client = query_joinder_client(client_id)
         case_managers = AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all()
+        existing_dependents = sorted(client.dependents, key=lambda dependent: dependent.full_name.lower()) if not client.primary_client_id else []
         if request.method == "POST":
             before = joinder_client_snapshot(client)
             populate_joinder_client_from_form(client)
             detail = joinder_edit_detail(before, client)
             if detail:
                 joinder_log(client, "Client edited", detail)
+            if not client.primary_client_id:
+                remove_dependent_ids = {
+                    int(dependent_id)
+                    for dependent_id in request.form.getlist("remove_dependent_ids")
+                    if dependent_id.isdigit()
+                }
+                if remove_dependent_ids:
+                    dependents_to_remove = JoinderClient.query.filter(
+                        JoinderClient.agency_id == current_user.agency_id,
+                        JoinderClient.primary_client_id == client.id,
+                        JoinderClient.id.in_(remove_dependent_ids),
+                    ).all()
+                    for dependent in dependents_to_remove:
+                        dependent.primary_client_id = None
+                        joinder_log(dependent, "Related case updated", f"Removed from related case with {client.full_name}")
+                        joinder_log(client, "Dependent removed", f"Removed {dependent.full_name} from this related case")
+                try:
+                    dependent_count = int(request.form.get("dependent_count") or 0)
+                except ValueError:
+                    dependent_count = 0
+                for index in range(dependent_count):
+                    prefix = f"dependent_{index}_"
+                    if not request.form.get(f"{prefix}first_name", "").strip() and not request.form.get(f"{prefix}last_name", "").strip():
+                        continue
+                    dependent = JoinderClient(agency_id=current_user.agency_id, primary_client_id=client.id)
+                    populate_joinder_client_from_form(dependent, prefix=prefix)
+                    db.session.add(dependent)
+                    db.session.flush()
+                    joinder_log(dependent, "Client created", f"Created dependent for {client.full_name}")
+                    joinder_log(client, "Dependent added", f"Added {dependent.full_name} to this related case")
+                    try:
+                        save_joinder_document(dependent, request.files.get(f"{prefix}document"), request.form.get(f"{prefix}document_description", "").strip())
+                    except ValueError as exc:
+                        db.session.rollback()
+                        flash(str(exc), "danger")
+                        return render_template("joinder_client_form.html", client=client, case_managers=case_managers, statuses=JOINDER_STATUSES, existing_dependents=existing_dependents)
             db.session.commit()
             flash("Joinder client updated.", "success")
             return redirect(url_for("joinder_client_detail", client_id=client.id))
-        return render_template("joinder_client_form.html", client=client, case_managers=case_managers, statuses=JOINDER_STATUSES)
+        return render_template("joinder_client_form.html", client=client, case_managers=case_managers, statuses=JOINDER_STATUSES, existing_dependents=existing_dependents)
 
     @app.route("/agency/joinder/clients/<int:client_id>/delete", methods=["POST"])
     @role_required("agency")
