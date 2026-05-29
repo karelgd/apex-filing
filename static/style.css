@@ -3515,6 +3515,22 @@ body {
   gap: .7rem;
 }
 
+.joinder-result-summary-grid {
+  gap: .75rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.joinder-result-summary-grid .crm-summary-card {
+  min-height: 98px;
+  padding: .85rem 1rem;
+}
+
+.joinder-result-summary-grid .crm-summary-card > strong {
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  margin-top: .45rem;
+  white-space: nowrap;
+}
+
 .joinder-result-head,
 .joinder-result-row {
   align-items: center;
@@ -3565,11 +3581,21 @@ body {
 }
 
 @media (max-width: 1180px) {
+  .joinder-result-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .joinder-result-head {
     display: none;
   }
 
   .joinder-result-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .joinder-result-summary-grid {
     grid-template-columns: 1fr;
   }
 }
