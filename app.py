@@ -23,7 +23,7 @@ from flask import (
 )
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from werkzeug.utils import secure_filename
@@ -1389,6 +1389,38 @@ def build_crm_report_data(agency_id, args):
 
 
 JOINDER_STATUSES = ["New", "Docs Received", "Reviewed", "Rejected", "Approved", "Paid"]
+JOINDER_AGENCY_COMMISSION_BY_CONTRACT = {
+    Decimal("2500"): Decimal("500"),
+    Decimal("1500"): Decimal("350"),
+    Decimal("1000"): Decimal("250"),
+}
+JOINDER_CASE_MANAGER_COMMISSION_RATE = Decimal("0.15")
+
+
+def joinder_commissions_for_value(contract_value):
+    contract = Decimal(str(contract_value or "0")).quantize(Decimal("0.01"))
+    agency_commission = JOINDER_AGENCY_COMMISSION_BY_CONTRACT.get(contract, Decimal("0"))
+    manager_commission = agency_commission * JOINDER_CASE_MANAGER_COMMISSION_RATE
+    return {
+        "agency_commission": agency_commission.quantize(Decimal("0.01")),
+        "manager_commission": manager_commission.quantize(Decimal("0.01")),
+    }
+
+
+def joinder_search_summary(clients):
+    total_contract_value = sum((client.contract_value or Decimal("0")) for client in clients)
+    total_agency_commission = Decimal("0")
+    total_manager_commission = Decimal("0")
+    for client in clients:
+        commissions = joinder_commissions_for_value(client.contract_value)
+        total_agency_commission += commissions["agency_commission"]
+        total_manager_commission += commissions["manager_commission"]
+    return {
+        "total_clients": len(clients),
+        "total_contract_value": total_contract_value,
+        "total_agency_commission": total_agency_commission,
+        "total_manager_commission": total_manager_commission,
+    }
 
 
 def joinder_user_label():
@@ -3541,6 +3573,7 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         searched = request.args.get("searched") == "1"
         clients = build_joinder_search_query(current_user.agency_id, request.args).all() if searched else []
+        show_admin_commissions = is_agency_owner()
         total_clients = JoinderClient.query.filter_by(agency_id=current_user.agency_id).count()
         total_value = (
             db.session.query(func.coalesce(func.sum(JoinderClient.contract_value), 0))
@@ -3552,6 +3585,9 @@ def register_routes(app):
             "joinder_dashboard.html",
             clients=clients,
             searched=searched,
+            show_admin_commissions=show_admin_commissions,
+            result_summary=joinder_search_summary(clients) if searched else None,
+            joinder_commissions_for_value=joinder_commissions_for_value,
             total_clients=total_clients,
             total_value=total_value,
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
@@ -3572,7 +3608,7 @@ def register_routes(app):
         if not joinder_access_required():
             return redirect(url_for("agency_dashboard"))
         clients = build_joinder_search_query(current_user.agency_id, request.args).all()
-        return generate_joinder_search_pdf(clients, request.args)
+        return generate_joinder_search_pdf(clients, request.args, show_admin_commissions=is_agency_owner())
 
     @app.route("/agency/joinder/clients/new", methods=["GET", "POST"])
     @role_required("agency")
@@ -4450,10 +4486,11 @@ def generate_crm_report_pdf(report_data):
     )
 
 
-def generate_joinder_search_pdf(clients, args):
+def generate_joinder_search_pdf(clients, args, show_admin_commissions=False):
     buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
+    page_size = landscape(letter) if show_admin_commissions else letter
+    pdf = canvas.Canvas(buffer, pagesize=page_size)
+    width, height = page_size
     left = 45
     y = height - 45
     pdf.setFont("Helvetica-Bold", 15)
@@ -4474,13 +4511,22 @@ def generate_joinder_search_pdf(clients, args):
             filters.append(f"Case manager: {manager.full_name}")
     pdf.drawString(left, y, (" | ".join(filters) if filters else "All matching Joinder clients")[:120])
     y -= 22
-    total_value = sum((client.contract_value or Decimal("0")) for client in clients)
+    summary = joinder_search_summary(clients)
     pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(left, y, f"Total clients: {len(clients)}")
-    pdf.drawRightString(width - left, y, f"Total contract value: ${float(total_value):,.2f}")
+    pdf.drawString(left, y, f"Total clients: {summary['total_clients']}")
+    if show_admin_commissions:
+        pdf.drawString(left + 110, y, f"Contract value: ${float(summary['total_contract_value']):,.2f}")
+        pdf.drawString(left + 275, y, f"Agency commission: ${float(summary['total_agency_commission']):,.2f}")
+        pdf.drawRightString(width - left, y, f"Case manager commission: ${float(summary['total_manager_commission']):,.2f}")
+    else:
+        pdf.drawRightString(width - left, y, f"Total contract value: ${float(summary['total_contract_value']):,.2f}")
     y -= 22
-    headers = ["Created", "Name", "Alien #", "Status", "Manager", "Contract"]
-    col_x = [left, 102, 245, 330, 405, 520]
+    if show_admin_commissions:
+        headers = ["Created", "Name", "Alien #", "Status", "Manager", "Contract", "Agency Comm.", "CM Comm."]
+        col_x = [left, 98, 230, 302, 365, 495, 565, 662]
+    else:
+        headers = ["Created", "Name", "Alien #", "Status", "Manager", "Contract"]
+        col_x = [left, 102, 245, 330, 405, 520]
     pdf.setFont("Helvetica-Bold", 8)
     for index, header in enumerate(headers):
         pdf.drawString(col_x[index], y, header)
@@ -4493,14 +4539,22 @@ def generate_joinder_search_pdf(clients, args):
             pdf.showPage()
             y = height - 45
             pdf.setFont("Helvetica", 8)
+        commissions = joinder_commissions_for_value(client.contract_value)
         row = [
             client.created_at.strftime("%m/%d/%Y") if client.created_at else "",
-            client.full_name[:27],
+            client.full_name[:24] if show_admin_commissions else client.full_name[:27],
             client.alien_number or "",
             client.status or "",
-            (client.case_manager.full_name[:20] if client.case_manager else "Not assigned"),
+            (client.case_manager.full_name[:18] if client.case_manager and show_admin_commissions else client.case_manager.full_name[:20] if client.case_manager else "Not assigned"),
             f"${float(client.contract_value or 0):,.2f}",
         ]
+        if show_admin_commissions:
+            row.extend(
+                [
+                    f"${float(commissions['agency_commission']):,.2f}",
+                    f"${float(commissions['manager_commission']):,.2f}",
+                ]
+            )
         for index, value in enumerate(row):
             pdf.drawString(col_x[index], y, str(value))
         y -= 14

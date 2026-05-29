@@ -3523,6 +3523,11 @@ body {
   grid-template-columns: .7fr 1.2fr .8fr .85fr 1.25fr .75fr .85fr 1.35fr 1.45fr;
 }
 
+.joinder-results-admin .joinder-result-head,
+.joinder-results-admin .joinder-result-row {
+  grid-template-columns: .65fr 1.08fr .72fr .78fr 1.15fr .7fr .72fr .72fr .78fr 1.2fr 1.35fr;
+}
+
 .joinder-result-head {
   color: #52647d;
   font-size: .72rem;
