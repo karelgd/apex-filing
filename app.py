@@ -1388,7 +1388,7 @@ def build_crm_report_data(agency_id, args):
     }
 
 
-JOINDER_STATUSES = ["New", "Docs Received", "Reviewed", "Rejected", "Approved"]
+JOINDER_STATUSES = ["New", "Docs Received", "Reviewed", "Rejected", "Approved", "Paid"]
 
 
 def joinder_user_label():
