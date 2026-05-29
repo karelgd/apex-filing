@@ -4487,6 +4487,15 @@ def generate_crm_report_pdf(report_data):
 
 
 def generate_joinder_search_pdf(clients, args, show_admin_commissions=False):
+    pdf_clients = sorted(
+        clients,
+        key=lambda client: (
+            client.case_manager.full_name.lower() if client.case_manager else "zzzzzz not assigned",
+            client.last_name.lower(),
+            client.first_name.lower(),
+            client.alien_number or "",
+        ),
+    )
     buffer = BytesIO()
     page_size = landscape(letter) if show_admin_commissions else letter
     pdf = canvas.Canvas(buffer, pagesize=page_size)
@@ -4522,11 +4531,11 @@ def generate_joinder_search_pdf(clients, args, show_admin_commissions=False):
         pdf.drawRightString(width - left, y, f"Total contract value: ${float(summary['total_contract_value']):,.2f}")
     y -= 22
     if show_admin_commissions:
-        headers = ["Created", "Name", "Alien #", "Status", "Manager", "Contract", "Agency Comm.", "CM Comm."]
-        col_x = [left, 98, 230, 302, 365, 495, 565, 662]
+        headers = ["#", "Created", "Name", "Alien #", "Status", "Manager", "Contract", "Agency Comm.", "CM Comm."]
+        col_x = [left, 70, 120, 238, 308, 365, 490, 558, 638]
     else:
-        headers = ["Created", "Name", "Alien #", "Status", "Manager", "Contract"]
-        col_x = [left, 102, 245, 330, 405, 520]
+        headers = ["#", "Created", "Name", "Alien #", "Status", "Manager", "Contract"]
+        col_x = [left, 68, 125, 240, 320, 380, 505]
     pdf.setFont("Helvetica-Bold", 8)
     for index, header in enumerate(headers):
         pdf.drawString(col_x[index], y, header)
@@ -4534,15 +4543,16 @@ def generate_joinder_search_pdf(clients, args, show_admin_commissions=False):
     pdf.line(left, y, width - left, y)
     y -= 13
     pdf.setFont("Helvetica", 8)
-    for client in clients:
+    for line_number, client in enumerate(pdf_clients, start=1):
         if y < 60:
             pdf.showPage()
             y = height - 45
             pdf.setFont("Helvetica", 8)
         commissions = joinder_commissions_for_value(client.contract_value)
         row = [
+            str(line_number),
             client.created_at.strftime("%m/%d/%Y") if client.created_at else "",
-            client.full_name[:24] if show_admin_commissions else client.full_name[:27],
+            client.full_name[:22] if show_admin_commissions else client.full_name[:24],
             client.alien_number or "",
             client.status or "",
             (client.case_manager.full_name[:18] if client.case_manager and show_admin_commissions else client.case_manager.full_name[:20] if client.case_manager else "Not assigned"),
