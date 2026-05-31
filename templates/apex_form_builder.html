@@ -93,7 +93,7 @@
     <div class="card visual-pdf-card">
       <div class="card-header bg-white">
         <div class="fw-semibold">PDF visual mapper</div>
-        <div class="small text-secondary">Right-click the PDF to create a question there, or drag an existing question to reuse it in another spot. Move or resize markers with the mouse; click X to remove only that placement.</div>
+        <div class="small text-secondary">Detected PDF boxes are outlined automatically. Click a detected box to decide whether it should become a client question. Right-click anywhere to add a custom box.</div>
       </div>
       <div class="card-body visual-pdf-scroll" data-placement-url-template="{{ url_for('apex_form_question_visual_placement', template_id=template.id, question_id=0) }}">
         {% if pdf_pages %}
@@ -101,6 +101,15 @@
             <div class="visual-pdf-page" data-page-number="{{ page.number }}" data-pdf-width="{{ page.width }}" data-pdf-height="{{ page.height }}">
               <div class="visual-pdf-page-label">Page {{ page.number }}</div>
               <img src="{{ url_for('apex_form_builder_pdf_page', template_id=template.id, page_number=page.number) }}" alt="PDF page {{ page.number }}">
+              {% for field in pdf_field_options %}
+                {% if field.mapping and field.mapping.page == page.number %}
+                  <button type="button"
+                          class="pdf-detected-field-marker {{ 'is-mapped' if field.mapped_question_id else '' }}"
+                          data-pdf-field-id="{{ field.id }}"
+                          title="{{ 'Mapped field' if field.mapped_question_id else 'Click to create a client question' }}: {{ field.label }}"
+                          style="left: {{ (field.mapping.x / page.width * 100)|round(4) }}%; top: {{ (field.mapping.y / page.height * 100)|round(4) }}%; width: {{ (field.mapping.width / page.width * 100)|round(4) }}%; height: {{ (field.mapping.height / page.height * 100)|round(4) }}%;"></button>
+                {% endif %}
+              {% endfor %}
               {% for question in questions %}
                 {% for mapping in question_visual_mappings(question) %}
                   {% if mapping.page == page.number %}
@@ -272,6 +281,18 @@
         showIfQuestionId: {{ question.show_if_question_id|tojson }},
         showIfOperator: {{ question.show_if_operator|tojson }},
         showIfValue: {{ question.show_if_value|tojson }}
+      }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+
+  const pdfFieldsById = {
+    {% for field in pdf_field_options %}
+      "{{ field.id }}": {
+        name: {{ field.name|tojson }},
+        label: {{ field.label|tojson }},
+        inputType: {{ ('checkbox' if field.is_checkbox else 'text')|tojson }},
+        mappedQuestionId: {{ field.mapped_question_id|tojson }},
+        mapping: {{ field.mapping|tojson }}
       }{% if not loop.last %},{% endif %}
     {% endfor %}
   };
@@ -461,6 +482,25 @@
     questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
   }
 
+  function openPdfFieldQuestion(fieldId) {
+    const field = pdfFieldsById[fieldId];
+    if (!field || !field.mapping) {
+      return;
+    }
+    setReusePanelVisible(false);
+    loadQuestionIntoForm(field.mappedQuestionId || "", { placementMode: true });
+    setPlacementValues(field.mapping);
+    fieldInput.value = field.name || "";
+    inputTypeSelect.value = field.inputType || "text";
+    if (!field.mappedQuestionId) {
+      promptInput.value = field.label || "";
+      questionModalTitle.textContent = "Configure detected PDF box";
+      questionModalHelp.textContent = "Create the client question for this detected USCIS PDF field. Unconfigured boxes remain editable only during agency review.";
+    }
+    questionModal?.show();
+    questionModalElement?.addEventListener("shown.bs.modal", () => promptInput?.focus(), { once: true });
+  }
+
   reuseQuestionSelect?.addEventListener("change", () => {
     loadQuestionIntoForm(reuseQuestionSelect.value, {
       placementMode: true,
@@ -569,6 +609,14 @@
     item.addEventListener("dragstart", (event) => {
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("application/x-manual-field-id", item.dataset.manualFieldId || "");
+    });
+  });
+
+  document.querySelectorAll(".pdf-detected-field-marker").forEach((marker) => {
+    marker.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openPdfFieldQuestion(marker.dataset.pdfFieldId);
     });
   });
 

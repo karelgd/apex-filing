@@ -10,7 +10,7 @@
 {% if not case.agency.has_tool('Form Filler') %}
   <div class="alert alert-warning">This feature is not included in your current membership.</div>
 {% endif %}
-<form method="post" class="card card-body">
+<form method="post" class="card card-body" id="case-review-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row g-3">
     <div class="col-md-4">
@@ -49,7 +49,7 @@
           <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
               <h2 class="h5 mb-1">Visual PDF review</h2>
-              <p class="text-secondary mb-0">Review client answers directly over the PDF. Agency-only text boxes can be completed here before generating.</p>
+              <p class="text-secondary mb-0">Review and edit the actual USCIS PDF before generating. Unconfigured PDF fields remain editable here for agency completion.</p>
             </div>
             <span class="badge text-bg-primary">Editable preview</span>
           </div>
@@ -81,42 +81,35 @@
                     <input class="review-pdf-input review-pdf-manual-input" name="manual_field_{{ field.id }}" value="{{ manual_value.value_text if manual_value else '' }}" title="{{ field.label }}" placeholder="{{ field.label }}" style="left: {{ (field.x|float / page.width * 100)|round(4) }}%; top: {{ (field.y|float / page.height * 100)|round(4) }}%; width: {{ (field.width|float / page.width * 100)|round(4) }}%; height: {{ (field.height|float / page.height * 100)|round(4) }}%;">
                   {% endif %}
                 {% endfor %}
+                {% for field in pdf_fields %}
+                  {% set mapping = pdf_field_visual_mapping(field) %}
+                  {% if mapping and mapping.page == page.number %}
+                    {% set pdf_field_value = pdf_field_values.get(field.id) %}
+                    {% if is_pdf_checkbox_field(field) %}
+                      <select class="review-pdf-input review-pdf-checkbox review-pdf-detected-input" name="pdf_field_{{ field.id }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                        <option value=""></option>
+                        <option value="Yes" {% if pdf_field_value and pdf_field_value.value_text == 'Yes' %}selected{% endif %}>X</option>
+                        <option value="No" {% if pdf_field_value and pdf_field_value.value_text == 'No' %}selected{% endif %}>No</option>
+                      </select>
+                    {% else %}
+                      <input class="review-pdf-input review-pdf-detected-input" name="pdf_field_{{ field.id }}" value="{{ pdf_field_value.value_text if pdf_field_value else '' }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
               </div>
             {% endfor %}
           </div>
         </div>
       </div>
     {% endif %}
-    {% for question in questions %}
-      {% set answer = answers.get(question.id) %}
-      <div class="col-12 review-question">
-        <label class="form-label review-question-label">
-          <span class="review-question-number">{{ loop.index }}.</span>
-          <span>{{ question.prompt }}</span>
-          {% if not question.client_visible %}
-            <span class="badge text-bg-secondary ms-1">Agency only</span>
-          {% endif %}
-        </label>
-        {% if question.input_type == 'checkbox' %}
-          <select class="form-select" name="question_{{ question.id }}" data-answer-key="question_{{ question.id }}">
-            <option value="">No answer</option>
-            <option value="Yes" {% if answer and answer.answer_text == 'Yes' %}selected{% endif %}>Yes</option>
-            <option value="No" {% if answer and answer.answer_text == 'No' %}selected{% endif %}>No</option>
-          </select>
-        {% elif question.input_type == 'textarea' %}
-          <textarea class="form-control" name="question_{{ question.id }}" rows="4" data-answer-key="question_{{ question.id }}">{{ answer.answer_text if answer else '' }}</textarea>
-        {% else %}
-          <input class="form-control" type="{{ question.input_type }}" name="question_{{ question.id }}" value="{{ answer.answer_text if answer else '' }}" data-answer-key="question_{{ question.id }}">
-        {% endif %}
-      </div>
-    {% else %}
+    {% if not questions %}
       <div class="col-12"><div class="alert alert-info mb-0">No questionnaire has been configured for this case type yet.</div></div>
-    {% endfor %}
+    {% endif %}
   </div>
   <div class="mt-4">
     <button class="btn btn-primary">Save review edits</button>
     {% if can_generate_forms_for_current_user() %}
-      <button class="btn btn-success" formaction="{{ url_for('generate_form', case_id=case.id) }}" {% if not case.agency.has_tool('Form Filler') %}disabled{% endif %}>Generate Form</button>
+      <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#generate-disclaimer-modal" {% if not case.agency.has_tool('Form Filler') %}disabled{% endif %}>Download Final PDF</button>
     {% endif %}
     <a class="btn btn-outline-secondary" href="{{ url_for('case_list') }}">Back to cases</a>
   </div>
@@ -129,6 +122,23 @@
     {% else %}
       <div class="list-group-item text-secondary">No documents uploaded.</div>
     {% endfor %}
+  </div>
+</div>
+<div class="modal fade" id="generate-disclaimer-modal" tabindex="-1" aria-labelledby="generate-disclaimer-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="generate-disclaimer-title">Before downloading the final form</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        It is the agency's responsibility to verify all information before generating and downloading the PDF. Apex Computing and Energy is not liable for errors, omissions, or incorrect information in the completed form.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-success" form="case-review-form" formmethod="post" formaction="{{ url_for('generate_form', case_id=case.id) }}">I understand and want to proceed downloading the form</button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

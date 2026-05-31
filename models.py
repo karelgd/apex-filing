@@ -520,6 +520,19 @@ class CasePdfManualValue(db.Model):
     __table_args__ = (db.UniqueConstraint("case_id", "manual_field_id", name="uq_case_manual_pdf_value"),)
 
 
+class CasePdfFieldValue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.Integer, db.ForeignKey("case.id"), nullable=False)
+    pdf_field_id = db.Column(db.Integer, db.ForeignKey("pdf_field.id"), nullable=False)
+    value_text = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    case = db.relationship("Case")
+    pdf_field = db.relationship("PdfField")
+
+    __table_args__ = (db.UniqueConstraint("case_id", "pdf_field_id", name="uq_case_pdf_field_value"),)
+
+
 class AgencyDocument(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
