@@ -7,9 +7,11 @@
       <h1>CRM Workspace</h1>
       <p>Search clients, review case volume, and track invoice activity.</p>
     </div>
+    {% if can_manage_client_users_for_current_user() %}
     <div class="crm-actions">
       <a class="btn btn-primary crm-action-btn" href="{{ url_for('client_create') }}">Create Client</a>
     </div>
+    {% endif %}
   </div>
 
   <div class="crm-summary-grid">

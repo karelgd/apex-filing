@@ -5,7 +5,9 @@
     <h1 class="h3 mb-1">{{ agency.agency_name }}</h1>
     <p class="text-secondary mb-0">{{ agency.display_address }}</p>
   </div>
+  {% if can_manage_client_users_for_current_user() %}
   <a class="btn btn-primary" href="{{ url_for('client_create') }}">Create client</a>
+  {% endif %}
 </div>
 <div class="row g-3 mb-4">
   <div class="col-md-4"><div class="metric"><span>{{ agency.clients|length }}</span><small>Clients</small></div></div>

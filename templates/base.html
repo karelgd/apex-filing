@@ -65,7 +65,9 @@
           <span class="sidebar-label">Agency tools</span>
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_dashboard' else '' }}" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_knowledge_base' else '' }}" href="{{ url_for('agency_knowledge_base') }}">Knowledge Base</a>
+          {% if can_manage_client_users_for_current_user() %}
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
+          {% endif %}
           {% if is_agency_owner() %}
             {% set staff_endpoints = ['translator_list', 'translator_edit', 'preparer_list', 'preparer_edit', 'crm_preparer_list', 'crm_preparer_edit', 'case_manager_list', 'case_manager_edit', 'lawyer_list', 'lawyer_edit', 'law_firm_list', 'law_firm_edit'] %}
             <details class="sidebar-group" {% if request.endpoint in staff_endpoints %}open{% endif %}>
@@ -91,7 +93,7 @@
               </div>
             </details>
           {% endif %}
-          {% if current_user.agency.has_tool('Form Filler') %}
+          {% if current_user.agency.has_tool('Form Filler') and can_use_form_filler_for_current_user() %}
             <a class="tool-link {{ 'active' if request.endpoint in ['agency_form_filler', 'case_list', 'case_create', 'case_edit', 'case_review', 'generated_documents'] else '' }}" href="{{ url_for('agency_form_filler') }}">Form Filler</a>
           {% endif %}
           {% if current_user.agency.has_tool('Motion Creation') and can_use_motion_creation_for_current_user() %}

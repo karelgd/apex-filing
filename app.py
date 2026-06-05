@@ -166,8 +166,10 @@ def create_app():
             "is_agency_owner": is_agency_owner,
             "is_agency_staff": is_agency_staff,
             "can_generate_forms_for_current_user": can_generate_forms_for_current_user,
+            "can_use_form_filler_for_current_user": can_use_form_filler_for_current_user,
             "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
             "can_use_joinder_for_current_user": can_use_joinder_for_current_user,
+            "can_manage_client_users_for_current_user": can_manage_client_users_for_current_user,
             "question_visual_mapping": question_visual_mapping,
             "question_visual_mappings": question_visual_mappings,
             "pdf_field_visual_mapping": pdf_field_visual_mapping,
@@ -209,9 +211,26 @@ def can_generate_forms_for_current_user():
     )
 
 
+def can_use_form_filler_for_current_user():
+    return current_user.is_authenticated and (
+        current_user.role == "apex"
+        or (
+            current_user.role == "agency"
+            and (is_agency_owner() or isinstance(current_user, AgencyPreparer))
+        )
+    )
+
+
 def can_use_motion_creation_for_current_user():
     return current_user.is_authenticated and current_user.role == "agency" and (
         is_agency_owner() or isinstance(current_user, AgencyPreparer)
+    )
+
+
+def can_manage_client_users_for_current_user():
+    return current_user.is_authenticated and (
+        current_user.role == "apex"
+        or (current_user.role == "agency" and is_agency_owner())
     )
 
 
@@ -1117,7 +1136,7 @@ def ensure_crm_case_status_history(case):
 
 
 def sync_crm_case_questionnaire(crm_case):
-    if not can_use_crm_form_filler(crm_case.agency):
+    if not can_use_crm_form_filler(crm_case.agency) or not can_use_form_filler_for_current_user():
         return
     form_code = request.form.get("form_code", "").strip()
     if not form_code:
@@ -1265,9 +1284,7 @@ def can_use_joinder(agency):
 
 
 def can_use_joinder_for_current_user():
-    return current_user.is_authenticated and current_user.role == "agency" and (
-        is_agency_owner() or isinstance(current_user, AgencyCaseManager)
-    )
+    return current_user.is_authenticated and current_user.role == "agency" and is_agency_owner()
 
 
 def can_use_crm_form_filler(agency):
@@ -2604,6 +2621,8 @@ def register_routes(app):
     @role_required("agency")
     def agency_form_filler():
         agency = current_user.agency
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         if not can_use_form_filler(agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
@@ -3266,8 +3285,8 @@ def register_routes(app):
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
-            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) else [],
-            can_link_form_filler=can_use_crm_form_filler(current_user.agency),
+            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user() else [],
+            can_link_form_filler=can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user(),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>/edit", methods=["GET", "POST"])
@@ -3299,8 +3318,8 @@ def register_routes(app):
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
-            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) else [],
-            can_link_form_filler=can_use_crm_form_filler(current_user.agency),
+            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user() else [],
+            can_link_form_filler=can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user(),
         )
 
     @app.route("/agency/crm/cases/<int:case_id>")
@@ -3912,6 +3931,8 @@ def register_routes(app):
     @app.route("/clients")
     @role_required("apex", "agency")
     def client_list():
+        if not can_manage_client_users_for_current_user():
+            abort(403)
         if current_user.role == "apex":
             clients = Client.query.order_by(Client.last_name).all()
         else:
@@ -3921,6 +3942,8 @@ def register_routes(app):
     @app.route("/clients/new", methods=["GET", "POST"])
     @role_required("apex", "agency")
     def client_create():
+        if not can_manage_client_users_for_current_user():
+            abort(403)
         agencies = Agency.query.order_by(Agency.agency_name).all() if current_user.role == "apex" else [current_user.agency]
         if request.method == "POST":
             agency_id = int(request.form.get("agency_id") or current_user.agency_id)
@@ -3938,6 +3961,8 @@ def register_routes(app):
     @app.route("/clients/<int:client_id>/edit", methods=["GET", "POST"])
     @role_required("apex", "agency")
     def client_edit(client_id):
+        if not can_manage_client_users_for_current_user():
+            abort(403)
         client = db.session.get(Client, client_id) or abort(404)
         if current_user.role == "agency" and client.agency_id != current_user.agency_id:
             abort(403)
@@ -3958,6 +3983,8 @@ def register_routes(app):
     @app.route("/clients/<int:client_id>/delete", methods=["POST"])
     @role_required("apex", "agency")
     def client_delete(client_id):
+        if not can_manage_client_users_for_current_user():
+            abort(403)
         client = db.session.get(Client, client_id) or abort(404)
         if current_user.role == "agency" and client.agency_id != current_user.agency_id:
             abort(403)
@@ -3969,6 +3996,8 @@ def register_routes(app):
     @app.route("/cases")
     @role_required("apex", "agency")
     def case_list():
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         if current_user.role == "apex":
             cases = Case.query.order_by(Case.updated_at.desc()).all()
         else:
@@ -3978,6 +4007,8 @@ def register_routes(app):
     @app.route("/cases/new", methods=["GET", "POST"])
     @role_required("apex", "agency")
     def case_create():
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         clients = visible_clients()
         if request.method == "POST":
             client = db.session.get(Client, int(request.form["client_id"])) or abort(404)
@@ -4004,6 +4035,8 @@ def register_routes(app):
     @app.route("/cases/<int:case_id>/edit", methods=["GET", "POST"])
     @role_required("apex", "agency")
     def case_edit(case_id):
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         case = query_case_for_role(case_id)
         clients = visible_clients()
         if request.method == "POST":
@@ -4028,6 +4061,8 @@ def register_routes(app):
     @app.route("/cases/<int:case_id>/review", methods=["GET", "POST"])
     @role_required("apex", "agency")
     def case_review(case_id):
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         case = query_case_for_role(case_id)
         questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
         answers = {answer.question_id: answer for answer in case.answers}
@@ -4069,6 +4104,8 @@ def register_routes(app):
     @app.route("/cases/<int:case_id>/review/pdf-page/<int:page_number>.png")
     @role_required("apex", "agency")
     def case_review_pdf_page(case_id, page_number):
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         case = query_case_for_role(case_id)
         template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first() or abort(404)
         pdf_path = template_pdf_path(template)
@@ -4094,6 +4131,8 @@ def register_routes(app):
     @app.route("/cases/<int:case_id>/generate", methods=["POST"])
     @role_required("apex", "agency")
     def generate_form(case_id):
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         case = query_case_for_role(case_id)
         if not can_generate_forms_for_current_user():
             abort(403)
@@ -4139,6 +4178,8 @@ def register_routes(app):
     @app.route("/cases/<int:case_id>/generated")
     @role_required("apex", "agency")
     def generated_documents(case_id):
+        if not can_use_form_filler_for_current_user():
+            abort(403)
         case = query_case_for_role(case_id)
         return render_template("generated_documents.html", case=case)
 

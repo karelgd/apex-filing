@@ -65,7 +65,7 @@
     </div>
   </section>
 
-  {% if case.agency.has_tool('Form Filler') %}
+  {% if case.agency.has_tool('Form Filler') and can_use_form_filler_for_current_user() %}
   <section class="crm-panel">
     <div class="crm-panel-head">
       <div>
