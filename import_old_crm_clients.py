@@ -11,7 +11,22 @@ FIRST_NAME_KEYS = ("first_name", "firstname", "first", "nombre")
 MIDDLE_NAME_KEYS = ("middle_name", "middlename", "middle", "segundo")
 LAST_NAME_KEYS = ("last_name", "lastname", "last", "apellido")
 FULL_NAME_KEYS = ("full_name", "fullname", "name", "client_name", "nombre_completo")
-A_NUMBER_KEYS = ("a_number", "alien_number", "anumber", "a_num", "alien", "numero_alien")
+A_NUMBER_KEYS = (
+    "a_number",
+    "alien_number",
+    "anumber",
+    "a_num",
+    "alien",
+    "alien_no",
+    "alien_number_if_any",
+    "alien_registration_number",
+    "alien_registration_no",
+    "alien_reg_number",
+    "alien_reg_no",
+    "registration_number",
+    "numero_alien",
+    "numero_a",
+)
 PHONE_KEYS = ("phone", "phone_number", "mobile", "cell", "telephone", "telefono")
 EMAIL_KEYS = ("email", "email_address", "correo")
 STREET_KEYS = ("street_address", "address", "direccion", "home_address")
@@ -106,7 +121,7 @@ def discover_client_rows(old_db_path, table_name=None):
         connection.close()
 
 
-def row_to_client_data(row, index):
+def row_to_client_data(row, index, a_number_column=None):
     first_name = first_present(row, FIRST_NAME_KEYS)
     middle_name = first_present(row, MIDDLE_NAME_KEYS)
     last_name = first_present(row, LAST_NAME_KEYS)
@@ -119,7 +134,7 @@ def row_to_client_data(row, index):
         "first_name": first_name or "Unknown",
         "middle_name": middle_name,
         "last_name": last_name or "Unknown",
-        "a_number": first_present(row, A_NUMBER_KEYS),
+        "a_number": (str(row.get(a_number_column) or "").strip() if a_number_column else first_present(row, A_NUMBER_KEYS)),
         "phone": compact_phone(first_present(row, PHONE_KEYS)) or "000-000-0000",
         "email": first_present(row, EMAIL_KEYS) or f"imported.client.{index}@example.invalid",
         "street_address": first_present(row, STREET_KEYS) or "Address not provided",
@@ -148,7 +163,40 @@ def client_exists(agency_id, data, Client):
     ).first()
 
 
-def import_clients(old_db_path, commit=False, table_name=None, limit=None):
+def inspect_old_database(old_db_path, table_name=None, sample=3):
+    connection = sqlite3.connect(old_db_path)
+    connection.row_factory = sqlite3.Row
+    try:
+        tables = [
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
+        for table in tables:
+            if table_name and table != table_name:
+                continue
+            columns = [row["name"] for row in connection.execute(f'PRAGMA table_info("{table}")')]
+            count = connection.execute(f'SELECT COUNT(*) AS count FROM "{table}"').fetchone()["count"]
+            print(f"\nTable: {table} ({count} rows)")
+            print("Columns:")
+            for column in columns:
+                print(f"  - {column}")
+            sample_rows = [dict(row) for row in connection.execute(f'SELECT * FROM "{table}" LIMIT ?', (sample,))]
+            if sample_rows:
+                print("Sample rows:")
+                for index, row in enumerate(sample_rows, start=1):
+                    preview = []
+                    for column in columns:
+                        value = row.get(column)
+                        if value is not None and str(value).strip():
+                            preview.append(f"{column}={str(value).strip()[:60]}")
+                    print(f"  {index}. {' | '.join(preview[:12])}")
+    finally:
+        connection.close()
+
+
+def import_clients(old_db_path, commit=False, table_name=None, limit=None, a_number_column=None, update_existing=False):
     print(f"Inspecting old database: {old_db_path}", flush=True)
     rows, candidates = discover_client_rows(old_db_path, table_name=table_name)
     if not candidates:
@@ -170,10 +218,17 @@ def import_clients(old_db_path, commit=False, table_name=None, limit=None):
         skipped = 0
         preview = []
         for index, row in enumerate(rows, start=1):
-            data = row_to_client_data(row, index)
+            data = row_to_client_data(row, index, a_number_column=a_number_column)
             existing = client_exists(agency.id, data, Client)
             if existing:
-                skipped += 1
+                if update_existing and data["a_number"] and not (existing.a_number or "").strip():
+                    existing.a_number = data["a_number"]
+                    db.session.add(existing)
+                    created += 1
+                    if len(preview) < 10:
+                        preview.append(data)
+                else:
+                    skipped += 1
                 continue
             client = Client(agency_id=agency.id, **data)
             client.username = unique_username(make_username(data["first_name"], data["last_name"], data["a_number"], index), Client)
@@ -197,15 +252,29 @@ def main():
     parser.add_argument("--commit", action="store_true", help="Actually save imported clients. Without this, the script previews only.")
     parser.add_argument("--table", help="Optional source table name if auto-detection picks the wrong table.")
     parser.add_argument("--limit", type=int, help="Optional maximum number of rows to process.")
+    parser.add_argument("--inspect", action="store_true", help="Print old database tables, columns, and sample rows, then exit.")
+    parser.add_argument("--a-number-column", help="Force the old CRM column to use as Alien/A-number.")
+    parser.add_argument("--update-existing", action="store_true", help="Update already-imported clients when matched and missing an A-number.")
     args = parser.parse_args()
     if not os.path.exists(args.old_db_path):
         raise SystemExit(f"Old database file not found: {args.old_db_path}")
-    result = import_clients(args.old_db_path, commit=args.commit, table_name=args.table, limit=args.limit)
+    if args.inspect:
+        inspect_old_database(args.old_db_path, table_name=args.table)
+        return
+    result = import_clients(
+        args.old_db_path,
+        commit=args.commit,
+        table_name=args.table,
+        limit=args.limit,
+        a_number_column=args.a_number_column,
+        update_existing=args.update_existing,
+    )
     print("Candidate tables:")
     for table, count in result["candidates"]:
         print(f"  - {table}: {count} rows")
     print(f"\nMode: {'COMMIT' if args.commit else 'PREVIEW ONLY'}")
-    print(f"Clients to create: {result['created']}")
+    action_label = "Clients to create/update" if args.update_existing else "Clients to create"
+    print(f"{action_label}: {result['created']}")
     print(f"Skipped existing clients: {result['skipped']}")
     if result["preview"]:
         print("\nPreview of first clients:")
