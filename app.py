@@ -1284,7 +1284,11 @@ def can_use_joinder(agency):
 
 
 def can_use_joinder_for_current_user():
-    return current_user.is_authenticated and current_user.role == "agency" and is_agency_owner()
+    return current_user.is_authenticated and current_user.role == "agency" and (
+        is_agency_owner()
+        or isinstance(current_user, AgencyCaseManager)
+        or isinstance(current_user, AgencyPreparer)
+    )
 
 
 def can_use_crm_form_filler(agency):
