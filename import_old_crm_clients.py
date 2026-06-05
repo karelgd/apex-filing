@@ -4,9 +4,6 @@ import re
 import sqlite3
 from datetime import datetime
 
-from app import app
-from models import Agency, Client, db
-
 
 TARGET_AGENCY_NAME = "Odaisa Consultancy Services LLC"
 
@@ -61,7 +58,7 @@ def make_username(first_name, last_name, a_number, fallback_number):
     return f"imported.{base}.{suffix}"[:80]
 
 
-def unique_username(username):
+def unique_username(username, Client):
     candidate = username[:80]
     counter = 2
     while Client.query.filter_by(username=candidate).first():
@@ -133,7 +130,7 @@ def row_to_client_data(row, index):
     }
 
 
-def client_exists(agency_id, data):
+def client_exists(agency_id, data, Client):
     filters = [Client.agency_id == agency_id]
     if data["a_number"]:
         existing = Client.query.filter(*filters, Client.a_number == data["a_number"]).first()
@@ -152,9 +149,19 @@ def client_exists(agency_id, data):
 
 
 def import_clients(old_db_path, commit=False, table_name=None, limit=None):
+    print(f"Inspecting old database: {old_db_path}", flush=True)
     rows, candidates = discover_client_rows(old_db_path, table_name=table_name)
+    if not candidates:
+        return {"created": 0, "skipped": 0, "preview": [], "candidates": []}
+    print("Candidate client tables found:", flush=True)
+    for table, count in candidates:
+        print(f"  - {table}: {count} rows", flush=True)
     if limit:
         rows = rows[:limit]
+    print(f"Preparing {len(rows)} old CRM row(s). Loading Apex app now...", flush=True)
+    from app import app
+    from models import Agency, Client, db
+
     with app.app_context():
         agency = Agency.query.filter_by(agency_name=TARGET_AGENCY_NAME).first()
         if not agency:
@@ -164,15 +171,17 @@ def import_clients(old_db_path, commit=False, table_name=None, limit=None):
         preview = []
         for index, row in enumerate(rows, start=1):
             data = row_to_client_data(row, index)
-            existing = client_exists(agency.id, data)
+            existing = client_exists(agency.id, data, Client)
             if existing:
                 skipped += 1
                 continue
             client = Client(agency_id=agency.id, **data)
-            client.username = unique_username(make_username(data["first_name"], data["last_name"], data["a_number"], index))
+            client.username = unique_username(make_username(data["first_name"], data["last_name"], data["a_number"], index), Client)
             client.set_password(f"Imported{datetime.utcnow().strftime('%Y%m%d')}!")
             db.session.add(client)
             created += 1
+            if created % 100 == 0:
+                print(f"Processed {created} new client(s)...", flush=True)
             if len(preview) < 10:
                 preview.append(data)
         if commit:
