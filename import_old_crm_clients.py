@@ -26,6 +26,7 @@ A_NUMBER_KEYS = (
     "registration_number",
     "numero_alien",
     "numero_a",
+    "imported_a_number",
 )
 PHONE_KEYS = ("phone", "phone_number", "mobile", "cell", "telephone", "telefono")
 EMAIL_KEYS = ("email", "email_address", "correo")
@@ -115,7 +116,18 @@ def discover_client_rows(old_db_path, table_name=None):
             return [], []
         candidates.sort(key=lambda item: (0 if "client" in item[0].lower() else 1, -item[2], item[0]))
         table, columns, _count = candidates[0]
-        rows = [dict(row) for row in connection.execute(f'SELECT * FROM "{table}"')]
+        tables_lower = {name.lower() for name in tables}
+        columns_lower = {name.lower() for name in columns}
+        if table.lower() == "client" and "alien_number" in tables_lower and "id" in columns_lower:
+            rows = [
+                dict(row)
+                for row in connection.execute(
+                    'SELECT client.*, alien_number.value AS imported_a_number '
+                    'FROM client LEFT JOIN alien_number ON alien_number.client_id = client.id'
+                )
+            ]
+        else:
+            rows = [dict(row) for row in connection.execute(f'SELECT * FROM "{table}"')]
         return rows, [(name, count) for name, _columns, count in candidates]
     finally:
         connection.close()
