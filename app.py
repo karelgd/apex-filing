@@ -5132,13 +5132,17 @@ def overlay_text_on_rect(page, rect, value, font_size=9, align=0):
         max(rect.y0 + 2, rect.y1 - 0.5),
     )
     size = min(font_size, max(5, rect.height * 0.72))
+    minimum_size = 4.5
+    while size >= minimum_size:
+        try:
+            written = page.insert_textbox(safe_rect, text, fontsize=size, fontname="helv", color=(0, 0, 0), align=align)
+            if written >= 0:
+                return True
+        except Exception:
+            pass
+        size -= 0.5
     try:
-        written = page.insert_textbox(safe_rect, text, fontsize=size, fontname="helv", color=(0, 0, 0), align=align)
-        if written >= 0:
-            return True
-    except Exception:
-        pass
-    try:
+        size = max(minimum_size, min(font_size, max(5, rect.height * 0.72)))
         baseline_y = rect.y0 + min(max(size + 1, rect.height * 0.72), max(size + 1, rect.height - 1))
         page.insert_text((rect.x0 + 1, baseline_y), text[:140], fontsize=size, fontname="helv", color=(0, 0, 0))
         return True
