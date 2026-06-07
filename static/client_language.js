@@ -354,7 +354,7 @@
         return translation;
       }
     }
-    return patternPromptFor(language, cleanText) || textFor(language, cleanText);
+    return safePatternPromptFor(language, cleanText) || textFor(language, cleanText);
   }
 
   function normalizePrompt(value) {
@@ -366,7 +366,7 @@
       .trim();
   }
 
-  function patternPromptFor(language, text) {
+  function safePatternPromptFor(language, text) {
     const normalized = normalizePrompt(text);
     if (
       normalized.includes("first time") &&
@@ -450,14 +450,6 @@
       }
       if (language === "ht") {
         return `Ki le ou te ${subject}?`;
-      }
-    }
-    if (normalized.startsWith("select yes")) {
-      if (language === "es") {
-        return "Seleccione SI aqui para continuar.";
-      }
-      if (language === "ht") {
-        return "Chwazi WI isit la pou kontinye.";
       }
     }
     return null;
@@ -562,8 +554,7 @@
       }
       const translatedText =
         promptFor(language, element.dataset.i18nText || "") ||
-        promptFor(language, element.dataset.originalText || "") ||
-        promptFor(language, element.textContent || "");
+        promptFor(language, element.dataset.originalText || "");
       element.textContent = translatedText || element.dataset.originalText;
     });
     document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
@@ -587,8 +578,7 @@
       }
       const translatedText =
         promptFor(language, element.dataset.i18nText || "") ||
-        promptFor(language, element.dataset.originalText || "") ||
-        promptFor(language, element.textContent || "");
+        promptFor(language, element.dataset.originalText || "");
       if (translatedText) {
         element.textContent = translatedText;
       }
