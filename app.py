@@ -5030,11 +5030,11 @@ def fill_pdf_with_visual_mappings(case, template):
                 height = float(mapping["height"] or 16)
                 rect = fitz.Rect(x, y, x + width, y + height)
                 if question.input_type == "checkbox":
-                    page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
+                    overlay_checkbox_mark_on_rect(page, rect)
                 elif question.render_mode == "split_boxes":
                     overlay_split_box_text_on_rect(page, rect, answer_text, question.render_box_count)
                 else:
-                    page.insert_textbox(rect, answer_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+                    overlay_text_on_rect(page, rect, answer_text)
                 placed_count += 1
         for field in manual_fields:
             value_text = (manual_values.get(field.id) or "").strip()
@@ -5053,7 +5053,7 @@ def fill_pdf_with_visual_mappings(case, template):
             if field.render_mode == "split_boxes":
                 overlay_split_box_text_on_rect(page, rect, value_text, field.render_box_count)
             else:
-                page.insert_textbox(rect, value_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+                overlay_text_on_rect(page, rect, value_text)
             placed_count += 1
         for field in pdf_fields:
             value_text = (pdf_field_values.get(field.id) or "").strip()
@@ -5074,10 +5074,10 @@ def fill_pdf_with_visual_mappings(case, template):
             )
             if is_pdf_checkbox_field(field):
                 if is_affirmative_pdf_value(value_text):
-                    page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
+                    overlay_checkbox_mark_on_rect(page, rect)
                     placed_count += 1
             else:
-                page.insert_textbox(rect, value_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+                overlay_text_on_rect(page, rect, value_text)
                 placed_count += 1
         for field in mapped_pdf_fields:
             question = field.mapped_question
@@ -5101,13 +5101,13 @@ def fill_pdf_with_visual_mappings(case, template):
             )
             if is_pdf_checkbox_field(field) or question.input_type == "checkbox":
                 if is_affirmative_pdf_value(value_text):
-                    page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
+                    overlay_checkbox_mark_on_rect(page, rect)
                     placed_count += 1
             elif question.render_mode == "split_boxes":
                 overlay_split_box_text_on_rect(page, rect, value_text, question.render_box_count)
                 placed_count += 1
             else:
-                page.insert_textbox(rect, value_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+                overlay_text_on_rect(page, rect, value_text)
                 placed_count += 1
         if not placed_count:
             document.close()
@@ -5121,6 +5121,43 @@ def fill_pdf_with_visual_mappings(case, template):
         return None
 
 
+def overlay_text_on_rect(page, rect, value, font_size=9, align=0):
+    text = str(value or "")
+    if not text:
+        return False
+    safe_rect = rect.__class__(
+        rect.x0 + 1,
+        rect.y0 + 0.5,
+        max(rect.x0 + 2, rect.x1 - 1),
+        max(rect.y0 + 2, rect.y1 - 0.5),
+    )
+    size = min(font_size, max(5, rect.height * 0.72))
+    try:
+        written = page.insert_textbox(safe_rect, text, fontsize=size, fontname="helv", color=(0, 0, 0), align=align)
+        if written >= 0:
+            return True
+    except Exception:
+        pass
+    try:
+        baseline_y = rect.y0 + min(max(size + 1, rect.height * 0.72), max(size + 1, rect.height - 1))
+        page.insert_text((rect.x0 + 1, baseline_y), text[:140], fontsize=size, fontname="helv", color=(0, 0, 0))
+        return True
+    except Exception:
+        return False
+
+
+def overlay_checkbox_mark_on_rect(page, rect):
+    size = min(11, max(6, rect.height * 0.95))
+    if overlay_text_on_rect(page, rect, "X", font_size=size, align=1):
+        return True
+    try:
+        page.draw_line((rect.x0 + 1, rect.y0 + 1), (rect.x1 - 1, rect.y1 - 1), color=(0, 0, 0), width=0.8)
+        page.draw_line((rect.x0 + 1, rect.y1 - 1), (rect.x1 - 1, rect.y0 + 1), color=(0, 0, 0), width=0.8)
+        return True
+    except Exception:
+        return False
+
+
 def overlay_split_box_text_on_rect(page, rect, value, box_count=0):
     try:
         import fitz
@@ -5132,10 +5169,11 @@ def overlay_split_box_text_on_rect(page, rect, value, box_count=0):
     count = int(box_count or 0) or len(text)
     count = max(1, count)
     cell_width = rect.width / count
-    baseline_y = rect.y0 + min(rect.height - 2, 11)
+    font_size = min(9, max(5, rect.height * 0.72))
+    baseline_y = rect.y0 + min(max(font_size + 1, rect.height * 0.75), max(font_size + 1, rect.height - 1))
     for index, character in enumerate(text[:count]):
         x = rect.x0 + (cell_width * index) + (cell_width * 0.35)
-        page.insert_text(fitz.Point(x, baseline_y), character, fontsize=9, fontname="helv", color=(0, 0, 0))
+        page.insert_text(fitz.Point(x, baseline_y), character, fontsize=font_size, fontname="helv", color=(0, 0, 0))
 
 
 def fill_acroform_pdf(case, template):
