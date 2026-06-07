@@ -4995,7 +4995,15 @@ def fill_pdf_with_visual_mappings(case, template):
     manual_values = {value.manual_field_id: value.value_text or "" for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
     pdf_fields = reviewable_pdf_fields(template)
     pdf_field_values = {value.pdf_field_id: value.value_text or "" for value in CasePdfFieldValue.query.filter_by(case_id=case.id).all()}
-    if not mapped_questions and not manual_fields and not pdf_fields:
+    mapped_pdf_fields = [
+        field
+        for field in PdfField.query.filter(
+            PdfField.template_id == template.id,
+            PdfField.mapped_question_id.isnot(None),
+        ).order_by(PdfField.page_number, PdfField.id).all()
+        if pdf_field_visual_mapping(field)
+    ]
+    if not mapped_questions and not manual_fields and not pdf_fields and not mapped_pdf_fields:
         return None
     folder = f"cases/{case.id}/generated"
     os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
@@ -5068,6 +5076,36 @@ def fill_pdf_with_visual_mappings(case, template):
                 if is_affirmative_pdf_value(value_text):
                     page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
                     placed_count += 1
+            else:
+                page.insert_textbox(rect, value_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
+                placed_count += 1
+        for field in mapped_pdf_fields:
+            question = field.mapped_question
+            if not question:
+                continue
+            value_text = (answers.get(question.id) or "").strip()
+            if not value_text:
+                continue
+            mapping = pdf_field_visual_mapping(field)
+            if not mapping:
+                continue
+            page_index = (mapping["page"] or 1) - 1
+            if page_index < 0 or page_index >= document.page_count:
+                continue
+            page = document.load_page(page_index)
+            rect = fitz.Rect(
+                mapping["x"],
+                mapping["y"],
+                mapping["x"] + mapping["width"],
+                mapping["y"] + mapping["height"],
+            )
+            if is_pdf_checkbox_field(field) or question.input_type == "checkbox":
+                if is_affirmative_pdf_value(value_text):
+                    page.insert_textbox(rect, "X", fontsize=11, fontname="helv", color=(0, 0, 0), align=1)
+                    placed_count += 1
+            elif question.render_mode == "split_boxes":
+                overlay_split_box_text_on_rect(page, rect, value_text, question.render_box_count)
+                placed_count += 1
             else:
                 page.insert_textbox(rect, value_text, fontsize=9, fontname="helv", color=(0, 0, 0), align=0)
                 placed_count += 1
