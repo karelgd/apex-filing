@@ -2024,6 +2024,12 @@ body {
   color: #5a36a3;
 }
 
+.crm-folder-tab.crm-tab-questionnaires {
+  background: #e8f7ff;
+  border-color: #a9ddff;
+  color: #075985;
+}
+
 .crm-folder-tab.crm-tab-notes {
   background: #fff1e8;
   border-color: #ffc7a8;
@@ -2069,6 +2075,10 @@ body {
 
 .crm-folder-tab.crm-tab-documents.active {
   background: #7b5cff;
+}
+
+.crm-folder-tab.crm-tab-questionnaires.active {
+  background: #0ea5e9;
 }
 
 .crm-folder-tab.crm-tab-notes.active {

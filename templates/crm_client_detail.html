@@ -29,6 +29,11 @@
       <button class="crm-folder-tab crm-tab-invoices" type="button" data-crm-tab="invoices">
         Invoices <span>{{ invoices|length }}</span>
       </button>
+      {% if client.agency.has_tool('Form Filler') %}
+      <button class="crm-folder-tab crm-tab-questionnaires" type="button" data-crm-tab="questionnaires">
+        Questionnaires <span>{{ questionnaires|length }}</span>
+      </button>
+      {% endif %}
       <button class="crm-folder-tab crm-tab-documents" type="button" data-crm-tab="documents">
         Documents <span>{{ documents|length }}</span>
       </button>
@@ -108,6 +113,41 @@
         {% endfor %}
       </div>
     </section>
+
+    {% if client.agency.has_tool('Form Filler') %}
+    <section class="crm-folder-panel" data-crm-panel="questionnaires">
+      <div class="crm-panel-head">
+        <div><h2>Questionnaires</h2><p>Form Filler questionnaires assigned to this client.</p></div>
+      </div>
+      <div class="crm-stack">
+        {% for questionnaire in questionnaires %}
+          {% set linked_case = linked_crm_cases.get(questionnaire.id) %}
+          <div class="crm-record">
+            <div>
+              <strong>{{ questionnaire.case_type }}</strong>
+              <small>
+                {{ questionnaire.status }} &middot; {{ questionnaire.progress_percentage }}% complete
+                {% if linked_case %} &middot; Linked CRM case: {{ linked_case.title }}{% endif %}
+                &middot; Updated {{ questionnaire.updated_at.strftime('%b %d, %Y') }}
+              </small>
+              <div class="progress mt-2" style="max-width: 360px;">
+                <div class="progress-bar" style="width: {{ questionnaire.progress_percentage }}%">{{ questionnaire.progress_percentage }}%</div>
+              </div>
+            </div>
+            <div class="crm-row-actions">
+              {% if can_use_form_filler_for_current_user() %}
+                <a class="btn btn-sm btn-primary" href="{{ url_for('case_review', case_id=questionnaire.id) }}">Review</a>
+              {% else %}
+                <span class="badge text-bg-light border">View only</span>
+              {% endif %}
+            </div>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">No Form Filler questionnaires have been assigned to this client yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
     <section class="crm-folder-panel" data-crm-panel="documents">
       <div class="crm-panel-head">

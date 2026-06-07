@@ -3249,6 +3249,26 @@ def register_routes(app):
         for case in client.crm_cases:
             sync_case_invoice(case)
         db.session.commit()
+        questionnaire_codes = [template.code for template in available_form_templates()] if can_use_form_filler(current_user.agency) else []
+        questionnaires = (
+            Case.query.filter(
+                Case.agency_id == current_user.agency_id,
+                Case.client_id == client.id,
+                Case.case_type.in_(questionnaire_codes),
+            )
+            .order_by(Case.updated_at.desc(), Case.id.desc())
+            .all()
+            if questionnaire_codes
+            else []
+        )
+        linked_crm_cases = {}
+        if questionnaires:
+            linked_rows = CrmCase.query.filter(
+                CrmCase.agency_id == current_user.agency_id,
+                CrmCase.client_id == client.id,
+                CrmCase.form_filler_case_id.in_([questionnaire.id for questionnaire in questionnaires]),
+            ).all()
+            linked_crm_cases = {row.form_filler_case_id: row for row in linked_rows}
         return render_template(
             "crm_client_detail.html",
             client=client,
@@ -3256,6 +3276,8 @@ def register_routes(app):
             invoices=CrmInvoice.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmInvoice.updated_at.desc()).all(),
             appointments=CrmAppointment.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmAppointment.start_at.desc()).all(),
             documents=CrmClientDocument.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientDocument.uploaded_at.desc()).all(),
+            questionnaires=questionnaires,
+            linked_crm_cases=linked_crm_cases,
         )
 
     @app.route("/agency/crm/clients/<int:client_id>/cases/new", methods=["GET", "POST"])
