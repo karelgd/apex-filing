@@ -65,7 +65,7 @@
           <span class="sidebar-label">Agency tools</span>
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_dashboard' else '' }}" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_knowledge_base' else '' }}" href="{{ url_for('agency_knowledge_base') }}">Knowledge Base</a>
-          {% if can_manage_client_users_for_current_user() %}
+          {% if can_manage_client_users_for_current_user() and not current_user.agency.has_tool('CRM') %}
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           {% endif %}
           {% if is_agency_owner() %}
