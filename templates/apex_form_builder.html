@@ -22,6 +22,12 @@
       <div class="card-header bg-white d-flex justify-content-between align-items-center gap-3 flex-wrap">
         <span class="fw-semibold">Questions</span>
         <div class="d-flex gap-2 flex-wrap">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('apex_form_translations_export', template_id=template.id) }}">Export Translations</a>
+          <form class="d-flex gap-2 align-items-center" method="post" enctype="multipart/form-data" action="{{ url_for('apex_form_translations_import', template_id=template.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input class="form-control form-control-sm" type="file" name="translation_file" accept=".csv" required>
+            <button class="btn btn-sm btn-outline-primary">Import</button>
+          </form>
           <button class="btn btn-sm btn-primary" type="button" id="add-question-button">Add Question</button>
           {% if questions %}
             <button class="btn btn-sm btn-outline-primary" type="submit" form="question-bulk-actions" formaction="{{ url_for('apex_form_questions_client_visibility', template_id=template.id) }}" name="visibility_action" value="show">Show to Client</button>
@@ -185,6 +191,20 @@
             <label class="form-label" id="question-prompt-label">Question text</label>
             <textarea class="form-control" name="prompt" id="question-prompt" rows="3" required></textarea>
           </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Spanish client text</label>
+              <textarea class="form-control" name="prompt_es" id="question-prompt-es" rows="3"></textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">English client text</label>
+              <textarea class="form-control" name="prompt_en" id="question-prompt-en" rows="3"></textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Kreyòl client text</label>
+              <textarea class="form-control" name="prompt_ht" id="question-prompt-ht" rows="3"></textarea>
+            </div>
+          </div>
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Answer type</label>
@@ -271,6 +291,9 @@
     {% for question in questions %}
       "{{ question.id }}": {
         prompt: {{ question.prompt|tojson }},
+        promptEs: {{ (question.prompt_es or question.prompt)|tojson }},
+        promptEn: {{ (question.prompt_en or '')|tojson }},
+        promptHt: {{ (question.prompt_ht or '')|tojson }},
         fieldKey: {{ question.field_key|tojson }},
         inputType: {{ question.input_type|tojson }},
         renderMode: {{ question.render_mode|tojson }},
@@ -299,6 +322,9 @@
 
   const questionIdInput = document.getElementById("question-id");
   const promptInput = document.getElementById("question-prompt");
+  const promptEsInput = document.getElementById("question-prompt-es");
+  const promptEnInput = document.getElementById("question-prompt-en");
+  const promptHtInput = document.getElementById("question-prompt-ht");
   const promptLabel = document.getElementById("question-prompt-label");
   const fieldInput = document.getElementById("question-field-key");
   const inputTypeSelect = document.getElementById("question-input-type");
@@ -414,6 +440,9 @@
         ? "Create a new question for this PDF spot, or reuse an existing question so the same answer appears here too."
         : "Create a question that can later be placed on the PDF.";
       promptInput.value = "";
+      promptEsInput.value = "";
+      promptEnInput.value = "";
+      promptHtInput.value = "";
       promptInput.required = true;
       promptLabel.textContent = "Question text";
       questionSaveButton.textContent = "Save question";
@@ -434,6 +463,9 @@
       ? "This will place the selected existing question at the PDF spot you clicked. Any text edits here update that question everywhere it is used."
       : "Update how this question appears to the client and where it maps in the generated PDF.";
     promptInput.value = question.prompt || "";
+    promptEsInput.value = question.promptEs || question.prompt || "";
+    promptEnInput.value = question.promptEn || "";
+    promptHtInput.value = question.promptHt || "";
     promptInput.required = true;
     promptLabel.textContent = "Question text";
     questionSaveButton.textContent = "Save question";

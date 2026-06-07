@@ -134,7 +134,7 @@
     });
   </script>
   {% if current_user.is_authenticated and current_user.role == 'client' %}
-    <script src="{{ url_for('static', filename='client_language.js') }}?v=20260607-safe-question-translations"></script>
+    <script src="{{ url_for('static', filename='client_language.js') }}?v=20260607-stored-question-translations"></script>
   {% endif %}
   {% block scripts %}{% endblock %}
 </body>

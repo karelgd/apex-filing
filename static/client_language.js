@@ -542,6 +542,18 @@
 
   function applyLanguage(language) {
     document.documentElement.lang = language === "ht" ? "ht" : language;
+    document.querySelectorAll("[data-question-i18n]").forEach((element) => {
+      if (!element.dataset.originalText) {
+        element.dataset.originalText = element.textContent;
+      }
+      const storedText =
+        language === "en"
+          ? element.dataset.questionEn
+          : language === "ht"
+            ? element.dataset.questionHt
+            : element.dataset.questionEs;
+      element.textContent = storedText || element.dataset.questionDefault || element.dataset.originalText;
+    });
     document.querySelectorAll("[data-i18n]").forEach((element) => {
       if (!element.dataset.originalText) {
         element.dataset.originalText = element.textContent;
@@ -573,6 +585,9 @@
       }
     });
     document.querySelectorAll(".question-prompt, .question-map-link b").forEach((element) => {
+      if (element.dataset.questionI18n !== undefined) {
+        return;
+      }
       if (!element.dataset.originalText) {
         element.dataset.originalText = element.textContent;
       }

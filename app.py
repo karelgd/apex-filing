@@ -1,11 +1,12 @@
 import calendar as calendar_lib
+import csv
 import os
 import importlib.util
 import json
 import re
 import uuid
 from functools import wraps
-from io import BytesIO
+from io import BytesIO, StringIO
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -320,6 +321,7 @@ def replace_template_questions(code, question_lines):
         input_type = "textarea" if len(prompt) > 80 or prompt.lower().startswith(("describe", "list", "why", "what")) else "text"
         question = existing[index - 1] if index <= len(existing) else CaseQuestion(case_type=code)
         question.prompt = prompt
+        question.prompt_es = question.prompt_es or prompt
         question.field_key = field_key
         question.input_type = input_type
         question.sort_order = index
@@ -342,6 +344,62 @@ def reorder_template_questions(code):
     questions = CaseQuestion.query.filter_by(case_type=code).order_by(CaseQuestion.sort_order, CaseQuestion.id).all()
     for index, question in enumerate(questions, start=1):
         question.sort_order = index
+
+
+def question_translation_csv(template):
+    output = StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=["question_id", "sort_order", "field_key", "spanish", "english", "kreyol"],
+    )
+    writer.writeheader()
+    questions = CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order, CaseQuestion.id).all()
+    for question in questions:
+        writer.writerow(
+            {
+                "question_id": question.id,
+                "sort_order": question.sort_order,
+                "field_key": question.field_key,
+                "spanish": question.prompt_es or question.prompt,
+                "english": question.prompt_en or "",
+                "kreyol": question.prompt_ht or "",
+            }
+        )
+    return output.getvalue()
+
+
+def import_question_translation_csv(template, file_storage):
+    if not file_storage:
+        flash("Choose a CSV translation file first.", "warning")
+        return 0
+    raw = file_storage.read()
+    try:
+        text_value = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text_value = raw.decode("latin-1")
+    reader = csv.DictReader(StringIO(text_value))
+    questions_by_id = {
+        str(question.id): question
+        for question in CaseQuestion.query.filter_by(case_type=template.code).all()
+    }
+    updated = 0
+    for row in reader:
+        question = questions_by_id.get((row.get("question_id") or "").strip())
+        if not question:
+            continue
+        spanish = (row.get("spanish") or "").strip()
+        english = (row.get("english") or "").strip()
+        kreyol = (row.get("kreyol") or row.get("creole") or row.get("haitian_creole") or "").strip()
+        if spanish:
+            question.prompt_es = spanish
+            question.prompt = spanish[:255]
+        if english:
+            question.prompt_en = english
+        if kreyol:
+            question.prompt_ht = kreyol
+        updated += 1
+    db.session.commit()
+    return updated
 
 
 def clear_template_questions(code):
@@ -2355,6 +2413,9 @@ def register_routes(app):
             question_id = request.form.get("question_id")
             question = db.session.get(CaseQuestion, int(question_id)) if question_id else CaseQuestion(case_type=template.code)
             question.prompt = request.form["prompt"].strip()
+            question.prompt_es = request.form.get("prompt_es", "").strip() or question.prompt
+            question.prompt_en = request.form.get("prompt_en", "").strip()
+            question.prompt_ht = request.form.get("prompt_ht", "").strip()
             field_key = request.form.get("field_key", "").strip()
             if not field_key:
                 field_key = f"{template.code.lower().replace('-', '')}_question_{uuid.uuid4().hex[:8]}"
@@ -2425,6 +2486,26 @@ def register_routes(app):
             pdf_field_options=pdf_field_options,
             pdf_pages=template_pdf_pages(template),
         )
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/translations.csv")
+    @role_required("apex")
+    def apex_form_translations_export(template_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        filename = f"{template.code.lower()}_question_translations.csv"
+        return Response(
+            question_translation_csv(template),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/translations/import", methods=["POST"])
+    @role_required("apex")
+    def apex_form_translations_import(template_id):
+        template = db.session.get(FormTemplate, template_id) or abort(404)
+        updated = import_question_translation_csv(template, request.files.get("translation_file"))
+        if updated:
+            flash(f"{updated} question translations imported.", "success")
+        return redirect(url_for("apex_form_builder", template_id=template.id))
 
     @app.route("/apex/subscriptions/form-filler/<int:template_id>/builder/pdf-page/<int:page_number>.png")
     @role_required("apex")
@@ -5828,6 +5909,7 @@ def seed_sample_form_templates():
                     case_type="I-589",
                     field_key=field_key,
                     prompt=prompt,
+                    prompt_es=prompt,
                     input_type=input_type,
                     sort_order=index,
                 )
@@ -5839,6 +5921,7 @@ def seed_sample_form_templates():
                     case_type="I-485",
                     field_key=field_key,
                     prompt=prompt,
+                    prompt_es=prompt,
                     input_type=input_type,
                     sort_order=index,
                 )
@@ -5870,6 +5953,9 @@ def ensure_sqlite_schema():
             "client_visible": "BOOLEAN DEFAULT 1 NOT NULL",
             "render_mode": "VARCHAR(30) DEFAULT 'normal' NOT NULL",
             "render_box_count": "INTEGER DEFAULT 0 NOT NULL",
+            "prompt_es": "TEXT",
+            "prompt_en": "TEXT",
+            "prompt_ht": "TEXT",
             "pdf_page_number": "INTEGER",
             "pdf_x": "NUMERIC(10, 2)",
             "pdf_y": "NUMERIC(10, 2)",
