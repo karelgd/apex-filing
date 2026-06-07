@@ -57,6 +57,7 @@ from models import (
     CrmCaseStatusHistory,
     CrmCaseTag,
     CrmClientDocument,
+    CrmClientNote,
     CrmInvoice,
     CrmInvoiceActivity,
     FormTemplate,
@@ -1059,6 +1060,60 @@ def recalc_crm_invoice(invoice):
         else:
             invoice.status = "Partial"
     return balance
+
+
+def crm_client_note_timeline(client):
+    entries = []
+    for note in CrmClientNote.query.filter_by(client_id=client.id, agency_id=client.agency_id).all():
+        entries.append(
+            {
+                "created_at": note.created_at,
+                "source": "General",
+                "title": "Client note",
+                "text": note.note_text,
+                "url": url_for("crm_client_detail", client_id=client.id),
+            }
+        )
+    for note in (
+        CrmCaseNote.query.join(CrmCase)
+        .filter(CrmCase.client_id == client.id, CrmCase.agency_id == client.agency_id)
+        .all()
+    ):
+        entries.append(
+            {
+                "created_at": note.created_at,
+                "source": "Case",
+                "title": note.case.title,
+                "text": note.note_text,
+                "url": url_for("crm_case_detail", case_id=note.case_id),
+            }
+        )
+    for note in (
+        CrmAppointmentNote.query.join(CrmAppointment)
+        .filter(CrmAppointment.client_id == client.id, CrmAppointment.agency_id == client.agency_id)
+        .all()
+    ):
+        entries.append(
+            {
+                "created_at": note.created_at,
+                "source": "Appointment",
+                "title": note.appointment.title or note.appointment.case.title,
+                "text": note.note_text,
+                "url": url_for("crm_appointment_detail", appointment_id=note.appointment_id),
+            }
+        )
+    for invoice in CrmInvoice.query.filter_by(client_id=client.id, agency_id=client.agency_id).all():
+        if invoice.notes:
+            entries.append(
+                {
+                    "created_at": invoice.updated_at or invoice.created_at,
+                    "source": "Invoice",
+                    "title": invoice.invoice_number,
+                    "text": invoice.notes,
+                    "url": url_for("crm_invoice_detail", invoice_id=invoice.id),
+                }
+            )
+    return sorted(entries, key=lambda entry: entry["created_at"] or datetime.min, reverse=True)
 
 
 def populate_invoice_activity_from_form(activity):
@@ -3278,7 +3333,22 @@ def register_routes(app):
             documents=CrmClientDocument.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientDocument.uploaded_at.desc()).all(),
             questionnaires=questionnaires,
             linked_crm_cases=linked_crm_cases,
+            note_timeline=crm_client_note_timeline(client),
         )
+
+    @app.route("/agency/crm/clients/<int:client_id>/notes", methods=["POST"])
+    @role_required("agency")
+    def crm_client_note_create(client_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        note_text = request.form.get("note_text", "").strip()
+        if note_text:
+            db.session.add(CrmClientNote(agency_id=current_user.agency_id, client_id=client.id, note_text=note_text))
+            db.session.commit()
+            flash("Client note added.", "success")
+        return redirect(url_for("crm_client_detail", client_id=client.id))
 
     @app.route("/agency/crm/clients/<int:client_id>/cases/new", methods=["GET", "POST"])
     @role_required("agency")
@@ -5837,6 +5907,20 @@ def ensure_sqlite_schema():
                 "FOREIGN KEY(case_id) REFERENCES 'case' (id), "
                 "FOREIGN KEY(pdf_field_id) REFERENCES pdf_field (id), "
                 "CONSTRAINT uq_case_pdf_field_value UNIQUE (case_id, pdf_field_id)"
+                ")"
+            )
+        )
+    if "client" in inspector.get_table_names() and "crm_client_note" not in inspector.get_table_names():
+        db.session.execute(
+            text(
+                "CREATE TABLE crm_client_note ("
+                "id INTEGER NOT NULL PRIMARY KEY, "
+                "agency_id INTEGER NOT NULL, "
+                "client_id INTEGER NOT NULL, "
+                "note_text TEXT NOT NULL, "
+                "created_at DATETIME NOT NULL, "
+                "FOREIGN KEY(agency_id) REFERENCES agency (id), "
+                "FOREIGN KEY(client_id) REFERENCES client (id)"
                 ")"
             )
         )

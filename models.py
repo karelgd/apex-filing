@@ -398,6 +398,7 @@ class Client(UserMixin, PasswordMixin, db.Model):
     crm_invoices = db.relationship("CrmInvoice", back_populates="client", cascade="all, delete-orphan")
     crm_appointments = db.relationship("CrmAppointment", back_populates="client", cascade="all, delete-orphan")
     crm_documents = db.relationship("CrmClientDocument", back_populates="client", cascade="all, delete-orphan")
+    crm_notes = db.relationship("CrmClientNote", back_populates="client", cascade="all, delete-orphan", order_by="CrmClientNote.created_at.desc()")
 
     @property
     def role(self):
@@ -683,6 +684,17 @@ class CrmAppointmentNote(db.Model):
 
     agency = db.relationship("Agency")
     appointment = db.relationship("CrmAppointment", back_populates="note_entries")
+
+
+class CrmClientNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
+    note_text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    client = db.relationship("Client", back_populates="crm_notes")
 
 
 class CrmInvoiceActivity(db.Model):

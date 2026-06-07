@@ -37,6 +37,9 @@
       <button class="crm-folder-tab crm-tab-documents" type="button" data-crm-tab="documents">
         Documents <span>{{ documents|length }}</span>
       </button>
+      <button class="crm-folder-tab crm-tab-notes" type="button" data-crm-tab="notes">
+        Notes <span>{{ note_timeline|length }}</span>
+      </button>
     </div>
 
     <section class="crm-folder-panel active" data-crm-panel="cases">
@@ -179,6 +182,33 @@
           </div>
         {% else %}
           <p class="text-secondary mb-0">No client documents yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="crm-folder-panel" data-crm-panel="notes">
+      <div class="crm-panel-head">
+        <div><h2>Notes</h2><p>All client, case, appointment, and invoice notes in one place.</p></div>
+      </div>
+      <form method="post" action="{{ url_for('crm_client_note_create', client_id=client.id) }}" class="mb-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <textarea class="form-control mb-2" name="note_text" rows="3" placeholder="Add a general client note"></textarea>
+        <button class="btn btn-primary crm-action-btn">Add Note</button>
+      </form>
+      <div class="crm-stack">
+        {% for note in note_timeline %}
+          <div class="crm-record">
+            <div>
+              <strong>{{ note.source }} - {{ note.title }}</strong>
+              <small>{{ note.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+              <p class="mb-0 mt-2">{{ note.text }}</p>
+            </div>
+            <div class="crm-row-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ note.url }}">Open</a>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">No notes have been added for this client yet.</p>
         {% endfor %}
       </div>
     </section>
