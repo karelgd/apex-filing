@@ -607,6 +607,24 @@ class CrmCaseTag(db.Model):
     agency = db.relationship("Agency", backref=db.backref("crm_case_tags", cascade="all, delete-orphan"))
 
 
+class AgencyCrmCaseType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    name = db.Column(db.String(140), nullable=False)
+    purpose = db.Column(db.String(220))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency", backref=db.backref("crm_case_types", cascade="all, delete-orphan"))
+
+    __table_args__ = (db.UniqueConstraint("agency_id", "name", name="uq_agency_crm_case_type_name"),)
+
+    @property
+    def label(self):
+        if self.purpose and self.purpose.strip() and self.purpose.strip() != self.name:
+            return f"{self.name} - {self.purpose}"
+        return self.name
+
+
 class CrmCaseStatusHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)

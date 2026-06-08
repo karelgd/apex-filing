@@ -9,9 +9,10 @@
       <label class="form-label">Case type or service</label>
       <select class="form-select mb-3" name="title" required>
         <option value="">Select a form or service</option>
-        {% for code, purpose in crm_case_services %}
-          {% set label = code ~ ' - ' ~ purpose %}
-          <option value="{{ label }}" {% if case and case.title == label %}selected{% endif %}>{{ label }}</option>
+        {% for label, code, purpose, source in crm_case_services %}
+          <option value="{{ label }}" {% if case and case.title == label %}selected{% endif %}>
+            {{ label }}{% if source == 'agency' %} (Agency){% endif %}
+          </option>
         {% endfor %}
       </select>
       <label class="form-label">Price</label>

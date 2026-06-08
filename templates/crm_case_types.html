@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">CRM Setup</span>
+      <h1>Case Types</h1>
+      <p>Create private case or service types that only this agency can select.</p>
+    </div>
+    <div class="crm-actions">
+      <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('agency_crm') }}">Back to CRM</a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <section class="crm-panel">
+        <div class="crm-panel-head">
+          <div>
+            <h2>Add private case type</h2>
+            <p>This option will appear only in this agency's CRM case dropdown.</p>
+          </div>
+        </div>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label class="form-label">Case type or service name</label>
+          <input class="form-control mb-3" name="name" maxlength="140" placeholder="Example: Cuban Adjustment Consultation" required>
+          <label class="form-label">Purpose or description, optional</label>
+          <textarea class="form-control mb-3" name="purpose" rows="4" maxlength="220" placeholder="Short description shown in the dropdown"></textarea>
+          <button class="btn btn-primary crm-action-btn">Add Case Type</button>
+        </form>
+      </section>
+    </div>
+    <div class="col-lg-7">
+      <section class="crm-panel crm-panel-wide">
+        <div class="crm-panel-head">
+          <div>
+            <h2>Agency private types</h2>
+            <p>These are not visible to other agencies.</p>
+          </div>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for case_type in private_case_types %}
+            <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+              <div>
+                <strong>{{ case_type.name }}</strong>
+                {% if case_type.purpose %}
+                  <div class="text-secondary small">{{ case_type.purpose }}</div>
+                {% endif %}
+              </div>
+              <form method="post" action="{{ url_for('crm_case_type_delete', case_type_id=case_type.id) }}" onsubmit="return confirm('Delete this private case type? Existing cases will keep their current title, but this option will no longer appear for new cases.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+              </form>
+            </div>
+          {% else %}
+            <div class="list-group-item text-secondary">No private case types yet.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="crm-panel crm-panel-wide mt-4">
+        <div class="crm-panel-head">
+          <div>
+            <h2>Global Apex types</h2>
+            <p>These are available to all agencies.</p>
+          </div>
+        </div>
+        <div class="crm-mini-grid">
+          {% for code, purpose in global_case_types %}
+            <div class="crm-mini-card">
+              <strong>{{ code }}</strong>
+              <span>{{ purpose }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

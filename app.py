@@ -36,6 +36,7 @@ from models import (
     ActiveSession,
     Agency,
     AgencyCaseManager,
+    AgencyCrmCaseType,
     AgencyCrmPreparer,
     AgencyDocument,
     AgencyLawFirm,
@@ -1206,6 +1207,22 @@ def crm_appointment_duration_minutes(appointment):
     return 30
 
 
+def global_crm_case_service_options():
+    return [(f"{code} - {purpose}", code, purpose, "global") for code, purpose in CRM_CASE_SERVICES]
+
+
+def agency_crm_case_service_options(agency_id):
+    private_types = AgencyCrmCaseType.query.filter_by(agency_id=agency_id).order_by(AgencyCrmCaseType.name).all()
+    options = global_crm_case_service_options()
+    existing_labels = {option[0] for option in options}
+    for case_type in private_types:
+        label = case_type.label
+        if label not in existing_labels:
+            options.append((label, case_type.name, case_type.purpose or "", "agency"))
+            existing_labels.add(label)
+    return options
+
+
 def populate_crm_case_from_form(case):
     case.title = request.form["title"].strip()
     case.status = request.form.get("status") or "Open"
@@ -1483,7 +1500,7 @@ def build_crm_report_data(agency_id, args):
         else []
     )
 
-    all_case_types = [f"{code} - {purpose}" for code, purpose in CRM_CASE_SERVICES]
+    all_case_types = [option[0] for option in agency_crm_case_service_options(agency_id)]
     existing_case_types = [
         row[0]
         for row in db.session.query(CrmCase.title)
@@ -3375,6 +3392,51 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         return generate_crm_report_pdf(build_crm_report_data(current_user.agency_id, request.args))
 
+    @app.route("/agency/crm/case-types", methods=["GET", "POST"])
+    @role_required("agency")
+    def crm_case_types():
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        if not is_agency_owner():
+            abort(403)
+        if request.method == "POST":
+            name = request.form.get("name", "").strip()
+            purpose = request.form.get("purpose", "").strip()
+            if not name:
+                flash("Case type name is required.", "warning")
+                return redirect(url_for("crm_case_types"))
+            existing_global = {code.lower() for code, _ in CRM_CASE_SERVICES} | {f"{code} - {purpose}".lower() for code, purpose in CRM_CASE_SERVICES}
+            if name.lower() in existing_global:
+                flash("That case type already exists globally.", "warning")
+                return redirect(url_for("crm_case_types"))
+            if AgencyCrmCaseType.query.filter(func.lower(AgencyCrmCaseType.name) == name.lower(), AgencyCrmCaseType.agency_id == current_user.agency_id).first():
+                flash("That private case type already exists for this agency.", "warning")
+                return redirect(url_for("crm_case_types"))
+            db.session.add(AgencyCrmCaseType(agency_id=current_user.agency_id, name=name, purpose=purpose))
+            db.session.commit()
+            flash("Private case type added.", "success")
+            return redirect(url_for("crm_case_types"))
+        return render_template(
+            "crm_case_types.html",
+            private_case_types=AgencyCrmCaseType.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCrmCaseType.name).all(),
+            global_case_types=CRM_CASE_SERVICES,
+        )
+
+    @app.route("/agency/crm/case-types/<int:case_type_id>/delete", methods=["POST"])
+    @role_required("agency")
+    def crm_case_type_delete(case_type_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        if not is_agency_owner():
+            abort(403)
+        case_type = AgencyCrmCaseType.query.filter_by(id=case_type_id, agency_id=current_user.agency_id).first() or abort(404)
+        db.session.delete(case_type)
+        db.session.commit()
+        flash("Private case type deleted.", "success")
+        return redirect(url_for("crm_case_types"))
+
     @app.route("/agency/crm/clients/<int:client_id>")
     @role_required("agency")
     def crm_client_detail(client_id):
@@ -3459,6 +3521,7 @@ def register_routes(app):
             "crm_case_form.html",
             client=client,
             case=None,
+            crm_case_services=agency_crm_case_service_options(current_user.agency_id),
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
@@ -3492,6 +3555,7 @@ def register_routes(app):
             "crm_case_form.html",
             client=case.client,
             case=case,
+            crm_case_services=agency_crm_case_service_options(current_user.agency_id),
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
@@ -6069,6 +6133,20 @@ def ensure_sqlite_schema():
                 "created_at DATETIME NOT NULL, "
                 "FOREIGN KEY(agency_id) REFERENCES agency (id), "
                 "FOREIGN KEY(client_id) REFERENCES client (id)"
+                ")"
+            )
+        )
+    if "agency" in inspector.get_table_names() and "agency_crm_case_type" not in inspector.get_table_names():
+        db.session.execute(
+            text(
+                "CREATE TABLE agency_crm_case_type ("
+                "id INTEGER NOT NULL PRIMARY KEY, "
+                "agency_id INTEGER NOT NULL, "
+                "name VARCHAR(140) NOT NULL, "
+                "purpose VARCHAR(220), "
+                "created_at DATETIME NOT NULL, "
+                "FOREIGN KEY(agency_id) REFERENCES agency (id), "
+                "CONSTRAINT uq_agency_crm_case_type_name UNIQUE (agency_id, name)"
                 ")"
             )
         )
