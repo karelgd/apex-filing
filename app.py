@@ -4333,10 +4333,6 @@ def register_routes(app):
         save_case_pdf_field_values(case, pdf_fields, pdf_field_values)
         assign_case_people_from_form(case)
         update_case_progress(case)
-        if case.progress_percentage < 100:
-            db.session.commit()
-            flash("The case is not ready yet. All questionnaire answers are required before generation.", "warning")
-            return redirect(url_for("case_review", case_id=case.id))
         db.session.flush()
         db.session.expire(case, ["answers"])
         filename = generate_case_pdf(case)
