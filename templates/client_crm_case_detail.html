@@ -68,15 +68,17 @@
         <h2 data-i18n="case_questionnaire">Case questionnaires</h2>
         <p data-i18n="case_questionnaire_help">Your agency needs this questionnaire completed for this case.</p>
       </div>
-      {% if case.form_filler_case %}
+      {% if linked_questionnaires %}
+      {% for questionnaire in linked_questionnaires %}
       <div class="client-questionnaire-card">
-        <strong>{{ case.form_filler_case.case_type }}</strong>
-        <small><span data-i18n="current_status">Current status</span>: <span data-i18n-text="{{ case.form_filler_case.status }}">{{ case.form_filler_case.status }}</span></small>
-        <div class="progress my-3"><div class="progress-bar" style="width: {{ case.form_filler_case.progress_percentage }}%">{{ case.form_filler_case.progress_percentage }}%</div></div>
-        <a class="btn btn-primary btn-lg client-upload-button" href="{{ url_for('questionnaire', case_id=case.form_filler_case.id) }}">
-          <span data-i18n="{{ 'continue' if case.form_filler_case.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if case.form_filler_case.progress_percentage else 'Start Questionnaire' }}</span>
+        <strong>{{ questionnaire.case_type }}</strong>
+        <small><span data-i18n="current_status">Current status</span>: <span data-i18n-text="{{ questionnaire.status }}">{{ questionnaire.status }}</span></small>
+        <div class="progress my-3"><div class="progress-bar" style="width: {{ questionnaire.progress_percentage }}%">{{ questionnaire.progress_percentage }}%</div></div>
+        <a class="btn btn-primary btn-lg client-upload-button" href="{{ url_for('questionnaire', case_id=questionnaire.id) }}">
+          <span data-i18n="{{ 'continue' if questionnaire.progress_percentage else 'start_questionnaire' }}">{{ 'Continue' if questionnaire.progress_percentage else 'Start Questionnaire' }}</span>
         </a>
       </div>
+      {% endfor %}
       {% else %}
         <div class="client-empty-state" data-i18n="no_case_questionnaire">No questionnaire has been requested for this case yet.</div>
       {% endif %}

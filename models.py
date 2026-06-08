@@ -591,11 +591,26 @@ class CrmCase(db.Model):
     form_preparer = db.relationship("AgencyPreparer")
     tag = db.relationship("CrmCaseTag")
     form_filler_case = db.relationship("Case", foreign_keys=[form_filler_case_id])
+    questionnaire_links = db.relationship("CrmCaseQuestionnaire", back_populates="crm_case", cascade="all, delete-orphan")
     invoices = db.relationship("CrmInvoice", back_populates="case", cascade="all, delete-orphan")
     appointments = db.relationship("CrmAppointment", back_populates="case", cascade="all, delete-orphan")
     documents = db.relationship("CrmClientDocument", back_populates="case")
     note_entries = db.relationship("CrmCaseNote", back_populates="case", cascade="all, delete-orphan", order_by="CrmCaseNote.created_at.desc()")
     status_history = db.relationship("CrmCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CrmCaseStatusHistory.changed_at.desc()")
+
+
+class CrmCaseQuestionnaire(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    crm_case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False)
+    form_filler_case_id = db.Column(db.Integer, db.ForeignKey("case.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    crm_case = db.relationship("CrmCase", back_populates="questionnaire_links")
+    form_filler_case = db.relationship("Case")
+
+    __table_args__ = (db.UniqueConstraint("crm_case_id", "form_filler_case_id", name="uq_crm_case_questionnaire"),)
 
 
 class CrmCaseTag(db.Model):

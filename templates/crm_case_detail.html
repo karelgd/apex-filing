@@ -69,38 +69,41 @@
   <section class="crm-panel">
     <div class="crm-panel-head">
       <div>
-        <h2>Form Filler Questionnaire</h2>
-        <p>Review answers and generate the questionnaire PDF from this CRM case.</p>
+        <h2>Form Filler Questionnaires</h2>
+        <p>Review answers and generate questionnaire PDFs from this CRM case.</p>
       </div>
-      {% if case.form_filler_case %}
-        <span class="badge text-bg-light border">{{ case.form_filler_case.status }} - {{ case.form_filler_case.progress_percentage }}%</span>
+      {% if linked_questionnaires %}
+        <span class="badge text-bg-light border">{{ linked_questionnaires|length }} linked</span>
       {% endif %}
     </div>
-    {% if case.form_filler_case %}
+    {% if linked_questionnaires %}
+      {% for questionnaire in linked_questionnaires %}
       <div class="crm-record">
         <div>
-          <strong>{{ case.form_filler_case.case_type }}</strong>
+          <strong>{{ questionnaire.case_type }}</strong>
+          <small>{{ questionnaire.status }} - {{ questionnaire.progress_percentage }}% complete</small>
           <small>Client answers are stored under this CRM case's linked Form Filler questionnaire.</small>
-          {% if case.form_filler_case.generated_forms %}
+          {% if questionnaire.generated_forms %}
             <small>Generated PDFs:
-              {% for form in case.form_filler_case.generated_forms %}
+              {% for form in questionnaire.generated_forms %}
                 <a href="{{ url_for('uploaded_file', filename=form.filename) }}">{{ form.filename.split('/')[-1] }}</a>{% if not loop.last %}, {% endif %}
               {% endfor %}
             </small>
           {% endif %}
         </div>
         <div class="crm-row-actions">
-          <a class="btn btn-sm btn-primary" href="{{ url_for('case_review', case_id=case.form_filler_case.id) }}">Review Answers</a>
+          <a class="btn btn-sm btn-primary" href="{{ url_for('case_review', case_id=questionnaire.id) }}">Review Answers</a>
           {% if can_generate_forms_for_current_user() %}
-            <form method="post" action="{{ url_for('generate_form', case_id=case.form_filler_case.id) }}">
+            <form method="post" action="{{ url_for('generate_form', case_id=questionnaire.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-sm btn-success">Generate PDF</button>
             </form>
           {% endif %}
         </div>
       </div>
+      {% endfor %}
     {% else %}
-      <p class="text-secondary mb-0">No Form Filler questionnaire is linked to this CRM case.</p>
+      <p class="text-secondary mb-0">No Form Filler questionnaires are linked to this CRM case.</p>
     {% endif %}
   </section>
   {% endif %}

@@ -56,6 +56,7 @@ from models import (
     CrmAppointmentNote,
     CrmCase,
     CrmCaseNote,
+    CrmCaseQuestionnaire,
     CrmCaseStatusHistory,
     CrmCaseTag,
     CrmClientDocument,
@@ -1275,22 +1276,50 @@ def ensure_crm_case_status_history(case):
 def sync_crm_case_questionnaire(crm_case):
     if not can_use_crm_form_filler(crm_case.agency) or not can_use_form_filler_for_current_user():
         return
-    form_code = request.form.get("form_code", "").strip()
-    if not form_code:
+    selected_codes = [code.strip() for code in request.form.getlist("form_codes") if code.strip()]
+    legacy_code = request.form.get("form_code", "").strip()
+    if legacy_code and legacy_code not in selected_codes:
+        selected_codes.append(legacy_code)
+    if not selected_codes:
         return
-    if crm_case.form_filler_case and crm_case.form_filler_case.case_type == form_code:
-        return
-    template = FormTemplate.query.filter_by(code=form_code, is_active=True).first() or abort(404)
-    questionnaire = Case(
-        agency_id=crm_case.agency_id,
-        client_id=crm_case.client_id,
-        case_type=template.code,
-        status="Waiting for Client",
-        notes=f"Linked to CRM case #{crm_case.id}: {crm_case.title}",
-    )
-    db.session.add(questionnaire)
-    db.session.flush()
-    crm_case.form_filler_case_id = questionnaire.id
+    existing_cases = linked_form_filler_cases_for_crm_case(crm_case)
+    existing_codes = {case.case_type: case for case in existing_cases}
+    for form_code in selected_codes:
+        if form_code in existing_codes:
+            continue
+        template = FormTemplate.query.filter_by(code=form_code, is_active=True).first() or abort(404)
+        questionnaire = Case(
+            agency_id=crm_case.agency_id,
+            client_id=crm_case.client_id,
+            case_type=template.code,
+            status="Waiting for Client",
+            notes=f"Linked to CRM case #{crm_case.id}: {crm_case.title}",
+        )
+        db.session.add(questionnaire)
+        db.session.flush()
+        db.session.add(
+            CrmCaseQuestionnaire(
+                agency_id=crm_case.agency_id,
+                crm_case_id=crm_case.id,
+                form_filler_case_id=questionnaire.id,
+            )
+        )
+        if not crm_case.form_filler_case_id:
+            crm_case.form_filler_case_id = questionnaire.id
+
+
+def linked_form_filler_cases_for_crm_case(crm_case):
+    cases = []
+    seen_ids = set()
+    if crm_case.form_filler_case:
+        cases.append(crm_case.form_filler_case)
+        seen_ids.add(crm_case.form_filler_case.id)
+    for link in sorted(crm_case.questionnaire_links, key=lambda item: (item.created_at, item.id)):
+        questionnaire = link.form_filler_case
+        if questionnaire and questionnaire.id not in seen_ids:
+            cases.append(questionnaire)
+            seen_ids.add(questionnaire.id)
+    return cases
 
 
 def resolve_crm_case_tag(agency_id):
@@ -3503,12 +3532,29 @@ def register_routes(app):
         )
         linked_crm_cases = {}
         if questionnaires:
+            questionnaire_ids = [questionnaire.id for questionnaire in questionnaires]
             linked_rows = CrmCase.query.filter(
                 CrmCase.agency_id == current_user.agency_id,
                 CrmCase.client_id == client.id,
-                CrmCase.form_filler_case_id.in_([questionnaire.id for questionnaire in questionnaires]),
+                CrmCase.form_filler_case_id.in_(questionnaire_ids),
             ).all()
             linked_crm_cases = {row.form_filler_case_id: row for row in linked_rows}
+            linked_rows = CrmCaseQuestionnaire.query.filter(
+                CrmCaseQuestionnaire.agency_id == current_user.agency_id,
+                CrmCaseQuestionnaire.form_filler_case_id.in_(questionnaire_ids),
+            ).all()
+            crm_case_ids = [row.crm_case_id for row in linked_rows]
+            crm_case_lookup = {
+                row.id: row
+                for row in CrmCase.query.filter(
+                    CrmCase.id.in_(crm_case_ids),
+                    CrmCase.client_id == client.id,
+                    CrmCase.agency_id == current_user.agency_id,
+                ).all()
+            } if crm_case_ids else {}
+            for row in linked_rows:
+                if row.crm_case_id in crm_case_lookup:
+                    linked_crm_cases[row.form_filler_case_id] = crm_case_lookup[row.crm_case_id]
         return render_template(
             "crm_client_detail.html",
             client=client,
@@ -3569,6 +3615,7 @@ def register_routes(app):
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
             form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user() else [],
             can_link_form_filler=can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user(),
+            selected_form_codes=[],
         )
 
     @app.route("/agency/crm/cases/<int:case_id>/edit", methods=["GET", "POST"])
@@ -3603,6 +3650,7 @@ def register_routes(app):
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
             form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user() else [],
             can_link_form_filler=can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user(),
+            selected_form_codes=[questionnaire.case_type for questionnaire in linked_form_filler_cases_for_crm_case(case)],
         )
 
     @app.route("/agency/crm/cases/<int:case_id>")
@@ -3615,7 +3663,7 @@ def register_routes(app):
         ensure_crm_case_status_history(case)
         sync_case_invoice(case)
         db.session.commit()
-        return render_template("crm_case_detail.html", case=case)
+        return render_template("crm_case_detail.html", case=case, linked_questionnaires=linked_form_filler_cases_for_crm_case(case))
 
     @app.route("/agency/crm/cases/<int:case_id>/notes", methods=["POST"])
     @role_required("agency")
@@ -3639,9 +3687,9 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
         client_id = case.client_id
-        linked_questionnaire = case.form_filler_case
+        linked_questionnaires = linked_form_filler_cases_for_crm_case(case)
         db.session.delete(case)
-        if linked_questionnaire:
+        for linked_questionnaire in linked_questionnaires:
             db.session.delete(linked_questionnaire)
         db.session.commit()
         flash("CRM case deleted.", "info")
@@ -4476,6 +4524,12 @@ def register_routes(app):
             for crm_case in crm_cases
             if crm_case.form_filler_case_id
         }
+        linked_questionnaire_ids.update(
+            link.form_filler_case_id
+            for crm_case in crm_cases
+            for link in crm_case.questionnaire_links
+            if link.form_filler_case_id
+        )
         standalone_questionnaires = [
             case for case in current_user.cases if case.id not in linked_questionnaire_ids
         ]
@@ -4497,7 +4551,12 @@ def register_routes(app):
             case_id=case.id,
             agency_id=case.agency_id,
         ).order_by(CrmClientDocument.uploaded_at.desc()).all()
-        return render_template("client_crm_case_detail.html", case=case, documents=documents)
+        return render_template(
+            "client_crm_case_detail.html",
+            case=case,
+            documents=documents,
+            linked_questionnaires=linked_form_filler_cases_for_crm_case(case),
+        )
 
     @app.route("/client/crm-cases/<int:case_id>/documents", methods=["POST"])
     @role_required("client")
@@ -6191,6 +6250,30 @@ def ensure_sqlite_schema():
                 "FOREIGN KEY(agency_id) REFERENCES agency (id), "
                 "CONSTRAINT uq_agency_crm_case_type_name UNIQUE (agency_id, name)"
                 ")"
+            )
+        )
+    if "crm_case" in inspector.get_table_names() and "case" in inspector.get_table_names() and "crm_case_questionnaire" not in inspector.get_table_names():
+        db.session.execute(
+            text(
+                "CREATE TABLE crm_case_questionnaire ("
+                "id INTEGER NOT NULL PRIMARY KEY, "
+                "agency_id INTEGER NOT NULL, "
+                "crm_case_id INTEGER NOT NULL, "
+                "form_filler_case_id INTEGER NOT NULL, "
+                "created_at DATETIME NOT NULL, "
+                "FOREIGN KEY(agency_id) REFERENCES agency (id), "
+                "FOREIGN KEY(crm_case_id) REFERENCES crm_case (id), "
+                "FOREIGN KEY(form_filler_case_id) REFERENCES 'case' (id), "
+                "CONSTRAINT uq_crm_case_questionnaire UNIQUE (crm_case_id, form_filler_case_id)"
+                ")"
+            )
+        )
+        db.session.execute(
+            text(
+                "INSERT OR IGNORE INTO crm_case_questionnaire "
+                "(agency_id, crm_case_id, form_filler_case_id, created_at) "
+                "SELECT agency_id, id, form_filler_case_id, CURRENT_TIMESTAMP "
+                "FROM crm_case WHERE form_filler_case_id IS NOT NULL"
             )
         )
     if "case" in inspector.get_table_names():
