@@ -1351,6 +1351,41 @@ def save_case_pdf_field_values(case, pdf_fields, existing_values):
         db.session.add(value)
 
 
+def review_pdf_field_display_values(case, pdf_fields, saved_values):
+    display_values = {}
+    field_entries = answer_entries_by_pdf_field(case)
+    field_lookup = build_pdf_field_value_lookup(field_entries) if field_entries else {"exact": {}, "loose": {}}
+    checkbox_counts = {}
+    for field in pdf_fields:
+        if is_pdf_checkbox_field(field):
+            key = normalized_pdf_field_key(field.field_name)
+            checkbox_counts[key] = checkbox_counts.get(key, 0) + 1
+    checkbox_occurrences = {}
+    for field in pdf_fields:
+        saved_value = saved_values.get(field.id)
+        if saved_value and saved_value.value_text:
+            display_values[field.id] = saved_value.value_text
+            continue
+        checkbox_field = is_pdf_checkbox_field(field)
+        occurrence_key = normalized_pdf_field_key(field.field_name)
+        occurrence = checkbox_occurrences.get(occurrence_key, 0)
+        if checkbox_field:
+            checkbox_occurrences[occurrence_key] = occurrence + 1
+        entry = lookup_pdf_field_entry(
+            field_lookup,
+            field.field_name,
+            PdfFieldWidgetProxy(field) if checkbox_field else None,
+            strict=checkbox_field,
+            widget_occurrence=occurrence if checkbox_field else None,
+            widget_count=checkbox_counts.get(occurrence_key, 1),
+        )
+        if not entry:
+            display_values[field.id] = ""
+            continue
+        display_values[field.id] = "Yes" if checkbox_field else entry.get("value", "")
+    return display_values
+
+
 def update_case_progress(case):
     all_questions = CaseQuestion.query.filter_by(case_type=case.case_type, client_visible=True).order_by(CaseQuestion.sort_order).all()
     answers_by_question = {answer.question_id: answer.answer_text or "" for answer in case.answers}
@@ -4345,6 +4380,7 @@ def register_routes(app):
             manual_values=manual_values,
             pdf_fields=pdf_fields,
             pdf_field_values=pdf_field_values,
+            pdf_field_display_values=review_pdf_field_display_values(case, pdf_fields, pdf_field_values),
             translators=AgencyTranslator.query.filter_by(agency_id=case.agency_id).order_by(AgencyTranslator.full_name).all(),
             preparers=AgencyPreparer.query.filter_by(agency_id=case.agency_id).order_by(AgencyPreparer.full_name).all(),
         )

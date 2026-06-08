@@ -85,14 +85,15 @@
                   {% set mapping = pdf_field_visual_mapping(field) %}
                   {% if mapping and mapping.page == page.number %}
                     {% set pdf_field_value = pdf_field_values.get(field.id) %}
+                    {% set display_value = pdf_field_display_values.get(field.id, pdf_field_value.value_text if pdf_field_value else '') %}
                     {% if is_pdf_checkbox_field(field) %}
                       <select class="review-pdf-input review-pdf-checkbox review-pdf-detected-input" name="pdf_field_{{ field.id }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
                         <option value=""></option>
-                        <option value="Yes" {% if pdf_field_value and pdf_field_value.value_text == 'Yes' %}selected{% endif %}>X</option>
-                        <option value="No" {% if pdf_field_value and pdf_field_value.value_text == 'No' %}selected{% endif %}>No</option>
+                        <option value="Yes" {% if display_value == 'Yes' %}selected{% endif %}>X</option>
+                        <option value="No" {% if display_value == 'No' %}selected{% endif %}>No</option>
                       </select>
                     {% else %}
-                      <input class="review-pdf-input review-pdf-detected-input" name="pdf_field_{{ field.id }}" value="{{ pdf_field_value.value_text if pdf_field_value else '' }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                      <input class="review-pdf-input review-pdf-detected-input" name="pdf_field_{{ field.id }}" value="{{ display_value }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
                     {% endif %}
                   {% endif %}
                 {% endfor %}
