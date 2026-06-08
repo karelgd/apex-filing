@@ -47,14 +47,35 @@
       </select>
       {% if can_link_form_filler %}
         <label class="form-label">Send questionnaires</label>
-        <select class="form-select mb-3" name="form_codes" multiple size="5">
-          {% for template in form_templates %}
-            <option value="{{ template.code }}" {% if selected_form_codes and template.code in selected_form_codes %}selected{% endif %}>{{ template.label }}</option>
-          {% endfor %}
-        </select>
-        <div class="form-text mb-3">
-          Hold Ctrl or Command to select more than one. Selected questionnaires will appear inside this client case.
+        <div class="crm-questionnaire-picker mb-3" data-questionnaire-picker>
+          <select class="form-select" data-questionnaire-select>
+            <option value="">Select a questionnaire to add</option>
+            {% for template in form_templates %}
+              <option value="{{ template.code }}" data-label="{{ template.label }}" {% if selected_form_codes and template.code in selected_form_codes %}disabled{% endif %}>{{ template.label }}</option>
+            {% endfor %}
+          </select>
+          <div class="crm-selected-questionnaires" data-selected-questionnaires>
+            {% for template in form_templates %}
+              {% if selected_form_codes and template.code in selected_form_codes %}
+                <div class="crm-selected-questionnaire" data-code="{{ template.code }}">
+                  <input type="hidden" name="form_codes" value="{{ template.code }}">
+                  <span>{{ template.label }}</span>
+                  <button class="btn btn-sm btn-outline-danger" type="button" data-remove-questionnaire>Remove</button>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="form-text">
+            Select a questionnaire from the dropdown. Added questionnaires will appear below and can be removed before saving.
+          </div>
         </div>
+        <template id="selected-questionnaire-template">
+          <div class="crm-selected-questionnaire" data-code="">
+            <input type="hidden" name="form_codes" value="">
+            <span></span>
+            <button class="btn btn-sm btn-outline-danger" type="button" data-remove-questionnaire>Remove</button>
+          </div>
+        </template>
       {% endif %}
       <label class="form-label">{{ 'Add note' if case else 'Initial note' }}</label>
       <textarea class="form-control mb-4" name="notes" rows="5" placeholder="This will be added to the case note history."></textarea>
@@ -65,4 +86,74 @@
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll("[data-questionnaire-picker]").forEach((picker) => {
+    const select = picker.querySelector("[data-questionnaire-select]");
+    const list = picker.querySelector("[data-selected-questionnaires]");
+    const template = document.getElementById("selected-questionnaire-template");
+
+    const syncEmptyState = () => {
+      const existing = list.querySelector("[data-empty-questionnaires]");
+      const hasItems = Boolean(list.querySelector(".crm-selected-questionnaire"));
+      if (hasItems && existing) {
+        existing.remove();
+      }
+      if (!hasItems && !existing) {
+        const empty = document.createElement("div");
+        empty.className = "crm-selected-questionnaire-empty";
+        empty.dataset.emptyQuestionnaires = "true";
+        empty.textContent = "No questionnaires selected.";
+        list.appendChild(empty);
+      }
+    };
+
+    const setOptionDisabled = (code, disabled) => {
+      const option = select.querySelector(`option[value="${CSS.escape(code)}"]`);
+      if (option) {
+        option.disabled = disabled;
+      }
+    };
+
+    const addQuestionnaire = (code, label) => {
+      if (!code || list.querySelector(`.crm-selected-questionnaire[data-code="${CSS.escape(code)}"]`)) {
+        return;
+      }
+      const node = template.content.firstElementChild.cloneNode(true);
+      node.dataset.code = code;
+      node.querySelector("input").value = code;
+      node.querySelector("span").textContent = label;
+      list.appendChild(node);
+      setOptionDisabled(code, true);
+      syncEmptyState();
+    };
+
+    select?.addEventListener("change", () => {
+      const option = select.selectedOptions[0];
+      if (!option || !option.value) {
+        return;
+      }
+      addQuestionnaire(option.value, option.dataset.label || option.textContent.trim());
+      select.value = "";
+    });
+
+    list?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-questionnaire]");
+      if (!button) {
+        return;
+      }
+      const row = button.closest(".crm-selected-questionnaire");
+      if (!row) {
+        return;
+      }
+      setOptionDisabled(row.dataset.code, false);
+      row.remove();
+      syncEmptyState();
+    });
+
+    syncEmptyState();
+  });
+</script>
 {% endblock %}

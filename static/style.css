@@ -2483,6 +2483,43 @@ body {
   font-size: .85rem;
 }
 
+.crm-questionnaire-picker {
+  background: #f8fbff;
+  border: 1px solid var(--apex-border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.crm-selected-questionnaires {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.crm-selected-questionnaire {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d7e6ff;
+  border-radius: 12px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.crm-selected-questionnaire span {
+  color: var(--apex-ink);
+  font-weight: 800;
+}
+
+.crm-selected-questionnaire-empty {
+  background: rgba(255, 255, 255, .72);
+  border: 1px dashed #c9d8ef;
+  border-radius: 12px;
+  color: var(--apex-muted);
+  padding: 10px 12px;
+}
+
 .crm-avatar {
   align-items: center;
   background: linear-gradient(135deg, #23c7b7, #377dff);
