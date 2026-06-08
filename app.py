@@ -509,18 +509,25 @@ def question_visual_mappings(question):
         }
         for placement in sorted(question.placements, key=lambda item: (item.page_number, item.y, item.x, item.id))
     ]
-    if mappings or not question.pdf_page_number or question.pdf_x is None or question.pdf_y is None:
+    if mappings:
         return mappings
-    mappings.append(
-        {
-            "id": None,
-            "page": question.pdf_page_number,
-            "x": float(question.pdf_x or 0),
-            "y": float(question.pdf_y or 0),
-            "width": float(question.pdf_width or 0),
-            "height": float(question.pdf_height or 0),
-        }
-    )
+    if question.pdf_page_number and question.pdf_x is not None and question.pdf_y is not None:
+        mappings.append(
+            {
+                "id": None,
+                "page": question.pdf_page_number,
+                "x": float(question.pdf_x or 0),
+                "y": float(question.pdf_y or 0),
+                "width": float(question.pdf_width or 0),
+                "height": float(question.pdf_height or 0),
+            }
+        )
+        return mappings
+    legacy_fields = PdfField.query.filter_by(mapped_question_id=question.id).order_by(PdfField.page_number, PdfField.id).all()
+    for field in legacy_fields:
+        mapping = pdf_field_visual_mapping(field)
+        if mapping:
+            mappings.append(mapping)
     return mappings
 
 
