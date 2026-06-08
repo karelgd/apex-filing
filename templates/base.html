@@ -14,6 +14,9 @@
         <span class="app-brand-mark">A</span>
         <span>Apex Document Filing</span>
       </a>
+      {% if current_user.is_authenticated and current_user.role == 'agency' and current_user.agency %}
+        <span class="app-agency-name">{{ current_user.agency.agency_name }}</span>
+      {% endif %}
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
         <span class="navbar-toggler-icon"></span>
       </button>

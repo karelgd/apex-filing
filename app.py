@@ -4292,6 +4292,8 @@ def register_routes(app):
             db.session.add(client)
             db.session.commit()
             flash("Client created.", "success")
+            if current_user.role == "agency" and can_use_crm(current_user.agency):
+                return redirect(url_for("agency_crm", searched=1, q=client.full_name))
             return redirect(url_for("client_list"))
         return render_template("client_form.html", client=None, agencies=agencies)
 
@@ -4314,6 +4316,8 @@ def register_routes(app):
                 client.set_password(request.form["password"])
             db.session.commit()
             flash("Client updated.", "success")
+            if current_user.role == "agency" and can_use_crm(current_user.agency):
+                return redirect(url_for("agency_crm", searched=1, q=client.full_name))
             return redirect(url_for("client_list"))
         return render_template("client_form.html", client=client, agencies=agencies)
 
@@ -4328,6 +4332,8 @@ def register_routes(app):
         db.session.delete(client)
         db.session.commit()
         flash("Client deleted.", "info")
+        if current_user.role == "agency" and can_use_crm(current_user.agency):
+            return redirect(url_for("agency_crm"))
         return redirect(url_for("client_list"))
 
     @app.route("/cases")

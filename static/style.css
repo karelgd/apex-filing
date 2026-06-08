@@ -3217,6 +3217,20 @@ body {
   width: 34px;
 }
 
+.app-agency-name {
+  border-left: 1px solid #d7e2f1;
+  color: #15233c;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-left: 1.1rem;
+  max-width: min(42vw, 520px);
+  overflow: hidden;
+  padding-left: 1.1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .navbar-light .navbar-nav .nav-link,
 .navbar-dark .navbar-nav .nav-link,
 .app-logout-link {
