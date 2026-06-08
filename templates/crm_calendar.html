@@ -8,16 +8,29 @@
       <p>{{ appointment_count }} appointment{{ '' if appointment_count == 1 else 's' }} scheduled for this {{ view }}.</p>
     </div>
     <div class="crm-actions">
-      <a class="btn btn-outline-light crm-action-btn" href="{{ url_for('crm_calendar', view=view, date=previous_date.strftime('%Y-%m-%d')) }}">Previous</a>
-      <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_calendar', view=view) }}">Today</a>
-      <a class="btn btn-outline-light crm-action-btn" href="{{ url_for('crm_calendar', view=view, date=next_date.strftime('%Y-%m-%d')) }}">Next</a>
+      <a class="btn btn-outline-light crm-action-btn" href="{{ url_for('crm_calendar', view=view, date=previous_date.strftime('%Y-%m-%d'), form_preparer_id=selected_form_preparer_id or '') }}">Previous</a>
+      <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_calendar', view=view, form_preparer_id=selected_form_preparer_id or '') }}">Today</a>
+      <a class="btn btn-outline-light crm-action-btn" href="{{ url_for('crm_calendar', view=view, date=next_date.strftime('%Y-%m-%d'), form_preparer_id=selected_form_preparer_id or '') }}">Next</a>
     </div>
   </div>
 
   <div class="crm-calendar-toolbar">
-    {% for mode in ['month', 'week', 'day'] %}
-      <a class="crm-calendar-mode {{ 'active' if view == mode else '' }}" href="{{ url_for('crm_calendar', view=mode, date=selected_date.strftime('%Y-%m-%d')) }}">{{ mode|title }}</a>
-    {% endfor %}
+    <div class="crm-calendar-modes">
+      {% for mode in ['month', 'week', 'day'] %}
+        <a class="crm-calendar-mode {{ 'active' if view == mode else '' }}" href="{{ url_for('crm_calendar', view=mode, date=selected_date.strftime('%Y-%m-%d'), form_preparer_id=selected_form_preparer_id or '') }}">{{ mode|title }}</a>
+      {% endfor %}
+    </div>
+    <form class="crm-calendar-filter" method="get">
+      <input type="hidden" name="view" value="{{ view }}">
+      <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+      <label for="calendarFormPreparer">Form Preparer</label>
+      <select id="calendarFormPreparer" class="form-select" name="form_preparer_id" onchange="this.form.submit()">
+        <option value="">All preparers</option>
+        {% for preparer in form_preparers %}
+          <option value="{{ preparer.id }}" {% if selected_form_preparer_id == preparer.id %}selected{% endif %}>{{ preparer.full_name }}</option>
+        {% endfor %}
+      </select>
+    </form>
   </div>
 
   <section class="crm-calendar-shell {{ 'crm-calendar-' ~ view }}">

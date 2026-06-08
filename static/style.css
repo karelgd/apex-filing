@@ -4360,7 +4360,15 @@ textarea.form-control {
   border: 1px solid var(--apex-border);
   border-radius: 999px;
   box-shadow: var(--apex-shadow);
+  justify-content: space-between;
+  align-items: center;
   padding: .25rem;
+}
+
+.crm-calendar-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
 }
 
 .crm-calendar-mode {
@@ -4371,6 +4379,27 @@ textarea.form-control {
 .crm-calendar-mode.active,
 .crm-calendar-mode:hover {
   background: #1f73ff;
+}
+
+.crm-calendar-filter {
+  align-items: center;
+  display: flex;
+  gap: .6rem;
+  padding-right: .3rem;
+}
+
+.crm-calendar-filter label {
+  color: var(--apex-muted);
+  font-size: .78rem;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.crm-calendar-filter .form-select {
+  border-radius: 999px;
+  min-width: 220px;
 }
 
 .crm-form-page {

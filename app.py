@@ -3367,6 +3367,10 @@ def register_routes(app):
             selected_date = datetime.strptime(request.args.get("date", ""), "%Y-%m-%d").date()
         except ValueError:
             selected_date = datetime.utcnow().date()
+        form_preparer_id = request.args.get("form_preparer_id", "").strip()
+        selected_form_preparer_id = None
+        if form_preparer_id.isdigit():
+            selected_form_preparer_id = int(form_preparer_id)
 
         if view == "day":
             start_date = selected_date
@@ -3394,15 +3398,15 @@ def register_routes(app):
 
         start_dt = datetime.combine(start_date, datetime.min.time())
         end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time())
-        appointments = (
-            CrmAppointment.query.filter(
-                CrmAppointment.agency_id == current_user.agency_id,
-                CrmAppointment.start_at >= start_dt,
-                CrmAppointment.start_at < end_dt,
-            )
-            .order_by(CrmAppointment.start_at.asc())
-            .all()
+        appointments_query = CrmAppointment.query.filter(
+            CrmAppointment.agency_id == current_user.agency_id,
+            CrmAppointment.start_at >= start_dt,
+            CrmAppointment.start_at < end_dt,
         )
+        if selected_form_preparer_id:
+            appointments_query = appointments_query.join(CrmCase).filter(CrmCase.form_preparer_id == selected_form_preparer_id)
+        appointments = appointments_query.order_by(CrmAppointment.start_at.asc()).all()
+        form_preparers = AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all()
         appointments_by_date = {}
         for appointment in appointments:
             appointments_by_date.setdefault(appointment.start_at.date(), []).append(appointment)
@@ -3442,6 +3446,8 @@ def register_routes(app):
             next_date=next_date,
             calendar_weeks=calendar_weeks,
             appointment_count=len(appointments),
+            form_preparers=form_preparers,
+            selected_form_preparer_id=selected_form_preparer_id,
         )
 
     @app.route("/agency/crm/reports")
