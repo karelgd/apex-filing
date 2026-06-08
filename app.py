@@ -4997,7 +4997,7 @@ def fill_pdf_with_visual_mappings(case, template):
             PdfField.template_id == template.id,
             PdfField.mapped_question_id.isnot(None),
         ).order_by(PdfField.page_number, PdfField.id).all()
-        if pdf_field_visual_mapping(field)
+        if pdf_field_visual_mapping(field) and field.mapped_question and not question_visual_mappings(field.mapped_question)
     ]
     if not mapped_questions and not manual_fields and not pdf_fields and not mapped_pdf_fields:
         return None
@@ -5009,6 +5009,7 @@ def fill_pdf_with_visual_mappings(case, template):
     try:
         document = fitz.open(source_path)
         placed_count = 0
+        placed_rects = set()
         for question in mapped_questions:
             answer_text = (answers.get(question.id) or "").strip()
             if not answer_text:
@@ -5025,6 +5026,10 @@ def fill_pdf_with_visual_mappings(case, template):
                 width = float(mapping["width"] or 120)
                 height = float(mapping["height"] or 16)
                 rect = fitz.Rect(x, y, x + width, y + height)
+                placement_key = pdf_overlay_rect_key(page_index, rect)
+                if placement_key in placed_rects:
+                    continue
+                placed_rects.add(placement_key)
                 if question.input_type == "checkbox":
                     overlay_checkbox_mark_on_rect(page, rect)
                 elif question.render_mode == "split_boxes":
@@ -5046,6 +5051,10 @@ def fill_pdf_with_visual_mappings(case, template):
                 float(field.x or 0) + float(field.width or 120),
                 float(field.y or 0) + float(field.height or 16),
             )
+            placement_key = pdf_overlay_rect_key(page_index, rect)
+            if placement_key in placed_rects:
+                continue
+            placed_rects.add(placement_key)
             if field.render_mode == "split_boxes":
                 overlay_split_box_text_on_rect(page, rect, value_text, field.render_box_count)
             else:
@@ -5068,6 +5077,10 @@ def fill_pdf_with_visual_mappings(case, template):
                 mapping["x"] + mapping["width"],
                 mapping["y"] + mapping["height"],
             )
+            placement_key = pdf_overlay_rect_key(page_index, rect)
+            if placement_key in placed_rects:
+                continue
+            placed_rects.add(placement_key)
             if is_pdf_checkbox_field(field):
                 if is_affirmative_pdf_value(value_text):
                     overlay_checkbox_mark_on_rect(page, rect)
@@ -5095,6 +5108,10 @@ def fill_pdf_with_visual_mappings(case, template):
                 mapping["x"] + mapping["width"],
                 mapping["y"] + mapping["height"],
             )
+            placement_key = pdf_overlay_rect_key(page_index, rect)
+            if placement_key in placed_rects:
+                continue
+            placed_rects.add(placement_key)
             if is_pdf_checkbox_field(field) or question.input_type == "checkbox":
                 if is_affirmative_pdf_value(value_text):
                     overlay_checkbox_mark_on_rect(page, rect)
@@ -5144,6 +5161,16 @@ def overlay_text_on_rect(page, rect, value, font_size=9, align=0):
         return True
     except Exception:
         return False
+
+
+def pdf_overlay_rect_key(page_index, rect):
+    return (
+        page_index,
+        round(float(rect.x0), 1),
+        round(float(rect.y0), 1),
+        round(float(rect.x1), 1),
+        round(float(rect.y1), 1),
+    )
 
 
 def overlay_checkbox_mark_on_rect(page, rect):
