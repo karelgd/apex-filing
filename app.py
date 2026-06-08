@@ -174,6 +174,7 @@ def create_app():
             "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
             "can_use_joinder_for_current_user": can_use_joinder_for_current_user,
             "can_manage_client_users_for_current_user": can_manage_client_users_for_current_user,
+            "can_create_crm_clients_for_current_user": can_create_crm_clients_for_current_user,
             "question_visual_mapping": question_visual_mapping,
             "question_visual_mappings": question_visual_mappings,
             "pdf_field_visual_mapping": pdf_field_visual_mapping,
@@ -235,6 +236,22 @@ def can_manage_client_users_for_current_user():
     return current_user.is_authenticated and (
         current_user.role == "apex"
         or (current_user.role == "agency" and is_agency_owner())
+    )
+
+
+def can_create_crm_clients_for_current_user():
+    return current_user.is_authenticated and (
+        current_user.role == "apex"
+        or (
+            current_user.role == "agency"
+            and current_user.agency
+            and can_use_crm(current_user.agency)
+            and (
+                is_agency_owner()
+                or isinstance(current_user, AgencyCaseManager)
+                or isinstance(current_user, AgencyPreparer)
+            )
+        )
     )
 
 
@@ -4279,7 +4296,7 @@ def register_routes(app):
     @app.route("/clients/new", methods=["GET", "POST"])
     @role_required("apex", "agency")
     def client_create():
-        if not can_manage_client_users_for_current_user():
+        if not can_create_crm_clients_for_current_user():
             abort(403)
         agencies = Agency.query.order_by(Agency.agency_name).all() if current_user.role == "apex" else [current_user.agency]
         if request.method == "POST":
@@ -4300,7 +4317,7 @@ def register_routes(app):
     @app.route("/clients/<int:client_id>/edit", methods=["GET", "POST"])
     @role_required("apex", "agency")
     def client_edit(client_id):
-        if not can_manage_client_users_for_current_user():
+        if not can_create_crm_clients_for_current_user():
             abort(403)
         client = db.session.get(Client, client_id) or abort(404)
         if current_user.role == "agency" and client.agency_id != current_user.agency_id:

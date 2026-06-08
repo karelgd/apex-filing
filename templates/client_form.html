@@ -34,7 +34,7 @@
   </div>
   <div class="mt-4 d-flex gap-2">
     <button class="btn btn-primary">Save client</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('client_list') }}">Cancel</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('agency_crm') if current_user.role == 'agency' and current_user.agency.has_tool('CRM') else url_for('client_list') }}">Cancel</a>
   </div>
 </form>
 {% endblock %}
