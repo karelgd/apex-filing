@@ -14,6 +14,7 @@
     {% endif %}
   </div>
 
+  {% if is_agency_owner() %}
   <div class="crm-summary-grid">
     <section class="crm-summary-card">
       <span class="crm-kicker">Clients</span>
@@ -39,6 +40,7 @@
       </div>
     </section>
   </div>
+  {% endif %}
 
   <section class="crm-panel crm-panel-wide">
     <div class="crm-panel-head">
