@@ -6309,8 +6309,17 @@ def draw_motion_caption(pdf, motion, y):
     pdf.setFont("Times-Roman", 11)
     pdf.drawString(file_x, top - 17, f"File No.: {respondent_file_numbers(motion)}")
     y_detail = bottom - 24
-    pdf.drawString(left, y_detail, f"Before: {motion.immigration_judge}")
-    pdf.drawRightString(right, y_detail, f"Next {motion.next_hearing_type or ''} Hearing Date: {display_motion_date(motion.next_hearing_date)}")
+    y_detail = draw_pdf_lines(
+        pdf,
+        [f"Before: {motion.immigration_judge}"],
+        left,
+        y_detail,
+        font_size=11,
+        leading=14,
+    )
+    y_detail -= 8
+    pdf.setFont("Times-Roman", 11)
+    pdf.drawString(left, y_detail, f"Next {motion.next_hearing_type or ''} Hearing Date: {display_motion_date(motion.next_hearing_date)}")
     return y_detail - 28
 
 
