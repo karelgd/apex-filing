@@ -206,7 +206,7 @@
           <div class="crm-record">
             <div>
               <strong>{{ note.source }} - {{ note.title }}</strong>
-              <small>{{ note.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+              <small>{{ note.created_at.strftime('%b %d, %Y %I:%M %p') }} &middot; By: {{ note.author }}</small>
               <p class="mb-0 mt-2">{{ note.text }}</p>
             </div>
             <div class="crm-row-actions">

@@ -1292,6 +1292,7 @@ def crm_client_note_timeline(client):
                 "created_at": note.created_at,
                 "source": "General",
                 "title": "Client note",
+                "author": note.author_label or "Not recorded",
                 "text": note.note_text,
                 "url": url_for("crm_client_detail", client_id=client.id),
             }
@@ -1306,6 +1307,7 @@ def crm_client_note_timeline(client):
                 "created_at": note.created_at,
                 "source": "Case",
                 "title": note.case.title,
+                "author": note.author_label or "Not recorded",
                 "text": note.note_text,
                 "url": url_for("crm_case_detail", case_id=note.case_id),
             }
@@ -1320,6 +1322,7 @@ def crm_client_note_timeline(client):
                 "created_at": note.created_at,
                 "source": "Appointment",
                 "title": note.appointment.title or note.appointment.case.title,
+                "author": note.author_label or "Not recorded",
                 "text": note.note_text,
                 "url": url_for("crm_appointment_detail", appointment_id=note.appointment_id),
             }
@@ -1331,6 +1334,7 @@ def crm_client_note_timeline(client):
                     "created_at": invoice.updated_at or invoice.created_at,
                     "source": "Invoice",
                     "title": invoice.invoice_number,
+                    "author": "Not recorded",
                     "text": invoice.notes,
                     "url": url_for("crm_invoice_detail", invoice_id=invoice.id),
                 }
@@ -3761,7 +3765,7 @@ def register_routes(app):
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
         note_text = request.form.get("note_text", "").strip()
         if note_text:
-            db.session.add(CrmClientNote(agency_id=current_user.agency_id, client_id=client.id, note_text=note_text))
+            db.session.add(CrmClientNote(agency_id=current_user.agency_id, client_id=client.id, note_text=note_text, author_label=current_user_label()))
             crm_client_log(client, "Client note added", note_text[:240])
             db.session.commit()
             flash("Client note added.", "success")
@@ -3785,7 +3789,7 @@ def register_routes(app):
             record_crm_case_status(case)
             sync_crm_case_questionnaire(case)
             if case.notes:
-                db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
+                db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))
                 case.notes = ""
             sync_case_invoice(case)
             crm_client_log(client, "CRM case created", case.title)
@@ -3821,7 +3825,7 @@ def register_routes(app):
                 record_crm_case_status(case)
             sync_crm_case_questionnaire(case)
             if case.notes and case.notes != existing_note:
-                db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
+                db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))
                 case.notes = ""
             sync_case_invoice(case)
             crm_client_log(case.client, "CRM case updated", case.title)
@@ -3862,7 +3866,7 @@ def register_routes(app):
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
         note_text = request.form.get("note_text", "").strip()
         if note_text:
-            db.session.add(CrmCaseNote(agency_id=current_user.agency_id, case_id=case.id, note_text=note_text))
+            db.session.add(CrmCaseNote(agency_id=current_user.agency_id, case_id=case.id, note_text=note_text, author_label=current_user_label()))
             crm_client_log(case.client, "Case note added", f"{case.title}: {note_text[:200]}")
             db.session.commit()
             flash("Case note added.", "success")
@@ -4037,7 +4041,7 @@ def register_routes(app):
             db.session.add(appointment)
             db.session.flush()
             if appointment.notes:
-                db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes))
+                db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes, author_label=current_user_label()))
                 appointment.notes = ""
             crm_client_log(appointment.client, "Appointment created", f"{appointment.case.title}: {appointment.start_at.strftime('%m/%d/%Y %I:%M %p')}")
             db.session.commit()
@@ -4056,7 +4060,7 @@ def register_routes(app):
             existing_note = appointment.notes
             populate_crm_appointment_from_form(appointment)
             if appointment.notes and appointment.notes != existing_note:
-                db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes))
+                db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes, author_label=current_user_label()))
                 appointment.notes = ""
             crm_client_log(appointment.client, "Appointment updated", f"{appointment.case.title}: {appointment.start_at.strftime('%m/%d/%Y %I:%M %p')}")
             db.session.commit()
@@ -4091,7 +4095,7 @@ def register_routes(app):
         appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
         note_text = request.form.get("note_text", "").strip()
         if note_text:
-            db.session.add(CrmAppointmentNote(agency_id=current_user.agency_id, appointment_id=appointment.id, note_text=note_text))
+            db.session.add(CrmAppointmentNote(agency_id=current_user.agency_id, appointment_id=appointment.id, note_text=note_text, author_label=current_user_label()))
             crm_client_log(appointment.client, "Appointment note added", note_text[:240])
             db.session.commit()
             flash("Appointment note added.", "success")
@@ -6495,6 +6499,11 @@ def ensure_sqlite_schema():
                 ")"
             )
         )
+    for table_name in ("crm_client_note", "crm_case_note", "crm_appointment_note"):
+        if table_name in inspector.get_table_names():
+            existing_note_columns = {column["name"] for column in inspector.get_columns(table_name)}
+            if "author_label" not in existing_note_columns:
+                db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN author_label VARCHAR(160)"))
     if "client" in inspector.get_table_names():
         existing_client = {column["name"] for column in inspector.get_columns("client")}
         client_additions = {

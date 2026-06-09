@@ -707,6 +707,7 @@ class CrmCaseNote(db.Model):
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False)
     note_text = db.Column(db.Text, nullable=False)
+    author_label = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency")
@@ -718,6 +719,7 @@ class CrmAppointmentNote(db.Model):
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     appointment_id = db.Column(db.Integer, db.ForeignKey("crm_appointment.id"), nullable=False)
     note_text = db.Column(db.Text, nullable=False)
+    author_label = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency")
@@ -729,6 +731,7 @@ class CrmClientNote(db.Model):
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
     note_text = db.Column(db.Text, nullable=False)
+    author_label = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency")
