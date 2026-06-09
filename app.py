@@ -172,6 +172,7 @@ def create_app():
             "can_generate_forms_for_current_user": can_generate_forms_for_current_user,
             "can_use_form_filler_for_current_user": can_use_form_filler_for_current_user,
             "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
+            "can_assign_crm_questionnaires_for_current_user": can_assign_crm_questionnaires_for_current_user,
             "can_use_joinder_for_current_user": can_use_joinder_for_current_user,
             "can_manage_client_users_for_current_user": can_manage_client_users_for_current_user,
             "can_create_crm_clients_for_current_user": can_create_crm_clients_for_current_user,
@@ -229,6 +230,18 @@ def can_use_form_filler_for_current_user():
 def can_use_motion_creation_for_current_user():
     return current_user.is_authenticated and current_user.role == "agency" and (
         is_agency_owner() or isinstance(current_user, AgencyPreparer)
+    )
+
+
+def can_assign_crm_questionnaires_for_current_user():
+    return current_user.is_authenticated and current_user.role == "agency" and (
+        current_user.agency
+        and can_use_crm_form_filler(current_user.agency)
+        and (
+            is_agency_owner()
+            or isinstance(current_user, AgencyCaseManager)
+            or isinstance(current_user, AgencyPreparer)
+        )
     )
 
 
@@ -1291,7 +1304,7 @@ def ensure_crm_case_status_history(case):
 
 
 def sync_crm_case_questionnaire(crm_case):
-    if not can_use_crm_form_filler(crm_case.agency) or not can_use_form_filler_for_current_user():
+    if not can_assign_crm_questionnaires_for_current_user():
         return
     selected_codes = [code.strip() for code in request.form.getlist("form_codes") if code.strip()]
     legacy_code = request.form.get("form_code", "").strip()
@@ -3636,8 +3649,8 @@ def register_routes(app):
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
-            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user() else [],
-            can_link_form_filler=can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user(),
+            form_templates=available_form_templates() if can_assign_crm_questionnaires_for_current_user() else [],
+            can_link_form_filler=can_assign_crm_questionnaires_for_current_user(),
             selected_form_codes=[],
         )
 
@@ -3671,8 +3684,8 @@ def register_routes(app):
             case_managers=AgencyCaseManager.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyCaseManager.full_name).all(),
             form_preparers=AgencyPreparer.query.filter_by(agency_id=current_user.agency_id).order_by(AgencyPreparer.full_name).all(),
             case_tags=CrmCaseTag.query.filter_by(agency_id=current_user.agency_id).order_by(CrmCaseTag.name).all(),
-            form_templates=available_form_templates() if can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user() else [],
-            can_link_form_filler=can_use_crm_form_filler(current_user.agency) and can_use_form_filler_for_current_user(),
+            form_templates=available_form_templates() if can_assign_crm_questionnaires_for_current_user() else [],
+            can_link_form_filler=can_assign_crm_questionnaires_for_current_user(),
             selected_form_codes=[questionnaire.case_type for questionnaire in linked_form_filler_cases_for_crm_case(case)],
         )
 
