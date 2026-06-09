@@ -1078,8 +1078,11 @@ def current_user_label():
         return f"Apex: {current_user.username}"
     if current_user.role == "client":
         return f"Client: {current_user.full_name}"
+    if is_agency_owner():
+        return f"Agency Super Admin: {current_user.username}"
     if hasattr(current_user, "full_name") and current_user.full_name:
-        return f"{current_user.staff_role.replace('_', ' ').title()}: {current_user.full_name}"
+        username = getattr(current_user, "username", "") or f"ID {current_user.id}"
+        return f"{current_user.staff_role.replace('_', ' ').title()}: {current_user.full_name} ({username})"
     return f"Agency: {getattr(current_user, 'username', 'User')}"
 
 

@@ -23,17 +23,25 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">Client username</label>
-      <input class="form-control" name="username" value="{{ client.username if client else '' }}" placeholder="Auto-generated if blank">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Client password</label>
-      <div class="input-group password-group">
-        <input class="form-control" type="password" name="password" value="{{ client.portal_password if client and client.portal_password else '' }}" placeholder="{{ 'Leave blank to keep existing' if client else 'Auto-generated if blank' }}">
-        <button class="btn btn-outline-secondary password-toggle" type="button" aria-label="Show password" data-show-label="Show" data-hide-label="Hide">Show</button>
+    {% if client %}
+      <div class="col-md-3">
+        <label class="form-label">Client username</label>
+        <input class="form-control" name="username" value="{{ client.username }}" placeholder="Auto-generated if blank">
       </div>
-    </div>
+      <div class="col-md-3">
+        <label class="form-label">Client password</label>
+        <div class="input-group password-group">
+          <input class="form-control" type="password" name="password" value="{{ client.portal_password if client.portal_password else '' }}" placeholder="Leave blank to keep existing">
+          <button class="btn btn-outline-secondary password-toggle" type="button" aria-label="Show password" data-show-label="Show" data-hide-label="Hide">Show</button>
+        </div>
+      </div>
+    {% else %}
+      <div class="col-12">
+        <div class="alert alert-info mb-0">
+          Client portal username and password will be generated automatically after saving.
+        </div>
+      </div>
+    {% endif %}
   </div>
   <div class="mt-4 d-flex gap-2">
     <button class="btn btn-primary">Save client</button>
