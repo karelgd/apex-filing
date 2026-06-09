@@ -389,6 +389,7 @@ class Client(UserMixin, PasswordMixin, db.Model):
     state = db.Column(db.String(2), nullable=False)
     zip_code = db.Column(db.String(12), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    portal_password = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -399,6 +400,7 @@ class Client(UserMixin, PasswordMixin, db.Model):
     crm_appointments = db.relationship("CrmAppointment", back_populates="client", cascade="all, delete-orphan")
     crm_documents = db.relationship("CrmClientDocument", back_populates="client", cascade="all, delete-orphan")
     crm_notes = db.relationship("CrmClientNote", back_populates="client", cascade="all, delete-orphan", order_by="CrmClientNote.created_at.desc()")
+    crm_activity_logs = db.relationship("CrmClientActivityLog", back_populates="client", cascade="all, delete-orphan", order_by="CrmClientActivityLog.created_at.desc()")
 
     @property
     def role(self):
@@ -731,6 +733,19 @@ class CrmClientNote(db.Model):
 
     agency = db.relationship("Agency")
     client = db.relationship("Client", back_populates="crm_notes")
+
+
+class CrmClientActivityLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False)
+    user_label = db.Column(db.String(160), nullable=False)
+    action = db.Column(db.String(120), nullable=False)
+    details = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    client = db.relationship("Client", back_populates="crm_activity_logs")
 
 
 class CrmInvoiceActivity(db.Model):

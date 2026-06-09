@@ -11,6 +11,9 @@
         <span><strong>Phone:</strong> {{ client.phone }}</span>
         <span><strong>Email:</strong> {{ client.email }}</span>
         <span><strong>A-Number:</strong> {{ client.a_number or 'Not provided' }}</span>
+        <span><strong>Username:</strong> {{ client.username }}</span>
+        <span><strong>Password:</strong> {{ client.portal_password or 'Not available' }}</span>
+        <span><a class="btn btn-sm btn-primary" href="{{ url_for('crm_client_credentials_image', client_id=client.id) }}">Get Credentials</a></span>
       </div>
     </div>
     <div class="crm-actions">
@@ -39,6 +42,9 @@
       </button>
       <button class="crm-folder-tab crm-tab-notes" type="button" data-crm-tab="notes">
         Notes <span>{{ note_timeline|length }}</span>
+      </button>
+      <button class="crm-folder-tab crm-tab-activity" type="button" data-crm-tab="activity">
+        Activity Log <span>{{ activity_logs|length }}</span>
       </button>
     </div>
 
@@ -209,6 +215,25 @@
           </div>
         {% else %}
           <p class="text-secondary mb-0">No notes have been added for this client yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="crm-folder-panel" data-crm-panel="activity">
+      <div class="crm-panel-head">
+        <div><h2>Activity Log</h2><p>Actions taken by agency users on this client profile.</p></div>
+      </div>
+      <div class="crm-stack">
+        {% for log in activity_logs %}
+          <div class="crm-record">
+            <div>
+              <strong>{{ log.action }}</strong>
+              <small>{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }} &middot; {{ log.user_label }}</small>
+              {% if log.details %}<p class="mb-0 mt-2">{{ log.details }}</p>{% endif %}
+            </div>
+          </div>
+        {% else %}
+          <p class="text-secondary mb-0">No activity has been logged for this client yet.</p>
         {% endfor %}
       </div>
     </section>

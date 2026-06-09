@@ -45,7 +45,7 @@
         <label class="form-label">Type</label>
         <select class="form-select" name="activity_type">
           {% for type in ['Payment', 'Discount', 'Refund'] %}
-            {% if type != 'Refund' or is_agency_owner() %}
+            {% if type != 'Refund' or can_add_invoice_refunds_for_current_user() %}
               <option value="{{ type }}">{{ type }}</option>
             {% endif %}
           {% endfor %}

@@ -2351,6 +2351,16 @@ body {
   color: #98a2b3;
 }
 
+.crm-calendar-day.today {
+  background: #e2ebf8;
+  box-shadow: inset 0 0 0 2px #9bbcf4;
+}
+
+.crm-calendar-day.today .crm-calendar-date strong {
+  background: #1f73ff;
+  color: #ffffff;
+}
+
 .crm-calendar-date {
   align-items: center;
   display: flex;
@@ -3974,6 +3984,10 @@ textarea.form-control {
 
 .crm-calendar-day.muted {
   background: #f8fafc;
+}
+
+.crm-calendar-day.today {
+  background: #e2ebf8;
 }
 
 .crm-calendar-event.status-scheduled {

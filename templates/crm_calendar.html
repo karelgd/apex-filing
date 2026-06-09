@@ -44,7 +44,7 @@
     {% for week in calendar_weeks %}
       <div class="crm-calendar-row">
         {% for day in week %}
-          <div class="crm-calendar-day {{ '' if day.in_month else 'muted' }}">
+          <div class="crm-calendar-day {{ '' if day.in_month else 'muted' }} {{ 'today' if day.is_today else '' }}">
             <div class="crm-calendar-date">
               <strong>{{ day.date.strftime('%d') }}</strong>
               {% if view != 'month' %}<span>{{ day.date.strftime('%A, %b %d') }}</span>{% endif %}

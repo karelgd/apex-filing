@@ -4,6 +4,8 @@ import os
 import importlib.util
 import json
 import re
+import secrets
+import string
 import uuid
 from functools import wraps
 from io import BytesIO, StringIO
@@ -27,6 +29,10 @@ from flask_wtf import CSRFProtect
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:  # Pillow is required only for credential JPG downloads.
+    Image = ImageDraw = ImageFont = None
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, inspect, or_, text
 import click
@@ -60,6 +66,7 @@ from models import (
     CrmCaseStatusHistory,
     CrmCaseTag,
     CrmClientDocument,
+    CrmClientActivityLog,
     CrmClientNote,
     CrmInvoice,
     CrmInvoiceActivity,
@@ -174,6 +181,7 @@ def create_app():
             "can_use_motion_creation_for_current_user": can_use_motion_creation_for_current_user,
             "can_assign_crm_questionnaires_for_current_user": can_assign_crm_questionnaires_for_current_user,
             "can_use_joinder_for_current_user": can_use_joinder_for_current_user,
+            "can_add_invoice_refunds_for_current_user": can_add_invoice_refunds_for_current_user,
             "can_manage_client_users_for_current_user": can_manage_client_users_for_current_user,
             "can_create_crm_clients_for_current_user": can_create_crm_clients_for_current_user,
             "question_visual_mapping": question_visual_mapping,
@@ -242,6 +250,12 @@ def can_assign_crm_questionnaires_for_current_user():
             or isinstance(current_user, AgencyCaseManager)
             or isinstance(current_user, AgencyPreparer)
         )
+    )
+
+
+def can_add_invoice_refunds_for_current_user():
+    return current_user.is_authenticated and current_user.role == "agency" and (
+        is_agency_owner() or isinstance(current_user, AgencyCaseManager)
     )
 
 
@@ -1000,7 +1014,7 @@ def populate_client_from_form(client):
     client.city = request.form["city"].strip()
     client.state = request.form["state"].strip()
     client.zip_code = request.form["zip_code"].strip()
-    client.username = request.form["username"].strip()
+    client.username = request.form.get("username", "").strip()
 
 
 def populate_translator_from_form(translator):
@@ -1037,6 +1051,114 @@ def username_taken(username, current_record=None):
             continue
         return True
     return False
+
+
+def generated_client_username(first_name, last_name):
+    raw = re.sub(r"[^a-z0-9]", "", f"{first_name or ''}{last_name or ''}".lower())
+    base = (raw or "client")[:6]
+    if not username_taken(base):
+        return base
+    for number in range(1, 1000):
+        suffix = str(number)
+        candidate = f"{base[: max(1, 6 - len(suffix))]}{suffix}"
+        if not username_taken(candidate):
+            return candidate
+    return secrets.token_hex(3)[:6]
+
+
+def generated_client_password():
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(6))
+
+
+def current_user_label():
+    if not current_user.is_authenticated:
+        return "System"
+    if current_user.role == "apex":
+        return f"Apex: {current_user.username}"
+    if current_user.role == "client":
+        return f"Client: {current_user.full_name}"
+    if hasattr(current_user, "full_name") and current_user.full_name:
+        return f"{current_user.staff_role.replace('_', ' ').title()}: {current_user.full_name}"
+    return f"Agency: {getattr(current_user, 'username', 'User')}"
+
+
+def crm_client_log(client, action, details=""):
+    if not client or not client.id:
+        return
+    db.session.add(
+        CrmClientActivityLog(
+            agency_id=client.agency_id,
+            client_id=client.id,
+            user_label=current_user_label(),
+            action=action,
+            details=details,
+        )
+    )
+
+
+def draw_wrapped_text(draw, text, xy, font, fill, max_width, line_spacing=8):
+    x, y = xy
+    words = text.split()
+    line = ""
+    for word in words:
+        candidate = f"{line} {word}".strip()
+        bbox = draw.textbbox((0, 0), candidate, font=font)
+        if bbox[2] - bbox[0] <= max_width or not line:
+            line = candidate
+            continue
+        draw.text((x, y), line, font=font, fill=fill)
+        y += (bbox[3] - bbox[1]) + line_spacing
+        line = word
+    if line:
+        draw.text((x, y), line, font=font, fill=fill)
+        bbox = draw.textbbox((0, 0), line, font=font)
+        y += (bbox[3] - bbox[1]) + line_spacing
+    return y
+
+
+def load_image_font(size, bold=False):
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
+    ]
+    for path in candidates:
+        if path and os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default()
+
+
+def generate_client_credentials_image(client):
+    username = client.username or ""
+    password = client.portal_password or "No disponible"
+    image = Image.new("RGB", (1200, 760), "#eef6ff")
+    draw = ImageDraw.Draw(image)
+    title_font = load_image_font(54, bold=True)
+    body_font = load_image_font(34)
+    bold_font = load_image_font(38, bold=True)
+
+    draw.rounded_rectangle((70, 70, 1130, 690), radius=34, fill="#ffffff", outline="#cfe0f5", width=3)
+    draw.rounded_rectangle((70, 70, 1130, 175), radius=34, fill="#1f73ff")
+    draw.text((110, 105), "Apex Document Filing", font=title_font, fill="#ffffff")
+    y = 230
+    message = (
+        "Tu cuenta de cliente ha sido creada, para acceder al portal, visita apexdf.com, "
+        "y da click en la opcion Client Login, alli pon los siguientes datos para poder acceder:"
+    )
+    y = draw_wrapped_text(draw, message, (110, y), body_font, "#162033", 980, 14)
+    y += 40
+    draw.rounded_rectangle((110, y, 1090, y + 92), radius=22, fill="#eaf2ff", outline="#b9d4ff", width=2)
+    draw.text((145, y + 25), f"Username: {username}", font=bold_font, fill="#0f2b5f")
+    y += 125
+    draw.rounded_rectangle((110, y, 1090, y + 92), radius=22, fill="#e8fbf8", outline="#9ee7de", width=2)
+    draw.text((145, y + 25), f"Password: {password}", font=bold_font, fill="#0f2b5f")
+    y += 130
+    draw.text((110, y), f"Cliente: {client.full_name}", font=body_font, fill="#667085")
+
+    output = BytesIO()
+    image.save(output, "JPEG", quality=92)
+    output.seek(0)
+    return output
 
 
 def populate_staff_login_from_form(person, label):
@@ -3442,6 +3564,7 @@ def register_routes(app):
             appointments_by_date.setdefault(appointment.start_at.date(), []).append(appointment)
 
         calendar_weeks = []
+        today_date = datetime.utcnow().date()
         if view == "month":
             for week in calendar_lib.Calendar(firstweekday=0).monthdatescalendar(selected_date.year, selected_date.month):
                 calendar_weeks.append(
@@ -3449,6 +3572,7 @@ def register_routes(app):
                         {
                             "date": day,
                             "in_month": day.month == selected_date.month,
+                            "is_today": day == today_date,
                             "appointments": appointments_by_date.get(day, []),
                         }
                         for day in week
@@ -3461,6 +3585,7 @@ def register_routes(app):
                     {
                         "date": start_date + timedelta(days=offset),
                         "in_month": True,
+                        "is_today": start_date + timedelta(days=offset) == today_date,
                         "appointments": appointments_by_date.get(start_date + timedelta(days=offset), []),
                     }
                     for offset in range(day_count)
@@ -3601,6 +3726,27 @@ def register_routes(app):
             questionnaires=questionnaires,
             linked_crm_cases=linked_crm_cases,
             note_timeline=crm_client_note_timeline(client),
+            activity_logs=CrmClientActivityLog.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientActivityLog.created_at.desc()).all(),
+        )
+
+    @app.route("/agency/crm/clients/<int:client_id>/credentials.jpg")
+    @role_required("agency")
+    def crm_client_credentials_image(client_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        if Image is None:
+            flash("Credential image generation requires Pillow. Please install requirements and reload the app.", "warning")
+            return redirect(url_for("crm_client_detail", client_id=client_id))
+        client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        crm_client_log(client, "Credentials JPG generated", "Client portal credentials card was downloaded.")
+        db.session.commit()
+        safe_name = secure_filename(f"{client.full_name}_{datetime.utcnow().strftime('%Y-%m-%d')}_credentials.jpg")
+        return send_file(
+            generate_client_credentials_image(client),
+            mimetype="image/jpeg",
+            as_attachment=True,
+            download_name=safe_name,
         )
 
     @app.route("/agency/crm/clients/<int:client_id>/notes", methods=["POST"])
@@ -3613,6 +3759,7 @@ def register_routes(app):
         note_text = request.form.get("note_text", "").strip()
         if note_text:
             db.session.add(CrmClientNote(agency_id=current_user.agency_id, client_id=client.id, note_text=note_text))
+            crm_client_log(client, "Client note added", note_text[:240])
             db.session.commit()
             flash("Client note added.", "success")
         return redirect(url_for("crm_client_detail", client_id=client.id))
@@ -3638,6 +3785,7 @@ def register_routes(app):
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
                 case.notes = ""
             sync_case_invoice(case)
+            crm_client_log(client, "CRM case created", case.title)
             db.session.commit()
             flash("CRM case created.", "success")
             return redirect(url_for("crm_client_detail", client_id=client.id))
@@ -3673,6 +3821,7 @@ def register_routes(app):
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes))
                 case.notes = ""
             sync_case_invoice(case)
+            crm_client_log(case.client, "CRM case updated", case.title)
             db.session.commit()
             flash("CRM case updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=case.client_id))
@@ -3711,6 +3860,7 @@ def register_routes(app):
         note_text = request.form.get("note_text", "").strip()
         if note_text:
             db.session.add(CrmCaseNote(agency_id=current_user.agency_id, case_id=case.id, note_text=note_text))
+            crm_client_log(case.client, "Case note added", f"{case.title}: {note_text[:200]}")
             db.session.commit()
             flash("Case note added.", "success")
         return redirect(url_for("crm_case_detail", case_id=case.id))
@@ -3724,6 +3874,7 @@ def register_routes(app):
         case = CrmCase.query.filter_by(id=case_id, agency_id=current_user.agency_id).first() or abort(404)
         client_id = case.client_id
         linked_questionnaires = linked_form_filler_cases_for_crm_case(case)
+        crm_client_log(case.client, "CRM case deleted", case.title)
         db.session.delete(case)
         for linked_questionnaire in linked_questionnaires:
             db.session.delete(linked_questionnaire)
@@ -3749,6 +3900,7 @@ def register_routes(app):
             )
             populate_crm_invoice_from_form(invoice)
             db.session.add(invoice)
+            crm_client_log(client, "Invoice created", invoice.invoice_number)
             db.session.commit()
             flash("Invoice created.", "success")
             return redirect(url_for("crm_client_detail", client_id=client.id))
@@ -3767,6 +3919,7 @@ def register_routes(app):
             invoice.case_id = case.id
             invoice.invoice_number = request.form.get("invoice_number", "").strip() or invoice.invoice_number
             populate_crm_invoice_from_form(invoice)
+            crm_client_log(invoice.client, "Invoice updated", invoice.invoice_number)
             db.session.commit()
             flash("Invoice updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=invoice.client_id))
@@ -3790,13 +3943,14 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
-        if request.form.get("activity_type") == "Refund" and not is_agency_owner():
+        if request.form.get("activity_type") == "Refund" and not can_add_invoice_refunds_for_current_user():
             abort(403)
         activity = CrmInvoiceActivity(agency_id=current_user.agency_id, invoice_id=invoice.id)
         populate_invoice_activity_from_form(activity)
         db.session.add(activity)
         db.session.flush()
         recalc_crm_invoice(invoice)
+        crm_client_log(invoice.client, f"Invoice {activity.activity_type.lower()} added", f"{invoice.invoice_number}: ${activity.amount}")
         db.session.commit()
         flash(f"{activity.activity_type} added.", "success")
         return redirect(url_for("crm_invoice_detail", invoice_id=invoice.id))
@@ -3813,6 +3967,7 @@ def register_routes(app):
         if request.method == "POST":
             populate_invoice_activity_from_form(activity)
             recalc_crm_invoice(activity.invoice)
+            crm_client_log(activity.invoice.client, "Invoice activity edited", f"{activity.invoice.invoice_number}: {activity.activity_type} ${activity.amount}")
             db.session.commit()
             flash("Invoice activity updated.", "success")
             return redirect(url_for("crm_invoice_detail", invoice_id=activity.invoice_id))
@@ -3829,6 +3984,7 @@ def register_routes(app):
         activity = CrmInvoiceActivity.query.filter_by(id=activity_id, agency_id=current_user.agency_id).first() or abort(404)
         invoice = activity.invoice
         invoice_id = invoice.id
+        crm_client_log(invoice.client, "Invoice activity deleted", f"{invoice.invoice_number}: {activity.activity_type} ${activity.amount}")
         db.session.delete(activity)
         db.session.flush()
         recalc_crm_invoice(invoice)
@@ -3855,6 +4011,7 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
         client_id = invoice.client_id
+        crm_client_log(invoice.client, "Invoice deleted", invoice.invoice_number)
         db.session.delete(invoice)
         db.session.commit()
         flash("Invoice deleted.", "info")
@@ -3879,6 +4036,7 @@ def register_routes(app):
             if appointment.notes:
                 db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes))
                 appointment.notes = ""
+            crm_client_log(appointment.client, "Appointment created", f"{appointment.case.title}: {appointment.start_at.strftime('%m/%d/%Y %I:%M %p')}")
             db.session.commit()
             flash("Appointment created.", "success")
             return redirect(url_for("crm_client_detail", client_id=case.client_id))
@@ -3897,6 +4055,7 @@ def register_routes(app):
             if appointment.notes and appointment.notes != existing_note:
                 db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes))
                 appointment.notes = ""
+            crm_client_log(appointment.client, "Appointment updated", f"{appointment.case.title}: {appointment.start_at.strftime('%m/%d/%Y %I:%M %p')}")
             db.session.commit()
             flash("Appointment updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=appointment.client_id))
@@ -3930,6 +4089,7 @@ def register_routes(app):
         note_text = request.form.get("note_text", "").strip()
         if note_text:
             db.session.add(CrmAppointmentNote(agency_id=current_user.agency_id, appointment_id=appointment.id, note_text=note_text))
+            crm_client_log(appointment.client, "Appointment note added", note_text[:240])
             db.session.commit()
             flash("Appointment note added.", "success")
         return redirect(url_for("crm_appointment_detail", appointment_id=appointment.id))
@@ -3942,6 +4102,7 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
         client_id = appointment.client_id
+        crm_client_log(appointment.client, "Appointment deleted", f"{appointment.case.title}: {appointment.start_at.strftime('%m/%d/%Y %I:%M %p')}")
         db.session.delete(appointment)
         db.session.commit()
         flash("Appointment deleted.", "info")
@@ -3968,17 +4129,17 @@ def register_routes(app):
         linked_case = None
         if case_id:
             linked_case = CrmCase.query.filter_by(id=int(case_id), client_id=client.id, agency_id=current_user.agency_id).first() or abort(404)
-        db.session.add(
-            CrmClientDocument(
-                agency_id=current_user.agency_id,
-                client_id=client.id,
-                case_id=linked_case.id if linked_case else None,
-                original_filename=original,
-                stored_filename=stored,
-                document_type=request.form.get("document_type", "").strip() or "Client document",
-                description=request.form.get("description", "").strip(),
-            )
+        document = CrmClientDocument(
+            agency_id=current_user.agency_id,
+            client_id=client.id,
+            case_id=linked_case.id if linked_case else None,
+            original_filename=original,
+            stored_filename=stored,
+            document_type=request.form.get("document_type", "").strip() or "Client document",
+            description=request.form.get("description", "").strip(),
         )
+        db.session.add(document)
+        crm_client_log(client, "Document uploaded", original)
         db.session.commit()
         flash("Document uploaded.", "success")
         return redirect(url_for("crm_client_detail", client_id=client.id))
@@ -3992,6 +4153,7 @@ def register_routes(app):
         document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
         client_id = document.client_id
         stored_path = os.path.join(app.config["UPLOAD_FOLDER"], document.stored_filename)
+        crm_client_log(document.client, "Document deleted", document.original_filename)
         db.session.delete(document)
         db.session.commit()
         if os.path.exists(stored_path):
@@ -4010,6 +4172,8 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
         authorize_upload_access(document.stored_filename)
+        crm_client_log(document.client, "Document viewed", document.original_filename)
+        db.session.commit()
         return send_from_directory(app.config["UPLOAD_FOLDER"], document.stored_filename, as_attachment=False)
 
     @app.route("/agency/crm/documents/<int:document_id>/download")
@@ -4020,6 +4184,8 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
         authorize_upload_access(document.stored_filename)
+        crm_client_log(document.client, "Document downloaded", document.original_filename)
+        db.session.commit()
         return send_from_directory(
             app.config["UPLOAD_FOLDER"],
             document.stored_filename,
@@ -4318,8 +4484,17 @@ def register_routes(app):
                 abort(403)
             client = Client(agency_id=agency_id)
             populate_client_from_form(client)
-            client.set_password(request.form["password"])
+            if not client.username:
+                client.username = generated_client_username(client.first_name, client.last_name)
+            elif username_taken(client.username, client):
+                flash("That username is already in use. Please choose another one.", "danger")
+                return render_template("client_form.html", client=client, agencies=agencies)
+            password = request.form.get("password", "").strip() or generated_client_password()
+            client.portal_password = password
+            client.set_password(password)
             db.session.add(client)
+            db.session.flush()
+            crm_client_log(client, "Client created", "Client account and portal credentials were created.")
             db.session.commit()
             flash("Client created.", "success")
             if current_user.role == "agency" and can_use_crm(current_user.agency):
@@ -4341,9 +4516,46 @@ def register_routes(app):
             if current_user.role == "agency" and agency_id != current_user.agency_id:
                 abort(403)
             client.agency_id = agency_id
+            previous_values = {
+                "First Name": client.first_name,
+                "Middle Name": client.middle_name or "",
+                "Last Name": client.last_name,
+                "A-Number": client.a_number or "",
+                "Phone": client.phone,
+                "Email": client.email,
+                "Address": client.display_address,
+                "Username": client.username,
+            }
             populate_client_from_form(client)
-            if request.form.get("password"):
-                client.set_password(request.form["password"])
+            if not client.username:
+                client.username = generated_client_username(client.first_name, client.last_name)
+            elif username_taken(client.username, client):
+                flash("That username is already in use. Please choose another one.", "danger")
+                return render_template("client_form.html", client=client, agencies=agencies)
+            password = request.form.get("password", "").strip()
+            password_changed = bool(password and password != (client.portal_password or ""))
+            if password_changed:
+                client.portal_password = password
+                client.set_password(password)
+            changes = []
+            current_values = {
+                "First Name": client.first_name,
+                "Middle Name": client.middle_name or "",
+                "Last Name": client.last_name,
+                "A-Number": client.a_number or "",
+                "Phone": client.phone,
+                "Email": client.email,
+                "Address": client.display_address,
+                "Username": client.username,
+            }
+            for label, old_value in previous_values.items():
+                new_value = current_values[label]
+                if old_value != new_value:
+                    changes.append(f"{label} changed from {old_value or 'blank'} to {new_value or 'blank'}")
+            if password_changed:
+                changes.append("Portal password was updated")
+            if changes:
+                crm_client_log(client, "Client updated", "; ".join(changes))
             db.session.commit()
             flash("Client updated.", "success")
             if current_user.role == "agency" and can_use_crm(current_user.agency):
@@ -6274,6 +6486,30 @@ def ensure_sqlite_schema():
                 "agency_id INTEGER NOT NULL, "
                 "client_id INTEGER NOT NULL, "
                 "note_text TEXT NOT NULL, "
+                "created_at DATETIME NOT NULL, "
+                "FOREIGN KEY(agency_id) REFERENCES agency (id), "
+                "FOREIGN KEY(client_id) REFERENCES client (id)"
+                ")"
+            )
+        )
+    if "client" in inspector.get_table_names():
+        existing_client = {column["name"] for column in inspector.get_columns("client")}
+        client_additions = {
+            "portal_password": "VARCHAR(80)",
+        }
+        for column, ddl in client_additions.items():
+            if column not in existing_client:
+                db.session.execute(text(f"ALTER TABLE client ADD COLUMN {column} {ddl}"))
+    if "client" in inspector.get_table_names() and "crm_client_activity_log" not in inspector.get_table_names():
+        db.session.execute(
+            text(
+                "CREATE TABLE crm_client_activity_log ("
+                "id INTEGER NOT NULL PRIMARY KEY, "
+                "agency_id INTEGER NOT NULL, "
+                "client_id INTEGER NOT NULL, "
+                "user_label VARCHAR(160) NOT NULL, "
+                "action VARCHAR(120) NOT NULL, "
+                "details TEXT, "
                 "created_at DATETIME NOT NULL, "
                 "FOREIGN KEY(agency_id) REFERENCES agency (id), "
                 "FOREIGN KEY(client_id) REFERENCES client (id)"
