@@ -37,7 +37,10 @@ except ImportError:  # Pillow is required only for credential JPG downloads.
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, inspect, or_, text
 import click
-import requests
+try:
+    import requests
+except ImportError:  # Email notifications should not prevent the app from loading.
+    requests = None
 
 from forms import CASE_STATUSES, CASE_TYPES, CRM_CASE_SERVICES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
 from models import (
@@ -1107,6 +1110,8 @@ def postmark_configured():
 
 
 def send_postmark_email(to_email, subject, text_body, html_body=None, metadata=None):
+    if requests is None:
+        return False, "The requests package is not installed."
     token = os.environ.get("POSTMARK_SERVER_TOKEN", "").strip()
     from_email = os.environ.get("POSTMARK_FROM_EMAIL", "").strip()
     message_stream = os.environ.get("POSTMARK_MESSAGE_STREAM", "outbound").strip() or "outbound"
