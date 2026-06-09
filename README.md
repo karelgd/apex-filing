@@ -54,6 +54,12 @@ Change this password immediately after first login in any real environment.
 - `UPLOAD_FOLDER`: Optional. Defaults to `uploads/`.
 - `MAX_CONTENT_LENGTH`: Optional upload limit in bytes. Defaults to 16 MB.
 - `AUTO_INIT_DB`: Optional. Defaults to `1`, which creates/updates base seed rows on import.
+- `POSTMARK_SERVER_TOKEN`: Optional until email notifications are enabled. Postmark server API token used for client notifications.
+- `POSTMARK_FROM_EMAIL`: Required for Postmark sending. Must be a confirmed Postmark sender, for example `Apex Document Filing <notifications@yourdomain.com>`.
+- `POSTMARK_MESSAGE_STREAM`: Optional. Defaults to `outbound`.
+- `CLIENT_PORTAL_URL`: Optional. Defaults to `https://apexdf.com` and is included in client notification emails.
+
+When `POSTMARK_SERVER_TOKEN` and `POSTMARK_FROM_EMAIL` are configured, CRM case status changes automatically email the related client. If either value is missing, the status change still saves and the Activity Log records that email delivery was not configured.
 
 ## PythonAnywhere Deployment
 
@@ -99,6 +105,10 @@ Change this password immediately after first login in any real environment.
    os.environ["SECRET_KEY"] = "replace-with-a-random-secret"
    os.environ["DATABASE_URL"] = "sqlite:////home/yourusername/apex-filing/instance/app.db"
    os.environ["UPLOAD_FOLDER"] = "/home/yourusername/apex-filing/uploads"
+   os.environ["POSTMARK_SERVER_TOKEN"] = "your-postmark-server-token"
+   os.environ["POSTMARK_FROM_EMAIL"] = "Apex Document Filing <notifications@yourdomain.com>"
+   os.environ["POSTMARK_MESSAGE_STREAM"] = "outbound"
+   os.environ["CLIENT_PORTAL_URL"] = "https://apexdf.com"
 
    from app import app as application
    ```

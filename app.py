@@ -2,6 +2,7 @@ import calendar as calendar_lib
 import csv
 import os
 import importlib.util
+import html as html_lib
 import json
 import re
 import secrets
@@ -36,6 +37,7 @@ except ImportError:  # Pillow is required only for credential JPG downloads.
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, inspect, or_, text
 import click
+import requests
 
 from forms import CASE_STATUSES, CASE_TYPES, CRM_CASE_SERVICES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
 from models import (
@@ -1098,6 +1100,103 @@ def crm_client_log(client, action, details=""):
             details=details,
         )
     )
+
+
+def postmark_configured():
+    return bool(os.environ.get("POSTMARK_SERVER_TOKEN") and os.environ.get("POSTMARK_FROM_EMAIL"))
+
+
+def send_postmark_email(to_email, subject, text_body, html_body=None, metadata=None):
+    token = os.environ.get("POSTMARK_SERVER_TOKEN", "").strip()
+    from_email = os.environ.get("POSTMARK_FROM_EMAIL", "").strip()
+    message_stream = os.environ.get("POSTMARK_MESSAGE_STREAM", "outbound").strip() or "outbound"
+    if not token or not from_email:
+        return False, "Postmark is not configured."
+    payload = {
+        "From": from_email,
+        "To": to_email,
+        "Subject": subject,
+        "TextBody": text_body,
+        "MessageStream": message_stream,
+    }
+    if html_body:
+        payload["HtmlBody"] = html_body
+    if metadata:
+        payload["Metadata"] = {str(key): str(value) for key, value in metadata.items() if value is not None}
+    try:
+        response = requests.post(
+            "https://api.postmarkapp.com/email",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Postmark-Server-Token": token,
+            },
+            json=payload,
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        return False, f"Postmark request failed: {exc}"
+    if response.status_code != 200:
+        try:
+            message = response.json().get("Message", response.text)
+        except ValueError:
+            message = response.text
+        return False, f"Postmark error {response.status_code}: {message}"
+    return True, "Email sent."
+
+
+def notify_client_case_status_change(case, old_status, new_status):
+    client = case.client
+    if not client or not client.email:
+        crm_client_log(client, "Status email skipped", f"{case.title}: client has no email address.")
+        return False
+    if not postmark_configured():
+        crm_client_log(client, "Status email skipped", f"{case.title}: Postmark is not configured.")
+        return False
+    subject = f"Your case status changed to {new_status}"
+    portal_url = os.environ.get("CLIENT_PORTAL_URL", "https://apexdf.com").strip() or "https://apexdf.com"
+    text_body = (
+        f"Hello {client.full_name},\n\n"
+        f"There has been a change in the status of your case.\n\n"
+        f"Case: {case.title}\n"
+        f"Previous status: {old_status}\n"
+        f"New status: {new_status}\n\n"
+        f"You can visit {portal_url} and use Client Login to review your case.\n\n"
+        f"{case.agency.agency_name}"
+    )
+    client_name_html = html_lib.escape(client.full_name)
+    case_title_html = html_lib.escape(case.title)
+    old_status_html = html_lib.escape(old_status or "")
+    new_status_html = html_lib.escape(new_status or "")
+    portal_url_html = html_lib.escape(portal_url)
+    agency_name_html = html_lib.escape(case.agency.agency_name)
+    html_body = (
+        f"<p>Hello {client_name_html},</p>"
+        "<p>There has been a change in the status of your case.</p>"
+        "<ul>"
+        f"<li><strong>Case:</strong> {case_title_html}</li>"
+        f"<li><strong>Previous status:</strong> {old_status_html}</li>"
+        f"<li><strong>New status:</strong> {new_status_html}</li>"
+        "</ul>"
+        f"<p>You can visit <a href=\"{portal_url_html}\">{portal_url_html}</a> and use <strong>Client Login</strong> to review your case.</p>"
+        f"<p>{agency_name_html}</p>"
+    )
+    sent, message = send_postmark_email(
+        client.email,
+        subject,
+        text_body,
+        html_body,
+        metadata={
+            "client_id": client.id,
+            "crm_case_id": case.id,
+            "agency_id": case.agency_id,
+            "old_status": old_status,
+            "new_status": new_status,
+        },
+    )
+    action = "Status email sent" if sent else "Status email failed"
+    crm_client_log(client, action, f"{case.title}: {old_status} -> {new_status}. {message}")
+    return sent
 
 
 def draw_wrapped_text(draw, text, xy, font, fill, max_width, line_spacing=8):
@@ -3823,6 +3922,7 @@ def register_routes(app):
             populate_crm_case_from_form(case)
             if case.status != previous_status:
                 record_crm_case_status(case)
+                notify_client_case_status_change(case, previous_status, case.status)
             sync_crm_case_questionnaire(case)
             if case.notes and case.notes != existing_note:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))
