@@ -1204,6 +1204,59 @@ def notify_client_case_status_change(case, old_status, new_status):
     return sent
 
 
+def notify_client_welcome(client, password):
+    if not client or not client.email:
+        crm_client_log(client, "Welcome email skipped", "Client has no email address.")
+        return False
+    if not postmark_configured():
+        crm_client_log(client, "Welcome email skipped", "Postmark is not configured.")
+        return False
+    portal_url = os.environ.get("CLIENT_PORTAL_URL", "https://apexdf.com").strip() or "https://apexdf.com"
+    agency_name = client.agency.agency_name if client.agency else "your agency"
+    subject = f"Welcome to {agency_name}"
+    text_body = (
+        f"Hello {client.full_name},\n\n"
+        f"Welcome to {agency_name}.\n\n"
+        "Your client portal account has been created. To access your account, visit the link below and click Client Login.\n\n"
+        f"Portal: {portal_url}\n"
+        f"Username: {client.username}\n"
+        f"Password: {password}\n\n"
+        "Please keep these credentials in a safe place.\n\n"
+        f"{agency_name}"
+    )
+    client_name_html = html_lib.escape(client.full_name)
+    agency_name_html = html_lib.escape(agency_name)
+    portal_url_html = html_lib.escape(portal_url)
+    username_html = html_lib.escape(client.username or "")
+    password_html = html_lib.escape(password or "")
+    html_body = (
+        f"<p>Hello {client_name_html},</p>"
+        f"<p>Welcome to {agency_name_html}.</p>"
+        "<p>Your client portal account has been created. To access your account, visit the link below and click <strong>Client Login</strong>.</p>"
+        f"<p><strong>Portal:</strong> <a href=\"{portal_url_html}\">{portal_url_html}</a></p>"
+        "<p>"
+        f"<strong>Username:</strong> {username_html}<br>"
+        f"<strong>Password:</strong> {password_html}"
+        "</p>"
+        "<p>Please keep these credentials in a safe place.</p>"
+        f"<p>{agency_name_html}</p>"
+    )
+    sent, message = send_postmark_email(
+        client.email,
+        subject,
+        text_body,
+        html_body,
+        metadata={
+            "client_id": client.id,
+            "agency_id": client.agency_id,
+            "email_type": "client_welcome",
+        },
+    )
+    action = "Welcome email sent" if sent else "Welcome email failed"
+    crm_client_log(client, action, message)
+    return sent
+
+
 def draw_wrapped_text(draw, text, xy, font, fill, max_width, line_spacing=8):
     x, y = xy
     words = text.split()
@@ -4607,6 +4660,7 @@ def register_routes(app):
             db.session.add(client)
             db.session.flush()
             crm_client_log(client, "Client created", "Client account and portal credentials were created.")
+            notify_client_welcome(client, password)
             db.session.commit()
             flash("Client created.", "success")
             if current_user.role == "agency" and can_use_crm(current_user.agency):
