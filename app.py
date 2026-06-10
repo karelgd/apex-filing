@@ -1384,42 +1384,40 @@ def notify_client_appointment_created(appointment):
     return sent
 
 
-def notify_client_appointment_status_change(appointment, old_status, new_status):
+def notify_client_appointment_updated(appointment):
     client = appointment.client
     if not client or not client.email:
-        crm_client_log(client, "Appointment status email skipped", "Client has no email address.")
+        crm_client_log(client, "Appointment update email skipped", "Client has no email address.")
         return False
     if not postmark_configured():
-        crm_client_log(client, "Appointment status email skipped", "Postmark is not configured.")
+        crm_client_log(client, "Appointment update email skipped", "Postmark is not configured.")
         return False
     details = appointment_email_details(appointment)
     portal_url = os.environ.get("CLIENT_PORTAL_URL", "https://apexdf.com").strip() or "https://apexdf.com"
-    subject = f"Appointment status updated to {new_status}"
+    subject = f"Appointment updated - {details['agency']}"
     text_body = (
         f"Hello {client.full_name},\n\n"
-        "There has been a change in the status of your appointment.\n\n"
+        f"We have updated your appointment for {details['case']}. Please see the current appointment details below.\n\n"
         f"Case: {details['case']}\n"
         f"Appointment type: {details['type']}\n"
         f"Start: {details['start']}\n"
-        f"Previous status: {old_status}\n"
-        f"New status: {new_status}\n\n"
+        f"Duration: {details['duration']}\n"
+        f"Status: {details['status']}\n\n"
         f"You can visit {portal_url} and use Client Login to review your case information.\n\n"
         f"{details['agency']}"
     )
     client_name_html = html_lib.escape(client.full_name)
     portal_url_html = html_lib.escape(portal_url)
     html_details = {key: html_lib.escape(value) for key, value in details.items()}
-    old_status_html = html_lib.escape(old_status or "")
-    new_status_html = html_lib.escape(new_status or "")
     html_body = (
         f"<p>Hello {client_name_html},</p>"
-        "<p>There has been a change in the status of your appointment.</p>"
+        f"<p>We have updated your appointment for <strong>{html_details['case']}</strong>. Please see the current appointment details below.</p>"
         "<ul>"
         f"<li><strong>Case:</strong> {html_details['case']}</li>"
         f"<li><strong>Appointment type:</strong> {html_details['type']}</li>"
         f"<li><strong>Start:</strong> {html_details['start']}</li>"
-        f"<li><strong>Previous status:</strong> {old_status_html}</li>"
-        f"<li><strong>New status:</strong> {new_status_html}</li>"
+        f"<li><strong>Duration:</strong> {html_details['duration']}</li>"
+        f"<li><strong>Status:</strong> {html_details['status']}</li>"
         "</ul>"
         f"<p>You can visit <a href=\"{portal_url_html}\">{portal_url_html}</a> and use <strong>Client Login</strong> to review your case information.</p>"
         f"<p>{html_details['agency']}</p>"
@@ -1433,13 +1431,11 @@ def notify_client_appointment_status_change(appointment, old_status, new_status)
             "client_id": client.id,
             "agency_id": appointment.agency_id,
             "appointment_id": appointment.id,
-            "email_type": "appointment_status",
-            "old_status": old_status,
-            "new_status": new_status,
+            "email_type": "appointment_updated",
         },
     )
-    action = "Appointment status email sent" if sent else "Appointment status email failed"
-    crm_client_log(client, action, f"{details['case']}: {old_status} -> {new_status}. {message}")
+    action = "Appointment update email sent" if sent else "Appointment update email failed"
+    crm_client_log(client, action, f"{details['case']}: {details['start']}. {message}")
     return sent
 
 
@@ -4395,14 +4391,12 @@ def register_routes(app):
         appointment = CrmAppointment.query.filter_by(id=appointment_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
             existing_note = appointment.notes
-            previous_status = appointment.status
             populate_crm_appointment_from_form(appointment)
             if appointment.notes and appointment.notes != existing_note:
                 db.session.add(CrmAppointmentNote(agency_id=appointment.agency_id, appointment_id=appointment.id, note_text=appointment.notes, author_label=current_user_label()))
                 appointment.notes = ""
             crm_client_log(appointment.client, "Appointment updated", f"{appointment.case.title}: {appointment.start_at.strftime('%m/%d/%Y %I:%M %p')}")
-            if previous_status != appointment.status:
-                notify_client_appointment_status_change(appointment, previous_status, appointment.status)
+            notify_client_appointment_updated(appointment)
             db.session.commit()
             flash("Appointment updated.", "success")
             return redirect(url_for("crm_client_detail", client_id=appointment.client_id))
