@@ -1257,6 +1257,60 @@ def notify_client_welcome(client, password):
     return sent
 
 
+def notify_client_credentials(client):
+    if not client or not client.email:
+        crm_client_log(client, "Credentials email skipped", "Client has no email address.")
+        return False, "Client has no email address."
+    if not postmark_configured():
+        crm_client_log(client, "Credentials email skipped", "Postmark is not configured.")
+        return False, "Postmark is not configured."
+    portal_url = os.environ.get("CLIENT_PORTAL_URL", "https://apexdf.com").strip() or "https://apexdf.com"
+    agency_name = client.agency.agency_name if client.agency else "your agency"
+    password = client.portal_password or ""
+    subject = f"Your {agency_name} client portal credentials"
+    text_body = (
+        f"Hello {client.full_name},\n\n"
+        "We are sending your client portal access information for your records.\n\n"
+        f"Portal: {portal_url}\n"
+        "Login option: Client Login\n"
+        f"Username: {client.username}\n"
+        f"Password: {password}\n\n"
+        "Please keep these credentials in a safe place.\n\n"
+        f"{agency_name}"
+    )
+    client_name_html = html_lib.escape(client.full_name)
+    agency_name_html = html_lib.escape(agency_name)
+    portal_url_html = html_lib.escape(portal_url)
+    username_html = html_lib.escape(client.username or "")
+    password_html = html_lib.escape(password)
+    html_body = (
+        f"<p>Hello {client_name_html},</p>"
+        "<p>We are sending your client portal access information for your records.</p>"
+        f"<p><strong>Portal:</strong> <a href=\"{portal_url_html}\">{portal_url_html}</a></p>"
+        "<p><strong>Login option:</strong> Client Login</p>"
+        "<p>"
+        f"<strong>Username:</strong> {username_html}<br>"
+        f"<strong>Password:</strong> {password_html}"
+        "</p>"
+        "<p>Please keep these credentials in a safe place.</p>"
+        f"<p>{agency_name_html}</p>"
+    )
+    sent, message = send_postmark_email(
+        client.email,
+        subject,
+        text_body,
+        html_body,
+        metadata={
+            "client_id": client.id,
+            "agency_id": client.agency_id,
+            "email_type": "client_credentials",
+        },
+    )
+    action = "Credentials email sent" if sent else "Credentials email failed"
+    crm_client_log(client, action, message)
+    return sent, message
+
+
 def draw_wrapped_text(draw, text, xy, font, fill, max_width, line_spacing=8):
     x, y = xy
     words = text.split()
@@ -3893,25 +3947,17 @@ def register_routes(app):
             activity_logs=CrmClientActivityLog.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientActivityLog.created_at.desc()).all(),
         )
 
-    @app.route("/agency/crm/clients/<int:client_id>/credentials.jpg")
+    @app.route("/agency/crm/clients/<int:client_id>/send-credentials", methods=["POST"])
     @role_required("agency")
-    def crm_client_credentials_image(client_id):
+    def crm_client_send_credentials(client_id):
         if not can_use_crm(current_user.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
-        if Image is None:
-            flash("Credential image generation requires Pillow. Please install requirements and reload the app.", "warning")
-            return redirect(url_for("crm_client_detail", client_id=client_id))
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
-        crm_client_log(client, "Credentials JPG generated", "Client portal credentials card was downloaded.")
+        sent, message = notify_client_credentials(client)
         db.session.commit()
-        safe_name = secure_filename(f"{client.full_name}_{datetime.utcnow().strftime('%Y-%m-%d')}_credentials.jpg")
-        return send_file(
-            generate_client_credentials_image(client),
-            mimetype="image/jpeg",
-            as_attachment=True,
-            download_name=safe_name,
-        )
+        flash("Credentials email sent." if sent else f"Credentials email failed: {message}", "success" if sent else "warning")
+        return redirect(url_for("crm_client_detail", client_id=client_id))
 
     @app.route("/agency/crm/clients/<int:client_id>/notes", methods=["POST"])
     @role_required("agency")

@@ -13,7 +13,11 @@
         <span><strong>A-Number:</strong> {{ client.a_number or 'Not provided' }}</span>
         <span><strong>Username:</strong> {{ client.username }}</span>
         <span><strong>Password:</strong> {{ client.portal_password or 'Not available' }}</span>
-        <span><a class="btn btn-sm btn-primary" href="{{ url_for('crm_client_credentials_image', client_id=client.id) }}">Get Credentials</a></span>
+        <span>
+          <form class="d-inline" method="post" action="{{ url_for('crm_client_send_credentials', client_id=client.id) }}">
+            <button class="btn btn-sm btn-primary" type="submit">Send Credentials</button>
+          </form>
+        </span>
       </div>
     </div>
     <div class="crm-actions">
