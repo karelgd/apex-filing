@@ -76,6 +76,7 @@ CASE_STATUSES = [
     "In Preparation",
     "Generated",
     "Completed",
+    "Cancelled",
 ]
 
 I485_QUESTIONS = [

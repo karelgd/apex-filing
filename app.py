@@ -1851,7 +1851,7 @@ def build_crm_report_data(agency_id, args):
     tag_lookup = {tag.id: tag.name for tag in case_tags}
     case_status_options = sorted(
         set(
-            ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed"]
+            ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed", "Cancelled"]
             + [
                 row[0]
                 for row in db.session.query(CrmCase.status)
@@ -3593,7 +3593,7 @@ def register_routes(app):
                     clients_query = clients_query.filter(CrmCase.form_preparer_id == int(preparer_id))
                 clients_query = clients_query.distinct()
             clients = clients_query.order_by(Client.last_name, Client.first_name).all()
-        case_statuses = ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed"]
+        case_statuses = ["Open", "Documents Received", "Documents Needed", "Documents Ready", "Completed", "Cancelled"]
         case_status_counts = {status: len([case for case in cases if case.status == status]) for status in case_statuses}
         open_balance_total = sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid")
         return render_template(

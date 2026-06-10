@@ -41,7 +41,7 @@
       </select>
       <label class="form-label">Status</label>
       <select class="form-select mb-3" name="status">
-        {% for status in ['Open', 'Documents Received', 'Documents Needed', 'Documents Ready', 'Completed'] %}
+        {% for status in ['Open', 'Documents Received', 'Documents Needed', 'Documents Ready', 'Completed', 'Cancelled'] %}
           <option value="{{ status }}" {% if case and case.status == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
       </select>
