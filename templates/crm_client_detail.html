@@ -15,6 +15,7 @@
         <span><strong>Password:</strong> {{ client.portal_password or 'Not available' }}</span>
         <span>
           <form class="d-inline" method="post" action="{{ url_for('crm_client_send_credentials', client_id=client.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-primary" type="submit">Send Credentials</button>
           </form>
         </span>
