@@ -2430,9 +2430,9 @@ body {
 }
 
 .crm-calendar-event.status-scheduled {
-  background: #e8fbf8;
-  border-color: #a8eee2;
-  color: #087d75;
+  background: #eaf2ff;
+  border-color: #b8d5ff;
+  color: #155eef;
 }
 
 .crm-calendar-event.status-re-scheduled,
@@ -3991,9 +3991,9 @@ textarea.form-control {
 }
 
 .crm-calendar-event.status-scheduled {
-  background: #e8fbf8;
-  border-color: #a8eee2;
-  color: #087d75;
+  background: #eaf2ff;
+  border-color: #b8d5ff;
+  color: #155eef;
 }
 
 .crm-calendar-event.status-completed {
