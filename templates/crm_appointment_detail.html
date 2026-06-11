@@ -27,6 +27,7 @@
     </div>
     <div class="crm-detail-list crm-appointment-detail-list">
       <div><strong>Client</strong><span>{{ appointment.client.full_name }}</span></div>
+      <div><strong>Client Phone</strong><span>{{ appointment.client.phone or 'Not provided' }}</span></div>
       <div><strong>Case Type</strong><span>{{ appointment.case.title }}</span></div>
       <div><strong>Appointment Type</strong><span>{{ appointment.appointment_type or 'Not set' }}</span></div>
       <div><strong>Start</strong><span>{{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }}</span></div>
