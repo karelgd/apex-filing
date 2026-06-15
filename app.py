@@ -5714,6 +5714,15 @@ def is_affirmative_pdf_value(value):
     return str(value or "").strip().lower() in {"yes", "y", "true", "1", "x", "checked"}
 
 
+def checkbox_visual_mappings_for_answer(mappings, answer_text):
+    normalized = str(answer_text or "").strip().lower()
+    if normalized in {"yes", "y", "true", "1", "x", "checked"}:
+        return mappings[:1]
+    if normalized in {"no", "n", "false", "0"}:
+        return mappings[1:2] if len(mappings) > 1 else []
+    return []
+
+
 def fill_pdf_with_visual_mappings(case, template):
     try:
         import fitz
@@ -5752,9 +5761,12 @@ def fill_pdf_with_visual_mappings(case, template):
             answer_text = (answers.get(question.id) or "").strip()
             if not answer_text:
                 continue
-            if question.input_type == "checkbox" and not is_affirmative_pdf_value(answer_text):
-                continue
-            for mapping in question_visual_mappings(question):
+            mappings = question_visual_mappings(question)
+            if question.input_type == "checkbox":
+                mappings = checkbox_visual_mappings_for_answer(mappings, answer_text)
+                if not mappings:
+                    continue
+            for mapping in mappings:
                 page_index = (mapping["page"] or 1) - 1
                 if page_index < 0 or page_index >= document.page_count:
                     continue
@@ -5902,12 +5914,15 @@ def overlay_text_on_rect(page, rect, value, font_size=9, align=0):
 
 
 def pdf_overlay_rect_key(page_index, rect):
+    def snap(value, grid=2.0):
+        return round(float(value) / grid) * grid
+
     return (
         page_index,
-        round(float(rect.x0), 1),
-        round(float(rect.y0), 1),
-        round(float(rect.x1), 1),
-        round(float(rect.y1), 1),
+        snap(rect.x0),
+        snap(rect.y0),
+        snap(rect.x1),
+        snap(rect.y1),
     )
 
 
