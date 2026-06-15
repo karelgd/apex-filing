@@ -4972,8 +4972,6 @@ def register_routes(app):
         template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
         manual_fields = PdfManualField.query.filter_by(template_id=template.id).order_by(PdfManualField.page_number, PdfManualField.y, PdfManualField.x).all() if template else []
         manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
-        pdf_fields = reviewable_pdf_fields(template)
-        pdf_field_values = {value.pdf_field_id: value for value in CasePdfFieldValue.query.filter_by(case_id=case.id).all()}
         if request.method == "POST":
             for question in questions:
                 if f"question_{question.id}" not in request.form:
@@ -4982,7 +4980,6 @@ def register_routes(app):
                 answer.answer_text = request.form.get(f"question_{question.id}", "").strip()
                 db.session.add(answer)
             save_case_manual_pdf_values(case, manual_fields, manual_values)
-            save_case_pdf_field_values(case, pdf_fields, pdf_field_values)
             case.status = request.form.get("status", case.status)
             assign_case_people_from_form(case)
             update_case_progress(case)
@@ -4998,9 +4995,9 @@ def register_routes(app):
             pdf_pages=template_pdf_pages(template) if template else [],
             manual_fields=manual_fields,
             manual_values=manual_values,
-            pdf_fields=pdf_fields,
-            pdf_field_values=pdf_field_values,
-            pdf_field_display_values=review_pdf_field_display_values(case, pdf_fields, pdf_field_values),
+            pdf_fields=[],
+            pdf_field_values={},
+            pdf_field_display_values={},
             translators=AgencyTranslator.query.filter_by(agency_id=case.agency_id).order_by(AgencyTranslator.full_name).all(),
             preparers=AgencyPreparer.query.filter_by(agency_id=case.agency_id).order_by(AgencyPreparer.full_name).all(),
         )
@@ -5048,8 +5045,6 @@ def register_routes(app):
         template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
         manual_fields = PdfManualField.query.filter_by(template_id=template.id).all() if template else []
         manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
-        pdf_fields = reviewable_pdf_fields(template)
-        pdf_field_values = {value.pdf_field_id: value for value in CasePdfFieldValue.query.filter_by(case_id=case.id).all()}
         for question in questions:
             form_key = f"question_{question.id}"
             if form_key in request.form:
@@ -5057,7 +5052,6 @@ def register_routes(app):
                 answer.answer_text = request.form.get(form_key, "").strip()
                 db.session.add(answer)
         save_case_manual_pdf_values(case, manual_fields, manual_values)
-        save_case_pdf_field_values(case, pdf_fields, pdf_field_values)
         assign_case_people_from_form(case)
         update_case_progress(case)
         db.session.flush()
@@ -5698,15 +5692,8 @@ def generate_case_pdf(case):
     visual = fill_pdf_with_visual_mappings(case, template)
     if visual:
         return visual
-    if template.pdf_generation_strategy in ("acroform_fill_need_appearances", "acroform_widgets"):
-        filled = fill_pdf_widgets_with_pymupdf(case, template)
-        if filled:
-            return filled
-    if template.pdf_generation_strategy == "acroform_fill_need_appearances":
-        filled = fill_acroform_pdf(case, template)
-        if filled:
-            return filled
-    # USCIS XFA/hybrid fallback: preserve the original PDF; do not mutate XFA/XML.
+    # Builder placements are the only supported source of truth for generated PDFs.
+    # Do not fall back to AcroForm/widget name matching; it can fill unrelated USCIS fields.
     return create_preserved_template_answer_packet(case, template)
 
 
@@ -5736,17 +5723,7 @@ def fill_pdf_with_visual_mappings(case, template):
     mapped_questions = [question for question in questions if question_visual_mappings(question)]
     manual_fields = PdfManualField.query.filter_by(template_id=template.id).all()
     manual_values = {value.manual_field_id: value.value_text or "" for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
-    pdf_fields = reviewable_pdf_fields(template)
-    pdf_field_values = {value.pdf_field_id: value.value_text or "" for value in CasePdfFieldValue.query.filter_by(case_id=case.id).all()}
-    mapped_pdf_fields = [
-        field
-        for field in PdfField.query.filter(
-            PdfField.template_id == template.id,
-            PdfField.mapped_question_id.isnot(None),
-        ).order_by(PdfField.page_number, PdfField.id).all()
-        if pdf_field_visual_mapping(field) and field.mapped_question and not question_visual_mappings(field.mapped_question)
-    ]
-    if not mapped_questions and not manual_fields and not pdf_fields and not mapped_pdf_fields:
+    if not mapped_questions and not manual_fields:
         return None
     folder = f"cases/{case.id}/generated"
     os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
@@ -5810,68 +5787,6 @@ def fill_pdf_with_visual_mappings(case, template):
             else:
                 overlay_text_on_rect(page, rect, value_text)
             placed_count += 1
-        for field in pdf_fields:
-            value_text = (pdf_field_values.get(field.id) or "").strip()
-            if not value_text:
-                continue
-            mapping = pdf_field_visual_mapping(field)
-            if not mapping:
-                continue
-            page_index = (mapping["page"] or 1) - 1
-            if page_index < 0 or page_index >= document.page_count:
-                continue
-            page = document.load_page(page_index)
-            rect = fitz.Rect(
-                mapping["x"],
-                mapping["y"],
-                mapping["x"] + mapping["width"],
-                mapping["y"] + mapping["height"],
-            )
-            placement_key = pdf_overlay_rect_key(page_index, rect)
-            if placement_key in placed_rects:
-                continue
-            placed_rects.add(placement_key)
-            if is_pdf_checkbox_field(field):
-                if is_affirmative_pdf_value(value_text):
-                    overlay_checkbox_mark_on_rect(page, rect)
-                    placed_count += 1
-            else:
-                overlay_text_on_rect(page, rect, value_text)
-                placed_count += 1
-        for field in mapped_pdf_fields:
-            question = field.mapped_question
-            if not question:
-                continue
-            value_text = (answers.get(question.id) or "").strip()
-            if not value_text:
-                continue
-            mapping = pdf_field_visual_mapping(field)
-            if not mapping:
-                continue
-            page_index = (mapping["page"] or 1) - 1
-            if page_index < 0 or page_index >= document.page_count:
-                continue
-            page = document.load_page(page_index)
-            rect = fitz.Rect(
-                mapping["x"],
-                mapping["y"],
-                mapping["x"] + mapping["width"],
-                mapping["y"] + mapping["height"],
-            )
-            placement_key = pdf_overlay_rect_key(page_index, rect)
-            if placement_key in placed_rects:
-                continue
-            placed_rects.add(placement_key)
-            if is_pdf_checkbox_field(field) or question.input_type == "checkbox":
-                if is_affirmative_pdf_value(value_text):
-                    overlay_checkbox_mark_on_rect(page, rect)
-                    placed_count += 1
-            elif question.render_mode == "split_boxes":
-                overlay_split_box_text_on_rect(page, rect, value_text, question.render_box_count)
-                placed_count += 1
-            else:
-                overlay_text_on_rect(page, rect, value_text)
-                placed_count += 1
         if not placed_count:
             document.close()
             return None

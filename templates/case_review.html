@@ -49,7 +49,7 @@
           <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
               <h2 class="h5 mb-1">Visual PDF review</h2>
-              <p class="text-secondary mb-0">Review and edit the actual USCIS PDF before generating. Unconfigured PDF fields remain editable here for agency completion.</p>
+              <p class="text-secondary mb-0">Review and edit the answers placed through the form builder before generating.</p>
             </div>
             <span class="badge text-bg-primary">Editable preview</span>
           </div>
@@ -79,22 +79,6 @@
                   {% if field.page_number == page.number %}
                     {% set manual_value = manual_values.get(field.id) %}
                     <input class="review-pdf-input review-pdf-manual-input" name="manual_field_{{ field.id }}" value="{{ manual_value.value_text if manual_value else '' }}" title="{{ field.label }}" placeholder="{{ field.label }}" style="left: {{ (field.x|float / page.width * 100)|round(4) }}%; top: {{ (field.y|float / page.height * 100)|round(4) }}%; width: {{ (field.width|float / page.width * 100)|round(4) }}%; height: {{ (field.height|float / page.height * 100)|round(4) }}%;">
-                  {% endif %}
-                {% endfor %}
-                {% for field in pdf_fields %}
-                  {% set mapping = pdf_field_visual_mapping(field) %}
-                  {% if mapping and mapping.page == page.number %}
-                    {% set pdf_field_value = pdf_field_values.get(field.id) %}
-                    {% set display_value = pdf_field_display_values.get(field.id, pdf_field_value.value_text if pdf_field_value else '') %}
-                    {% if is_pdf_checkbox_field(field) %}
-                      <select class="review-pdf-input review-pdf-checkbox review-pdf-detected-input" name="pdf_field_{{ field.id }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
-                        <option value=""></option>
-                        <option value="Yes" {% if display_value == 'Yes' %}selected{% endif %}>X</option>
-                        <option value="No" {% if display_value == 'No' %}selected{% endif %}>No</option>
-                      </select>
-                    {% else %}
-                      <input class="review-pdf-input review-pdf-detected-input" name="pdf_field_{{ field.id }}" value="{{ display_value }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
-                    {% endif %}
                   {% endif %}
                 {% endfor %}
               </div>
