@@ -1880,36 +1880,12 @@ def save_case_pdf_field_values(case, pdf_fields, existing_values):
 
 def review_pdf_field_display_values(case, pdf_fields, saved_values):
     display_values = {}
-    field_entries = answer_entries_by_pdf_field(case)
-    field_lookup = build_pdf_field_value_lookup(field_entries) if field_entries else {"exact": {}, "loose": {}}
-    checkbox_counts = {}
-    for field in pdf_fields:
-        if is_pdf_checkbox_field(field):
-            key = normalized_pdf_field_key(field.field_name)
-            checkbox_counts[key] = checkbox_counts.get(key, 0) + 1
-    checkbox_occurrences = {}
     for field in pdf_fields:
         saved_value = saved_values.get(field.id)
         if saved_value and saved_value.value_text:
             display_values[field.id] = saved_value.value_text
             continue
-        checkbox_field = is_pdf_checkbox_field(field)
-        occurrence_key = normalized_pdf_field_key(field.field_name)
-        occurrence = checkbox_occurrences.get(occurrence_key, 0)
-        if checkbox_field:
-            checkbox_occurrences[occurrence_key] = occurrence + 1
-        entry = lookup_pdf_field_entry(
-            field_lookup,
-            field.field_name,
-            PdfFieldWidgetProxy(field) if checkbox_field else None,
-            strict=checkbox_field,
-            widget_occurrence=occurrence if checkbox_field else None,
-            widget_count=checkbox_counts.get(occurrence_key, 1),
-        )
-        if not entry:
-            display_values[field.id] = ""
-            continue
-        display_values[field.id] = "Yes" if checkbox_field else entry.get("value", "")
+        display_values[field.id] = ""
     return display_values
 
 
