@@ -401,7 +401,7 @@ def question_translation_csv(template):
     output = StringIO()
     writer = csv.DictWriter(
         output,
-        fieldnames=["question_id", "sort_order", "field_key", "spanish", "english", "kreyol"],
+        fieldnames=["question_id", "sort_order", "field_key", "question", "spanish", "english", "kreyol"],
     )
     writer.writeheader()
     questions = CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order, CaseQuestion.id).all()
@@ -411,7 +411,8 @@ def question_translation_csv(template):
                 "question_id": question.id,
                 "sort_order": question.sort_order,
                 "field_key": question.field_key,
-                "spanish": question.prompt_es or question.prompt,
+                "question": question.prompt,
+                "spanish": question.prompt_es or "",
                 "english": question.prompt_en or "",
                 "kreyol": question.prompt_ht or "",
             }
@@ -443,7 +444,6 @@ def import_question_translation_csv(template, file_storage):
         kreyol = (row.get("kreyol") or row.get("creole") or row.get("haitian_creole") or "").strip()
         if spanish:
             question.prompt_es = spanish
-            question.prompt = spanish[:255]
         if english:
             question.prompt_en = english
         if kreyol:
