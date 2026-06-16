@@ -693,6 +693,7 @@ class CrmAppointment(db.Model):
     location = db.Column(db.String(240))
     status = db.Column(db.String(40), default="Scheduled", nullable=False)
     notes = db.Column(db.Text)
+    author_label = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

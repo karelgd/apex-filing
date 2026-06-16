@@ -2142,6 +2142,11 @@ body {
   font-weight: 700;
 }
 
+.crm-detail-list .crm-call-btn {
+  font-weight: 700;
+  width: fit-content;
+}
+
 .crm-appointment-detail-list,
 .crm-case-detail-list {
   border-top: 1px solid #dfe8f5;

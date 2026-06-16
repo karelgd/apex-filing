@@ -189,6 +189,7 @@ def create_app():
             "can_add_invoice_refunds_for_current_user": can_add_invoice_refunds_for_current_user,
             "can_manage_client_users_for_current_user": can_manage_client_users_for_current_user,
             "can_create_crm_clients_for_current_user": can_create_crm_clients_for_current_user,
+            "phone_tel_href": phone_tel_href,
             "question_visual_mapping": question_visual_mapping,
             "question_visual_mappings": question_visual_mappings,
             "pdf_field_visual_mapping": pdf_field_visual_mapping,
@@ -1089,6 +1090,34 @@ def current_user_label():
         username = getattr(current_user, "username", "") or f"ID {current_user.id}"
         return f"{current_user.staff_role.replace('_', ' ').title()}: {current_user.full_name} ({username})"
     return f"Agency: {getattr(current_user, 'username', 'User')}"
+
+
+def phone_tel_href(phone):
+    if not phone:
+        return ""
+    compact = re.sub(r"[^\d+]", "", phone)
+    if compact.count("+") > 1 or ("+" in compact and not compact.startswith("+")):
+        compact = compact.replace("+", "")
+    return f"tel:{compact}" if compact else ""
+
+
+def crm_appointment_creator_label(appointment):
+    if appointment.author_label:
+        return appointment.author_label
+    if not appointment or not appointment.start_at:
+        return "Not recorded"
+    appointment_stamp = appointment.start_at.strftime("%m/%d/%Y %I:%M %p")
+    created_log = (
+        CrmClientActivityLog.query.filter(
+            CrmClientActivityLog.agency_id == appointment.agency_id,
+            CrmClientActivityLog.client_id == appointment.client_id,
+            CrmClientActivityLog.action == "Appointment created",
+            CrmClientActivityLog.details.like(f"%{appointment_stamp}"),
+        )
+        .order_by(CrmClientActivityLog.created_at.asc())
+        .first()
+    )
+    return created_log.user_label if created_log else "Not recorded"
 
 
 def crm_client_log(client, action, details=""):
@@ -4344,6 +4373,7 @@ def register_routes(app):
                 agency_id=current_user.agency_id,
                 client_id=case.client_id,
                 case_id=case.id,
+                author_label=current_user_label(),
             )
             populate_crm_appointment_from_form(appointment)
             db.session.add(appointment)
@@ -4394,6 +4424,7 @@ def register_routes(app):
             "crm_appointment_detail.html",
             appointment=appointment,
             duration_minutes=crm_appointment_duration_minutes(appointment),
+            creator_label=crm_appointment_creator_label(appointment),
         )
 
     @app.route("/agency/crm/appointments/<int:appointment_id>/notes", methods=["POST"])
@@ -6754,6 +6785,10 @@ def ensure_sqlite_schema():
             existing_note_columns = {column["name"] for column in inspector.get_columns(table_name)}
             if "author_label" not in existing_note_columns:
                 db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN author_label VARCHAR(160)"))
+    if "crm_appointment" in inspector.get_table_names():
+        existing_appointment_columns = {column["name"] for column in inspector.get_columns("crm_appointment")}
+        if "author_label" not in existing_appointment_columns:
+            db.session.execute(text("ALTER TABLE crm_appointment ADD COLUMN author_label VARCHAR(160)"))
     if "client" in inspector.get_table_names():
         existing_client = {column["name"] for column in inspector.get_columns("client")}
         client_additions = {
