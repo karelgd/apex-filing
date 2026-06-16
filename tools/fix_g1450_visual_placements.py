@@ -6,6 +6,13 @@ This script copies the linked PDF field rectangles into visual placements for
 G-1450 only. It is safe to run more than once.
 """
 
+import os
+import sys
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from app import app, pdf_field_visual_mapping
 from models import CaseQuestion, FormTemplate, PdfField, PdfQuestionPlacement, db
 
