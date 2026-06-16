@@ -2386,6 +2386,26 @@ def available_form_templates(active_only=True):
     return query.all()
 
 
+def normalized_form_code(value):
+    return re.sub(r"[^A-Z0-9]", "", (value or "").upper())
+
+
+def form_template_for_case_type(case_type, active_only=True):
+    query = FormTemplate.query
+    if active_only:
+        query = query.filter_by(is_active=True)
+    exact = query.filter_by(code=case_type).first()
+    if exact:
+        return exact
+    normalized_case_type = normalized_form_code(case_type)
+    if not normalized_case_type:
+        return None
+    for template in query.order_by(FormTemplate.code).all():
+        if normalized_form_code(template.code) == normalized_case_type:
+            return template
+    return None
+
+
 def available_case_types():
     form_codes = [template.code for template in FormTemplate.query.filter_by(is_active=True).order_by(FormTemplate.code)]
     existing = list(dict.fromkeys(form_codes + CASE_TYPES))
@@ -5008,7 +5028,7 @@ def register_routes(app):
         case = query_case_for_role(case_id)
         questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
         answers = {answer.question_id: answer for answer in case.answers}
-        template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
+        template = form_template_for_case_type(case.case_type)
         manual_fields = PdfManualField.query.filter_by(template_id=template.id).order_by(PdfManualField.page_number, PdfManualField.y, PdfManualField.x).all() if template else []
         manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
         if request.method == "POST":
@@ -5047,7 +5067,7 @@ def register_routes(app):
         if not can_use_form_filler_for_current_user():
             abort(403)
         case = query_case_for_role(case_id)
-        template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first() or abort(404)
+        template = form_template_for_case_type(case.case_type) or abort(404)
         pdf_path = template_pdf_path(template)
         if not pdf_path or not os.path.exists(pdf_path):
             abort(404)
@@ -5081,7 +5101,7 @@ def register_routes(app):
             return redirect(url_for("case_review", case_id=case.id))
         questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
         answers = {answer.question_id: answer for answer in case.answers}
-        template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
+        template = form_template_for_case_type(case.case_type)
         manual_fields = PdfManualField.query.filter_by(template_id=template.id).all() if template else []
         manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
         for question in questions:
@@ -5725,7 +5745,7 @@ def create_answer_summary_pdf(case):
 
 
 def generate_case_pdf(case):
-    template = FormTemplate.query.filter_by(code=case.case_type, is_active=True).first()
+    template = form_template_for_case_type(case.case_type)
     if not template or not template.pdf_stored_filename:
         return create_answer_summary_pdf(case)
     visual = fill_pdf_with_visual_mappings(case, template)
@@ -5758,7 +5778,14 @@ def fill_pdf_with_visual_mappings(case, template):
     if not source_path or not os.path.exists(source_path):
         return None
     answers = {answer.question_id: answer.answer_text or "" for answer in case.answers}
-    questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
+    answers_by_field_key = {
+        answer.question.field_key: answer.answer_text or ""
+        for answer in case.answers
+        if answer.question and answer.question.field_key
+    }
+    questions = CaseQuestion.query.filter_by(case_type=template.code).order_by(CaseQuestion.sort_order).all()
+    if not questions:
+        questions = CaseQuestion.query.filter_by(case_type=case.case_type).order_by(CaseQuestion.sort_order).all()
     mapped_questions = [question for question in questions if question_visual_mappings(question)]
     manual_fields = PdfManualField.query.filter_by(template_id=template.id).all()
     manual_values = {value.manual_field_id: value.value_text or "" for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
@@ -5774,7 +5801,7 @@ def fill_pdf_with_visual_mappings(case, template):
         placed_count = 0
         placed_rects = set()
         for question in mapped_questions:
-            answer_text = (answers.get(question.id) or "").strip()
+            answer_text = (answers.get(question.id) or answers_by_field_key.get(question.field_key) or "").strip()
             if not answer_text:
                 continue
             mappings = question_visual_mappings(question)
