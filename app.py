@@ -5751,6 +5751,13 @@ def generate_case_pdf(case):
     visual = fill_pdf_with_visual_mappings(case, template)
     if visual:
         return visual
+    if normalized_form_code(template.code) == "G1450":
+        widget_filled = fill_pdf_widgets_with_pymupdf(case, template)
+        if widget_filled:
+            return widget_filled
+        acroform_filled = fill_acroform_pdf(case, template)
+        if acroform_filled:
+            return acroform_filled
     # Builder placements are the only supported source of truth for generated PDFs.
     # Do not fall back to AcroForm/widget name matching; it can fill unrelated USCIS fields.
     return create_preserved_template_answer_packet(case, template)
