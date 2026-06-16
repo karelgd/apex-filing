@@ -1792,6 +1792,7 @@ body {
 }
 
 .crm-client-identity {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -3010,6 +3011,24 @@ h3,
 
 .crm-client-facts strong {
   color: #344054;
+}
+
+.crm-inline-call-link {
+  color: inherit;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.crm-inline-call-link:hover,
+.crm-inline-call-link:focus {
+  color: var(--apex-accent);
+  text-decoration: underline;
+}
+
+.crm-appointment-summary-facts {
+  border-top: 1px solid #d8e2ee;
+  margin-top: .75rem;
+  padding-top: .75rem;
 }
 
 .crm-client-facts span:not(:last-child)::after {

@@ -4,17 +4,35 @@
   <div class="crm-client-header">
     <div class="crm-avatar big">{{ appointment.client.first_name[:1] }}{{ appointment.client.last_name[:1] }}</div>
     <div class="crm-client-identity">
-      <span class="crm-kicker">Appointment detail</span>
+      <span class="crm-kicker">Client profile</span>
       <h1>{{ appointment.client.full_name }}</h1>
       <div class="crm-client-facts">
+        <span><strong>Address:</strong> {{ appointment.client.display_address }}</span>
+        <span>
+          <strong>Phone:</strong>
+          {% if appointment.client.phone %}
+            <a class="crm-inline-call-link" href="{{ phone_tel_href(appointment.client.phone) }}">{{ appointment.client.phone }}</a>
+          {% else %}
+            Not provided
+          {% endif %}
+        </span>
+        <span><strong>Email:</strong> {{ appointment.client.email }}</span>
+        <span><strong>A-Number:</strong> {{ appointment.client.a_number or 'Not provided' }}</span>
+        <span><strong>Username:</strong> {{ appointment.client.username }}</span>
+        <span><strong>Password:</strong> {{ appointment.client.portal_password or 'Not available' }}</span>
+      </div>
+      <div class="crm-client-facts crm-appointment-summary-facts">
+        <span><strong>Appointment:</strong> {{ appointment.appointment_type or 'Not set' }}</span>
         <span><strong>Case Type:</strong> {{ appointment.case.title }}</span>
         <span><strong>Status:</strong> {{ appointment.status }}</span>
         <span><strong>Created by:</strong> {{ creator_label }}</span>
-        <span><strong>Type:</strong> {{ appointment.appointment_type or 'Not set' }}</span>
+        <span><strong>Start:</strong> {{ appointment.start_at.strftime('%b %d, %Y %I:%M %p') }}</span>
+        <span><strong>Duration:</strong> {{ duration_minutes }} minutes</span>
       </div>
     </div>
     <div class="crm-actions">
       <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('crm_appointment_edit', appointment_id=appointment.id) }}">Edit Appointment</a>
+      <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_client_detail', client_id=appointment.client_id) }}">Back to Client</a>
     </div>
   </div>
 
@@ -24,7 +42,6 @@
         <h2>Appointment Information</h2>
         <p>{{ appointment.case.title }}</p>
       </div>
-      <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=appointment.client_id) }}">Back to Client</a>
     </div>
     <div class="crm-detail-list crm-appointment-detail-list">
       <div><strong>Client</strong><span>{{ appointment.client.full_name }}</span></div>
