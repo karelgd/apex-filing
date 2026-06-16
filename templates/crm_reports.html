@@ -152,10 +152,11 @@
       </div>
       <div class="crm-report-results">
         <div class="crm-report-result-head crm-report-case-row">
-          <span>Case</span><span>Client</span><span>Status</span><span>Tag</span><span>Case Manager</span><span>Form Preparer</span><span>Value</span>
+          <span>Created Date</span><span>Case</span><span>Client</span><span>Status</span><span>Tag</span><span>Case Manager</span><span>Form Preparer</span><span>Value</span>
         </div>
         {% for case in cases %}
           <a class="crm-report-result-row crm-report-case-row" href="{{ url_for('crm_case_detail', case_id=case.id) }}">
+            <span>{{ case.created_at.strftime('%m/%d/%Y') if case.created_at else '-' }}</span>
             <span>{{ case.title }}</span>
             <span>{{ case.client.full_name }}</span>
             <span>{{ case.status }}</span>

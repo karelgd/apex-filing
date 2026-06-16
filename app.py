@@ -5543,17 +5543,19 @@ def generate_crm_report_pdf(report_data):
     else:
         rows = [
             (
+                case.created_at.strftime("%m/%d/%Y") if case.created_at else "",
                 case.title,
                 case.client.full_name,
                 case.status,
                 case.tag.name if case.tag else "No tag",
                 case.case_manager.full_name if case.case_manager else "Not assigned",
+                case.form_preparer.full_name if case.form_preparer else "Not assigned",
                 f"${float(case.price or 0):,.2f}",
             )
             for case in report_data["cases"]
         ]
-        headers = ("Case", "Client", "Status", "Tag", "Manager", "Value")
-        widths = (155, 115, 75, 75, 80, 55)
+        headers = ("Created", "Case", "Client", "Status", "Tag", "Manager", "Preparer", "Value")
+        widths = (50, 110, 80, 62, 50, 68, 68, 37)
 
     def draw_header(current_y):
         pdf.setFont("Helvetica-Bold", 8)
