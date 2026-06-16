@@ -1343,7 +1343,7 @@ def notify_client_credentials(client):
 def format_appointment_datetime(appointment):
     if not appointment or not appointment.start_at:
         return "Not scheduled"
-    return appointment.start_at.strftime("%m/%d/%Y %I:%M %p")
+    return f"{appointment.start_at.strftime('%m/%d/%Y %I:%M %p')} EST"
 
 
 def appointment_email_details(appointment):
@@ -1355,6 +1355,10 @@ def appointment_email_details(appointment):
         "duration": f"{duration} minutes",
         "status": appointment.status or "Scheduled",
         "agency": appointment.agency.agency_name if appointment.agency else "your agency",
+        "timezone_note": (
+            "This appointment time is provided in Eastern Standard Time (EST). "
+            "If you are located in a different time zone, please make sure to convert this time to your local time."
+        ),
     }
 
 
@@ -1377,6 +1381,7 @@ def notify_client_appointment_created(appointment):
         f"Start: {details['start']}\n"
         f"Duration: {details['duration']}\n"
         f"Status: {details['status']}\n\n"
+        f"Important time zone note: {details['timezone_note']}\n\n"
         f"You can visit {portal_url} and use Client Login to review your case information.\n\n"
         f"{details['agency']}"
     )
@@ -1393,6 +1398,7 @@ def notify_client_appointment_created(appointment):
         f"<li><strong>Duration:</strong> {html_details['duration']}</li>"
         f"<li><strong>Status:</strong> {html_details['status']}</li>"
         "</ul>"
+        f"<p><strong>Important time zone note:</strong> {html_details['timezone_note']}</p>"
         f"<p>You can visit <a href=\"{portal_url_html}\">{portal_url_html}</a> and use <strong>Client Login</strong> to review your case information.</p>"
         f"<p>{html_details['agency']}</p>"
     )
@@ -1432,6 +1438,7 @@ def notify_client_appointment_updated(appointment):
         f"Start: {details['start']}\n"
         f"Duration: {details['duration']}\n"
         f"Status: {details['status']}\n\n"
+        f"Important time zone note: {details['timezone_note']}\n\n"
         f"You can visit {portal_url} and use Client Login to review your case information.\n\n"
         f"{details['agency']}"
     )
@@ -1448,6 +1455,7 @@ def notify_client_appointment_updated(appointment):
         f"<li><strong>Duration:</strong> {html_details['duration']}</li>"
         f"<li><strong>Status:</strong> {html_details['status']}</li>"
         "</ul>"
+        f"<p><strong>Important time zone note:</strong> {html_details['timezone_note']}</p>"
         f"<p>You can visit <a href=\"{portal_url_html}\">{portal_url_html}</a> and use <strong>Client Login</strong> to review your case information.</p>"
         f"<p>{html_details['agency']}</p>"
     )
