@@ -5071,6 +5071,10 @@ def register_routes(app):
         pdf_path = template_pdf_path(template)
         if not pdf_path or not os.path.exists(pdf_path):
             abort(404)
+        if normalized_form_code(template.code) == "G1450":
+            filled_page = render_g1450_review_page_png(case, template, page_number)
+            if filled_page:
+                return send_file(BytesIO(filled_page), mimetype="image/png", download_name=f"{template.code}-review-page-{page_number}.png")
         try:
             import fitz
         except ImportError:
@@ -6030,6 +6034,65 @@ def fill_pdf_widgets_with_pymupdf(case, template):
         document.save(output_path, garbage=4, deflate=True, clean=True)
         document.close()
         return filename
+    except Exception:
+        if document:
+            document.close()
+        return None
+
+
+def render_g1450_review_page_png(case, template, page_number):
+    try:
+        import fitz
+    except ImportError:
+        return None
+    source_path = os.path.join(app.config["UPLOAD_FOLDER"], template.pdf_stored_filename)
+    field_entries = answer_entries_by_pdf_field(case)
+    if not source_path or not os.path.exists(source_path) or not field_entries:
+        return None
+    field_lookup = build_pdf_field_value_lookup(field_entries)
+    document = None
+    try:
+        document = fitz.open(source_path)
+        if page_number < 1 or page_number > document.page_count:
+            document.close()
+            return None
+        checkbox_widget_counts = count_checkbox_widgets_by_field(document)
+        widget_occurrences = {}
+        for page_index in range(page_number):
+            page = document.load_page(page_index)
+            matched_widgets = []
+            widgets = sorted(page.widgets() or [], key=visual_widget_sort_key)
+            for widget in widgets:
+                field_name = (widget.field_name or "").strip()
+                checkbox_widget = is_checkbox_widget(widget)
+                occurrence_key = normalized_pdf_field_key(field_name)
+                widget_occurrence = widget_occurrences.get(occurrence_key, 0)
+                widget_occurrences[occurrence_key] = widget_occurrence + 1
+                if page_index != page_number - 1:
+                    continue
+                field_entry = lookup_pdf_field_entry(
+                    field_lookup,
+                    field_name,
+                    widget if checkbox_widget else None,
+                    strict=checkbox_widget,
+                    widget_occurrence=widget_occurrence,
+                    widget_count=checkbox_widget_counts.get(occurrence_key, 1),
+                )
+                if not field_entry:
+                    continue
+                if checkbox_widget:
+                    overlay_widget_text(page, widget, "X")
+                else:
+                    overlay_widget_text(page, widget, field_entry["value"], field_entry)
+                matched_widgets.append(widget)
+            if page_index == page_number - 1:
+                flatten_matched_widgets(page, matched_widgets)
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(1.6, 1.6), alpha=False)
+                data = pixmap.tobytes("png")
+                document.close()
+                return data
+        document.close()
+        return None
     except Exception:
         if document:
             document.close()

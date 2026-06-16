@@ -57,7 +57,7 @@
             {% for page in pdf_pages %}
               <div class="visual-pdf-page review-pdf-page" data-page-number="{{ page.number }}" data-pdf-width="{{ page.width }}" data-pdf-height="{{ page.height }}">
                 <div class="visual-pdf-page-label">Page {{ page.number }}</div>
-                <img src="{{ url_for('case_review_pdf_page', case_id=case.id, page_number=page.number) }}" alt="PDF page {{ page.number }}">
+                <img src="{{ url_for('case_review_pdf_page', case_id=case.id, page_number=page.number, v=case.updated_at.strftime('%Y%m%d%H%M%S')) }}" alt="PDF page {{ page.number }}">
                 {% for question in questions %}
                   {% set answer = answers.get(question.id) %}
                   {% for mapping in question_visual_mappings(question) %}
