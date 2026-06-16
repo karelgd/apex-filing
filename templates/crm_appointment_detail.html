@@ -32,7 +32,7 @@
         <strong>Client Phone</strong>
         <span>
           {% if appointment.client.phone %}
-            <a class="btn btn-sm btn-primary crm-call-btn" href="{{ phone_tel_href(appointment.client.phone) }}">Call {{ appointment.client.phone }}</a>
+            <a class="btn btn-sm btn-primary crm-call-btn" href="{{ phone_tel_href(appointment.client.phone) }}">{{ appointment.client.phone }}</a>
           {% else %}
             Not provided
           {% endif %}
