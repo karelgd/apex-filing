@@ -81,6 +81,17 @@
                     <input class="review-pdf-input review-pdf-manual-input" name="manual_field_{{ field.id }}" value="{{ manual_value.value_text if manual_value else '' }}" title="{{ field.label }}" placeholder="{{ field.label }}" style="left: {{ (field.x|float / page.width * 100)|round(4) }}%; top: {{ (field.y|float / page.height * 100)|round(4) }}%; width: {{ (field.width|float / page.width * 100)|round(4) }}%; height: {{ (field.height|float / page.height * 100)|round(4) }}%;">
                   {% endif %}
                 {% endfor %}
+                {% for field in pdf_fields %}
+                  {% set mapping = pdf_field_visual_mapping(field) %}
+                  {% if mapping and mapping.page == page.number %}
+                    {% set value = pdf_field_display_values.get(field.id, '') %}
+                    {% if is_pdf_checkbox_field(field) %}
+                      <input class="review-pdf-input review-pdf-checkbox review-pdf-detected-input" type="checkbox" name="pdf_field_{{ field.id }}" value="Yes" {% if value %}checked{% endif %} title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                    {% else %}
+                      <input class="review-pdf-input review-pdf-detected-input" name="pdf_field_{{ field.id }}" value="{{ value }}" title="{{ field.field_name }}" style="left: {{ (mapping.x / page.width * 100)|round(4) }}%; top: {{ (mapping.y / page.height * 100)|round(4) }}%; width: {{ (mapping.width / page.width * 100)|round(4) }}%; height: {{ (mapping.height / page.height * 100)|round(4) }}%;">
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
               </div>
             {% endfor %}
           </div>

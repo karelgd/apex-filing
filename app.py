@@ -1908,10 +1908,13 @@ def save_case_manual_pdf_values(case, manual_fields, existing_values):
 def save_case_pdf_field_values(case, pdf_fields, existing_values):
     for field in pdf_fields:
         form_key = f"pdf_field_{field.id}"
-        if form_key not in request.form:
+        if form_key not in request.form and not is_pdf_checkbox_field(field):
             continue
         value = existing_values.get(field.id) or CasePdfFieldValue(case_id=case.id, pdf_field_id=field.id)
-        value.value_text = request.form.get(form_key, "").strip()
+        if is_pdf_checkbox_field(field):
+            value.value_text = "Yes" if form_key in request.form else ""
+        else:
+            value.value_text = request.form.get(form_key, "").strip()
         db.session.add(value)
 
 
@@ -5031,6 +5034,8 @@ def register_routes(app):
         template = form_template_for_case_type(case.case_type)
         manual_fields = PdfManualField.query.filter_by(template_id=template.id).order_by(PdfManualField.page_number, PdfManualField.y, PdfManualField.x).all() if template else []
         manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
+        pdf_fields = reviewable_pdf_fields(template)
+        pdf_field_values = {value.pdf_field_id: value for value in CasePdfFieldValue.query.filter_by(case_id=case.id).all()}
         if request.method == "POST":
             for question in questions:
                 if f"question_{question.id}" not in request.form:
@@ -5039,6 +5044,7 @@ def register_routes(app):
                 answer.answer_text = request.form.get(f"question_{question.id}", "").strip()
                 db.session.add(answer)
             save_case_manual_pdf_values(case, manual_fields, manual_values)
+            save_case_pdf_field_values(case, pdf_fields, pdf_field_values)
             case.status = request.form.get("status", case.status)
             assign_case_people_from_form(case)
             update_case_progress(case)
@@ -5054,9 +5060,9 @@ def register_routes(app):
             pdf_pages=template_pdf_pages(template) if template else [],
             manual_fields=manual_fields,
             manual_values=manual_values,
-            pdf_fields=[],
-            pdf_field_values={},
-            pdf_field_display_values={},
+            pdf_fields=pdf_fields,
+            pdf_field_values=pdf_field_values,
+            pdf_field_display_values=review_pdf_field_display_values(case, pdf_fields, pdf_field_values),
             translators=AgencyTranslator.query.filter_by(agency_id=case.agency_id).order_by(AgencyTranslator.full_name).all(),
             preparers=AgencyPreparer.query.filter_by(agency_id=case.agency_id).order_by(AgencyPreparer.full_name).all(),
         )
@@ -5108,6 +5114,8 @@ def register_routes(app):
         template = form_template_for_case_type(case.case_type)
         manual_fields = PdfManualField.query.filter_by(template_id=template.id).all() if template else []
         manual_values = {value.manual_field_id: value for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
+        pdf_fields = reviewable_pdf_fields(template)
+        pdf_field_values = {value.pdf_field_id: value for value in CasePdfFieldValue.query.filter_by(case_id=case.id).all()}
         for question in questions:
             form_key = f"question_{question.id}"
             if form_key in request.form:
@@ -5115,6 +5123,7 @@ def register_routes(app):
                 answer.answer_text = request.form.get(form_key, "").strip()
                 db.session.add(answer)
         save_case_manual_pdf_values(case, manual_fields, manual_values)
+        save_case_pdf_field_values(case, pdf_fields, pdf_field_values)
         assign_case_people_from_form(case)
         update_case_progress(case)
         db.session.flush()
@@ -5800,8 +5809,11 @@ def fill_pdf_with_visual_mappings(case, template):
     mapped_questions = [question for question in questions if question_visual_mappings(question)]
     manual_fields = PdfManualField.query.filter_by(template_id=template.id).all()
     manual_values = {value.manual_field_id: value.value_text or "" for value in CasePdfManualValue.query.filter_by(case_id=case.id).all()}
+    pdf_field_values = CasePdfFieldValue.query.filter_by(case_id=case.id).all()
     if not mapped_questions and not manual_fields:
-        return None
+        has_pdf_field_values = any((value.value_text or "").strip() and pdf_field_visual_mapping(value.pdf_field) for value in pdf_field_values)
+        if not has_pdf_field_values:
+            return None
     folder = f"cases/{case.id}/generated"
     os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], folder), exist_ok=True)
     filename = f"{folder}/{case.case_type.lower()}_visual_filled_{uuid.uuid4().hex[:8]}.pdf"
@@ -5861,6 +5873,30 @@ def fill_pdf_with_visual_mappings(case, template):
             placed_rects.add(placement_key)
             if field.render_mode == "split_boxes":
                 overlay_split_box_text_on_rect(page, rect, value_text, field.render_box_count)
+            else:
+                overlay_text_on_rect(page, rect, value_text)
+            placed_count += 1
+        for saved_field in pdf_field_values:
+            value_text = (saved_field.value_text or "").strip()
+            mapping = pdf_field_visual_mapping(saved_field.pdf_field)
+            if not value_text or not mapping:
+                continue
+            page_index = (mapping["page"] or 1) - 1
+            if page_index < 0 or page_index >= document.page_count:
+                continue
+            page = document.load_page(page_index)
+            rect = fitz.Rect(
+                float(mapping["x"] or 0),
+                float(mapping["y"] or 0),
+                float(mapping["x"] or 0) + float(mapping["width"] or 120),
+                float(mapping["y"] or 0) + float(mapping["height"] or 16),
+            )
+            placement_key = pdf_overlay_rect_key(page_index, rect)
+            if placement_key in placed_rects:
+                continue
+            placed_rects.add(placement_key)
+            if is_pdf_checkbox_field(saved_field.pdf_field):
+                overlay_checkbox_mark_on_rect(page, rect)
             else:
                 overlay_text_on_rect(page, rect, value_text)
             placed_count += 1
@@ -6325,6 +6361,21 @@ def answer_entries_by_pdf_field(case):
                         "prompt": answer.question.prompt,
                     }
                 )
+    for saved_field in CasePdfFieldValue.query.filter_by(case_id=case.id).all():
+        if not saved_field.pdf_field or not (saved_field.value_text or "").strip():
+            continue
+        checkbox_field = is_pdf_checkbox_field(saved_field.pdf_field)
+        entries.append(
+            {
+                "field_name": saved_field.pdf_field.field_name,
+                "value": "X" if checkbox_field else saved_field.value_text,
+                "input_type": "checkbox" if checkbox_field else "text",
+                "render_mode": "normal",
+                "render_box_count": 0,
+                "answer_text": saved_field.value_text,
+                "prompt": readable_pdf_field_name(saved_field.pdf_field.field_name),
+            }
+        )
     return entries
 
 
