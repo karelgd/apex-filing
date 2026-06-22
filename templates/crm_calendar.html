@@ -16,12 +16,14 @@
 
   <div class="crm-calendar-toolbar">
     <div class="crm-calendar-modes">
-      {% for mode in ['month', 'week', 'day'] %}
+      {% for mode in ['year', 'month', 'week', 'day'] %}
         <a class="crm-calendar-mode {{ 'active' if view == mode else '' }}" href="{{ url_for('crm_calendar', view=mode, date=selected_date.strftime('%Y-%m-%d'), form_preparer_id=selected_form_preparer_id or '') }}">{{ mode|title }}</a>
       {% endfor %}
     </div>
     <form class="crm-calendar-filter" method="get">
       <input type="hidden" name="view" value="{{ view }}">
+      <label for="calendarDateJump">{{ 'Year' if view == 'year' else 'Go to' }}</label>
+      <input id="calendarDateJump" class="form-control" type="{{ 'number' if view == 'year' else 'month' }}" name="{{ 'year' if view == 'year' else 'month' }}" value="{{ selected_date.year if view == 'year' else selected_date.strftime('%Y-%m') }}" min="1900" max="2200" onchange="this.form.submit()">
       <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
       <label for="calendarFormPreparer">Form Preparer</label>
       <select id="calendarFormPreparer" class="form-select" name="form_preparer_id" onchange="this.form.submit()">
@@ -34,6 +36,25 @@
   </div>
 
   <section class="crm-calendar-shell {{ 'crm-calendar-' ~ view }}">
+    {% if view == 'year' %}
+      <div class="crm-calendar-year-grid">
+        {% for month in year_months %}
+          <a class="crm-calendar-month-card {{ 'today' if month.is_current else '' }}" href="{{ url_for('crm_calendar', view='month', date=month.date.strftime('%Y-%m-%d'), form_preparer_id=selected_form_preparer_id or '') }}">
+            <div class="crm-calendar-month-head">
+              <strong>{{ month.date.strftime('%B') }}</strong>
+              <span>{{ month.appointment_count }} appointment{{ '' if month.appointment_count == 1 else 's' }}</span>
+            </div>
+            <div class="crm-calendar-month-events">
+              {% for appointment in month.appointments %}
+                <span>{{ appointment.start_at.strftime('%b %d') }} - {{ appointment.client.full_name }}</span>
+              {% else %}
+                <span>No appointments</span>
+              {% endfor %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
     {% if view == 'month' %}
       <div class="crm-calendar-weekdays">
         {% for label in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
@@ -66,6 +87,7 @@
         {% endfor %}
       </div>
     {% endfor %}
+    {% endif %}
   </section>
 </div>
 {% endblock %}

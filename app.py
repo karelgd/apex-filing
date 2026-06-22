@@ -3895,18 +3895,33 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         view = request.args.get("view", "month")
-        if view not in {"month", "week", "day"}:
+        if view not in {"year", "month", "week", "day"}:
             view = "month"
         try:
             selected_date = datetime.strptime(request.args.get("date", ""), "%Y-%m-%d").date()
         except ValueError:
             selected_date = datetime.utcnow().date()
+        month_jump = request.args.get("month", "").strip()
+        year_jump = request.args.get("year", "").strip()
+        try:
+            if month_jump:
+                selected_date = datetime.strptime(f"{month_jump}-01", "%Y-%m-%d").date()
+            elif year_jump:
+                selected_date = selected_date.replace(year=int(year_jump), month=1, day=1)
+        except (ValueError, TypeError):
+            pass
         form_preparer_id = request.args.get("form_preparer_id", "").strip()
         selected_form_preparer_id = None
         if form_preparer_id.isdigit():
             selected_form_preparer_id = int(form_preparer_id)
 
-        if view == "day":
+        if view == "year":
+            start_date = selected_date.replace(month=1, day=1)
+            end_date = selected_date.replace(month=12, day=31)
+            title = selected_date.strftime("%Y")
+            previous_date = selected_date.replace(year=selected_date.year - 1, month=1, day=1)
+            next_date = selected_date.replace(year=selected_date.year + 1, month=1, day=1)
+        elif view == "day":
             start_date = selected_date
             end_date = selected_date
             title = selected_date.strftime("%B %d, %Y")
@@ -3946,8 +3961,28 @@ def register_routes(app):
             appointments_by_date.setdefault(appointment.start_at.date(), []).append(appointment)
 
         calendar_weeks = []
+        year_months = []
         today_date = datetime.utcnow().date()
-        if view == "month":
+        if view == "year":
+            for month in range(1, 13):
+                month_date = selected_date.replace(month=month, day=1)
+                _, month_last_day = calendar_lib.monthrange(selected_date.year, month)
+                month_start = month_date
+                month_end = month_date.replace(day=month_last_day)
+                month_appointments = [
+                    appointment
+                    for appointment in appointments
+                    if month_start <= appointment.start_at.date() <= month_end
+                ]
+                year_months.append(
+                    {
+                        "date": month_date,
+                        "is_current": today_date.year == selected_date.year and today_date.month == month,
+                        "appointment_count": len(month_appointments),
+                        "appointments": month_appointments[:3],
+                    }
+                )
+        elif view == "month":
             for week in calendar_lib.Calendar(firstweekday=0).monthdatescalendar(selected_date.year, selected_date.month):
                 calendar_weeks.append(
                     [
@@ -3982,6 +4017,7 @@ def register_routes(app):
             previous_date=previous_date,
             next_date=next_date,
             calendar_weeks=calendar_weeks,
+            year_months=year_months,
             appointment_count=len(appointments),
             form_preparers=form_preparers,
             selected_form_preparer_id=selected_form_preparer_id,

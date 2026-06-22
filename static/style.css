@@ -2467,6 +2467,52 @@ body {
   color: #a15c00;
 }
 
+.crm-calendar-year-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.crm-calendar-month-card {
+  background: #fbfdff;
+  border: 1px solid #dbe7f5;
+  border-radius: 12px;
+  color: var(--apex-ink);
+  display: grid;
+  gap: .75rem;
+  min-height: 150px;
+  padding: 1rem;
+  text-decoration: none;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.crm-calendar-month-card:hover {
+  border-color: #8cc5ff;
+  box-shadow: 0 14px 30px rgba(22, 32, 51, .12);
+  color: var(--apex-ink);
+  transform: translateY(-1px);
+}
+
+.crm-calendar-month-card.today {
+  border-color: #2f7df6;
+}
+
+.crm-calendar-month-head,
+.crm-calendar-month-events {
+  display: grid;
+  gap: .35rem;
+}
+
+.crm-calendar-month-head strong {
+  font-size: 1.05rem;
+}
+
+.crm-calendar-month-head span,
+.crm-calendar-month-events span {
+  color: var(--apex-muted);
+  font-size: .86rem;
+}
+
 .crm-calendar-week .crm-calendar-row,
 .crm-calendar-day .crm-calendar-row {
   grid-template-columns: 1fr;
@@ -4449,6 +4495,7 @@ textarea.form-control {
   white-space: nowrap;
 }
 
+.crm-calendar-filter .form-control,
 .crm-calendar-filter .form-select {
   border-radius: 999px;
   min-width: 220px;
@@ -4759,6 +4806,7 @@ textarea.form-control {
   .crm-report-answer-grid,
   .crm-report-grid,
   .crm-report-money-grid,
+  .crm-calendar-year-grid,
   .crm-report-case-row,
   .crm-report-invoice-row {
     grid-template-columns: 1fr;
