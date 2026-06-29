@@ -6625,7 +6625,7 @@ def respondent_caption_lines(motion):
 
 def respondent_file_numbers(motion):
     numbers = [f"A{person.alien_number}" for person in motion.respondents if person.alien_number]
-    return ", ".join(numbers) or "A"
+    return numbers or ["A"]
 
 
 def display_motion_date(value):
@@ -6668,7 +6668,13 @@ def draw_motion_caption(pdf, motion, y):
     pdf.drawString(left, y_left, "In Removal Proceedings.")
 
     pdf.setFont("Times-Roman", 11)
-    pdf.drawString(file_x, top - 17, f"File No.: {respondent_file_numbers(motion)}")
+    file_y = top - 17
+    file_label = "File No.:"
+    pdf.drawString(file_x, file_y, file_label)
+    file_number_x = file_x + pdf.stringWidth(f"{file_label} ", "Times-Roman", 11)
+    for number in respondent_file_numbers(motion):
+        pdf.drawString(file_number_x, file_y, number)
+        file_y -= 17
     y_detail = bottom - 24
     y_detail = draw_pdf_lines(
         pdf,
