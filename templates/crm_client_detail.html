@@ -169,19 +169,21 @@
       </div>
       <form class="crm-upload" method="post" enctype="multipart/form-data" action="{{ url_for('crm_document_upload', client_id=client.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input class="form-control" type="file" name="document" required>
-        <input class="form-control" name="document_type" placeholder="Document type">
+        <input class="form-control" type="file" name="documents" accept=".pdf,.jpg,.jpeg,.png" multiple required>
+        <input class="form-control" name="description" placeholder="Short description, optional">
         <select class="form-select" name="case_id">
           <option value="">No case link</option>
           {% for case in cases %}<option value="{{ case.id }}">{{ case.title }} - {{ case.status }}</option>{% endfor %}
         </select>
-        <input class="form-control" name="description" placeholder="Short description">
-        <button class="btn btn-primary crm-action-btn">Upload Document</button>
+        <button class="btn btn-primary crm-action-btn">Upload Documents</button>
       </form>
       <div class="crm-stack mt-3">
         {% for document in documents %}
           <div class="crm-record">
-            <div><strong>{{ document.original_filename }}</strong><small>{{ document.document_type }}{% if document.case %} &middot; {{ document.case.title }}{% endif %}</small></div>
+            <div>
+              <strong>{{ document.original_filename }}</strong>
+              <small>{% if document.description %}{{ document.description }}{% else %}Client document{% endif %}{% if document.case %} &middot; {{ document.case.title }}{% endif %}</small>
+            </div>
             <div class="crm-row-actions">
               <a class="btn btn-sm btn-primary" href="{{ url_for('crm_document_view', document_id=document.id) }}" target="_blank">View</a>
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_document_download', document_id=document.id) }}">Download</a>

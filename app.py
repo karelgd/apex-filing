@@ -332,7 +332,7 @@ def validate_client_document_upload(file_storage):
     if not file_storage or not file_storage.filename:
         raise ValueError("Choose a document to upload.")
     if not allowed_client_document(file_storage.filename):
-        raise ValueError("For security, clients can only upload PDF, image, or DOCX files.")
+        raise ValueError("For security, client documents can only be PDF, image, or DOCX files.")
     extension = file_storage.filename.rsplit(".", 1)[1].lower()
     head = file_storage.stream.read(8)
     file_storage.stream.seek(0)
@@ -4530,33 +4530,49 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
-        file_storage = request.files.get("document")
+        files = request.files.getlist("documents") or request.files.getlist("document")
+        files = [file_storage for file_storage in files if file_storage and file_storage.filename]
+        if not files:
+            flash("Choose at least one document to upload.", "warning")
+            return redirect(url_for("crm_client_detail", client_id=client.id))
         try:
-            saved = save_upload(file_storage, f"crm/clients/{client.id}")
+            for file_storage in files:
+                validate_client_document_upload(file_storage)
         except ValueError as exc:
             flash(str(exc), "danger")
             return redirect(url_for("crm_client_detail", client_id=client.id))
-        if not saved:
-            flash("Choose a document to upload.", "warning")
-            return redirect(url_for("crm_client_detail", client_id=client.id))
-        original, stored = saved
         case_id = request.form.get("case_id")
         linked_case = None
         if case_id:
             linked_case = CrmCase.query.filter_by(id=int(case_id), client_id=client.id, agency_id=current_user.agency_id).first() or abort(404)
-        document = CrmClientDocument(
-            agency_id=current_user.agency_id,
-            client_id=client.id,
-            case_id=linked_case.id if linked_case else None,
-            original_filename=original,
-            stored_filename=stored,
-            document_type=request.form.get("document_type", "").strip() or "Client document",
-            description=request.form.get("description", "").strip(),
-        )
-        db.session.add(document)
-        crm_client_log(client, "Document uploaded", original)
+        description = request.form.get("description", "").strip()
+        uploaded_names = []
+        for file_storage in files:
+            try:
+                saved = save_upload(file_storage, f"crm/clients/{client.id}")
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return redirect(url_for("crm_client_detail", client_id=client.id))
+            if not saved:
+                continue
+            original, stored = saved
+            document = CrmClientDocument(
+                agency_id=current_user.agency_id,
+                client_id=client.id,
+                case_id=linked_case.id if linked_case else None,
+                original_filename=original,
+                stored_filename=stored,
+                document_type="Client document",
+                description=description,
+            )
+            db.session.add(document)
+            uploaded_names.append(original)
+        if not uploaded_names:
+            flash("Choose at least one document to upload.", "warning")
+            return redirect(url_for("crm_client_detail", client_id=client.id))
+        crm_client_log(client, "Documents uploaded", ", ".join(uploaded_names[:5]))
         db.session.commit()
-        flash("Document uploaded.", "success")
+        flash(f"{len(uploaded_names)} document(s) uploaded.", "success")
         return redirect(url_for("crm_client_detail", client_id=client.id))
 
     @app.route("/agency/crm/documents/<int:document_id>/delete", methods=["POST"])
@@ -6581,6 +6597,14 @@ def signer_name_lines(motion):
     return ["Respondent"]
 
 
+def motion_pdf_download_filename(motion):
+    lead = principal_respondent(motion)
+    lead_name = lead.full_name if lead else "respondent"
+    safe_name = secure_filename(lead_name) or "respondent"
+    safe_title = secure_filename(motion.title or "motion") or "motion"
+    return f"{safe_name}-{safe_title}-{motion.id}.pdf"
+
+
 def draw_motion_page_intro(pdf, motion, title, y):
     y = draw_motion_header(pdf, motion, y)
     y = draw_motion_caption(pdf, motion, y)
@@ -6783,7 +6807,7 @@ def motion_pdf_response(motion):
     draw_pdf_lines(pdf, order_lines, left, y, max_chars=body_max_chars, font_size=11, leading=17)
     pdf.save()
     buffer.seek(0)
-    filename = f"motion-{motion.id}.pdf"
+    filename = motion_pdf_download_filename(motion)
     return Response(
         buffer.getvalue(),
         mimetype="application/pdf",
