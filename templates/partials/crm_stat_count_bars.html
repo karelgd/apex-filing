@@ -5,8 +5,8 @@
         <span>{{ row.label }}</span>
         <strong>{{ row.total }}</strong>
       </div>
-      <div class="crm-stat-track">
-        <span style="width: {{ row.percent }}%"></span>
+      <div class="crm-stat-track" style="--bar-width: {{ row.percent }}%;">
+        <span></span>
       </div>
       <small>{{ row.share }}% of this view</small>
     </div>

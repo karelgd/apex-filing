@@ -2222,6 +2222,54 @@ def money_chart_rows(raw_rows):
     ]
 
 
+CRM_STAT_COLORS = ["#155eef", "#22c8b8", "#ff8a3d", "#8b5cf6", "#66d9e8", "#f6c344"]
+
+
+def crm_donut_data(rows, limit=4):
+    visible = rows[:limit]
+    if len(rows) > limit:
+        other_total = sum(row["total"] for row in rows[limit:])
+        other_share = sum(row["share"] for row in rows[limit:])
+        if other_total:
+            visible.append({"label": "Other", "total": other_total, "share": round(other_share, 1), "percent": other_share})
+    if not visible:
+        return {"rows": [], "gradient": "#edf4ff 0% 100%"}
+    stops = []
+    cursor = 0
+    colored_rows = []
+    total_share = sum(row["share"] for row in visible) or 100
+    for index, row in enumerate(visible):
+        color = CRM_STAT_COLORS[index % len(CRM_STAT_COLORS)]
+        width = (row["share"] / total_share) * 100
+        end = cursor + width
+        stops.append(f"{color} {cursor:.2f}% {end:.2f}%")
+        colored_rows.append({**row, "color": color})
+        cursor = end
+    return {"rows": colored_rows, "gradient": ", ".join(stops)}
+
+
+def crm_monthly_case_rows(cases):
+    today = datetime.utcnow()
+    months = []
+    for offset in reversed(range(12)):
+        raw_month = today.month - offset
+        year = today.year + ((raw_month - 1) // 12)
+        month = ((raw_month - 1) % 12) + 1
+        key = f"{year}-{month:02d}"
+        label = datetime(year, month, 1).strftime("%b")
+        months.append({"key": key, "label": label, "total": 0})
+    lookup = {row["key"]: row for row in months}
+    for case in cases:
+        if case.created_at:
+            key = case.created_at.strftime("%Y-%m")
+            if key in lookup:
+                lookup[key]["total"] += 1
+    max_total = max((row["total"] for row in months), default=0)
+    for row in months:
+        row["percent"] = round((row["total"] / max_total) * 100, 1) if max_total else 0
+    return months
+
+
 def build_crm_statistics_data(agency_id):
     clients = Client.query.filter_by(agency_id=agency_id).all()
     cases = CrmCase.query.filter_by(agency_id=agency_id).all()
@@ -2260,6 +2308,7 @@ def build_crm_statistics_data(agency_id):
     total_discounts = sum((invoice.discount or Decimal("0")) for invoice in invoices)
     total_refunds = sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund")
     open_balance = sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid")
+    payment_rate = round((float(total_paid) / float(total_billed)) * 100, 1) if total_billed else 0
 
     return {
         "total_clients": len(clients),
@@ -2269,10 +2318,15 @@ def build_crm_statistics_data(agency_id):
         "total_paid": total_paid,
         "open_balance": open_balance,
         "total_refunds": total_refunds,
+        "payment_rate": payment_rate,
+        "monthly_case_rows": crm_monthly_case_rows(cases),
         "client_state_rows": client_state_rows,
+        "client_state_donut": crm_donut_data(client_state_rows),
         "case_type_rows": case_type_rows,
         "case_status_rows": case_status_rows,
+        "case_status_donut": crm_donut_data(case_status_rows),
         "invoice_status_rows": invoice_status_rows,
+        "invoice_status_donut": crm_donut_data(invoice_status_rows),
         "invoice_amount_rows": money_chart_rows(
             [
                 ("Total billed", total_billed),
