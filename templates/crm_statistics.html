@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">CRM Intelligence</span>
+      <h1>Statistics</h1>
+      <p>Visual snapshots of clients, cases, and invoices for this agency.</p>
+    </div>
+  </div>
+
+  <div class="crm-stats-kpis">
+    <section class="crm-stat-kpi">
+      <span>Clients</span>
+      <strong>{{ total_clients }}</strong>
+      <small>Total client profiles</small>
+    </section>
+    <section class="crm-stat-kpi">
+      <span>Cases</span>
+      <strong>{{ total_cases }}</strong>
+      <small>Total CRM cases</small>
+    </section>
+    <section class="crm-stat-kpi">
+      <span>Invoices</span>
+      <strong>{{ total_invoices }}</strong>
+      <small>Total generated invoices</small>
+    </section>
+    <section class="crm-stat-kpi">
+      <span>Open Balance</span>
+      <strong>${{ '%.2f'|format(open_balance or 0) }}</strong>
+      <small>Unpaid invoice balance</small>
+    </section>
+  </div>
+
+  <div class="crm-stats-grid">
+    <section class="crm-panel crm-stat-card">
+      <div class="crm-panel-head">
+        <div><h2>Clients by State</h2><p>Based on the state in each client address.</p></div>
+      </div>
+      {% set rows = client_state_rows %}
+      {% include "partials/crm_stat_count_bars.html" %}
+    </section>
+
+    <section class="crm-panel crm-stat-card">
+      <div class="crm-panel-head">
+        <div><h2>Cases by Type</h2><p>Shows which services are created most often.</p></div>
+      </div>
+      {% set rows = case_type_rows %}
+      {% include "partials/crm_stat_count_bars.html" %}
+    </section>
+
+    <section class="crm-panel crm-stat-card">
+      <div class="crm-panel-head">
+        <div><h2>Cases by Status</h2><p>Quickly compare open, completed, cancelled, and document stages.</p></div>
+      </div>
+      {% set rows = case_status_rows %}
+      {% include "partials/crm_stat_count_bars.html" %}
+    </section>
+
+    <section class="crm-panel crm-stat-card">
+      <div class="crm-panel-head">
+        <div><h2>Invoices by Status</h2><p>How invoices are distributed by payment status.</p></div>
+      </div>
+      {% set rows = invoice_status_rows %}
+      {% include "partials/crm_stat_count_bars.html" %}
+    </section>
+
+    <section class="crm-panel crm-stat-card crm-stat-card-wide">
+      <div class="crm-panel-head">
+        <div><h2>Invoice Money Flow</h2><p>Billed, paid, open balance, discounts, and refunds.</p></div>
+      </div>
+      <div class="crm-money-bars">
+        {% for row in invoice_amount_rows %}
+          <div class="crm-money-row">
+            <div class="crm-money-label">
+              <span>{{ row.label }}</span>
+              <strong>${{ '%.2f'|format(row.amount or 0) }}</strong>
+            </div>
+            <div class="crm-stat-track">
+              <span style="width: {{ row.percent }}%"></span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="crm-panel crm-stat-card crm-stat-card-wide">
+      <div class="crm-panel-head">
+        <div><h2>Financial Snapshot</h2><p>High-level CRM invoice totals.</p></div>
+      </div>
+      <div class="crm-finance-strip">
+        <div><span>Total billed</span><strong>${{ '%.2f'|format(total_billed or 0) }}</strong></div>
+        <div><span>Total paid</span><strong>${{ '%.2f'|format(total_paid or 0) }}</strong></div>
+        <div><span>Open balance</span><strong>${{ '%.2f'|format(open_balance or 0) }}</strong></div>
+        <div><span>Refunds</span><strong>${{ '%.2f'|format(total_refunds or 0) }}</strong></div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

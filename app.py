@@ -2187,6 +2187,104 @@ def build_crm_report_data(agency_id, args):
     }
 
 
+def crm_chart_rows(raw_rows, limit=10):
+    rows = [(str(label or "Not specified"), int(total or 0)) for label, total in raw_rows if int(total or 0) > 0]
+    rows.sort(key=lambda item: item[1], reverse=True)
+    if limit and len(rows) > limit:
+        visible = rows[:limit]
+        other_total = sum(total for _, total in rows[limit:])
+        if other_total:
+            visible.append(("Other", other_total))
+        rows = visible
+    max_total = max((total for _, total in rows), default=0)
+    grand_total = sum(total for _, total in rows)
+    return [
+        {
+            "label": label,
+            "total": total,
+            "percent": round((total / max_total) * 100, 1) if max_total else 0,
+            "share": round((total / grand_total) * 100, 1) if grand_total else 0,
+        }
+        for label, total in rows
+    ]
+
+
+def money_chart_rows(raw_rows):
+    amounts = [(label, Decimal(str(amount or 0))) for label, amount in raw_rows]
+    max_amount = max((abs(amount) for _, amount in amounts), default=Decimal("0"))
+    return [
+        {
+            "label": label,
+            "amount": amount,
+            "percent": float((abs(amount) / max_amount) * 100) if max_amount else 0,
+        }
+        for label, amount in amounts
+    ]
+
+
+def build_crm_statistics_data(agency_id):
+    clients = Client.query.filter_by(agency_id=agency_id).all()
+    cases = CrmCase.query.filter_by(agency_id=agency_id).all()
+    invoices = CrmInvoice.query.filter_by(agency_id=agency_id).all()
+    activities = CrmInvoiceActivity.query.filter_by(agency_id=agency_id).all()
+
+    client_state_rows = crm_chart_rows(
+        db.session.query(func.upper(func.trim(Client.state)), func.count(Client.id))
+        .filter(Client.agency_id == agency_id)
+        .group_by(func.upper(func.trim(Client.state)))
+        .all()
+    )
+    case_type_rows = crm_chart_rows(
+        db.session.query(CrmCase.title, func.count(CrmCase.id))
+        .filter(CrmCase.agency_id == agency_id)
+        .group_by(CrmCase.title)
+        .all()
+    )
+    case_status_rows = crm_chart_rows(
+        db.session.query(CrmCase.status, func.count(CrmCase.id))
+        .filter(CrmCase.agency_id == agency_id)
+        .group_by(CrmCase.status)
+        .all(),
+        limit=None,
+    )
+    invoice_status_rows = crm_chart_rows(
+        db.session.query(CrmInvoice.status, func.count(CrmInvoice.id))
+        .filter(CrmInvoice.agency_id == agency_id)
+        .group_by(CrmInvoice.status)
+        .all(),
+        limit=None,
+    )
+
+    total_billed = sum((invoice.total or Decimal("0")) for invoice in invoices)
+    total_paid = sum((invoice.paid_amount or Decimal("0")) for invoice in invoices)
+    total_discounts = sum((invoice.discount or Decimal("0")) for invoice in invoices)
+    total_refunds = sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund")
+    open_balance = sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid")
+
+    return {
+        "total_clients": len(clients),
+        "total_cases": len(cases),
+        "total_invoices": len(invoices),
+        "total_billed": total_billed,
+        "total_paid": total_paid,
+        "open_balance": open_balance,
+        "total_refunds": total_refunds,
+        "client_state_rows": client_state_rows,
+        "case_type_rows": case_type_rows,
+        "case_status_rows": case_status_rows,
+        "invoice_status_rows": invoice_status_rows,
+        "invoice_amount_rows": money_chart_rows(
+            [
+                ("Total billed", total_billed),
+                ("Paid", total_paid),
+                ("Open balance", open_balance),
+                ("Discounts", total_discounts),
+                ("Refunds", total_refunds),
+            ]
+        ),
+    }
+
+
 JOINDER_STATUSES = ["New", "Docs Received", "Reviewed", "Rejected", "Approved", "Paid"]
 JOINDER_AGENCY_COMMISSION_BY_CONTRACT = {
     Decimal("2500"): Decimal("500"),
@@ -4041,6 +4139,16 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         return generate_crm_report_pdf(build_crm_report_data(current_user.agency_id, request.args))
+
+    @app.route("/agency/crm/statistics")
+    @role_required("agency")
+    def crm_statistics():
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        if not is_agency_owner():
+            abort(403)
+        return render_template("crm_statistics.html", **build_crm_statistics_data(current_user.agency_id))
 
     @app.route("/agency/crm/case-types", methods=["GET", "POST"])
     @role_required("agency")

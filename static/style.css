@@ -1883,6 +1883,140 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.crm-stats-kpis {
+  display: grid;
+  gap: .9rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.crm-stat-kpi {
+  background: #ffffff;
+  border: 1px solid #dce8f7;
+  border-radius: 8px;
+  box-shadow: 0 16px 34px rgba(22, 32, 51, .07);
+  padding: 1rem;
+}
+
+.crm-stat-kpi span {
+  color: #155eef;
+  display: block;
+  font-size: .78rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.crm-stat-kpi strong {
+  color: var(--apex-ink);
+  display: block;
+  font-size: clamp(1.45rem, 2.5vw, 2.35rem);
+  font-weight: 950;
+  line-height: 1.1;
+  margin-top: .35rem;
+}
+
+.crm-stat-kpi small {
+  color: var(--apex-muted);
+  display: block;
+  font-weight: 700;
+  margin-top: .25rem;
+}
+
+.crm-stats-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.crm-stat-card-wide {
+  grid-column: 1 / -1;
+}
+
+.crm-stat-bars,
+.crm-money-bars {
+  display: grid;
+  gap: .85rem;
+}
+
+.crm-stat-row,
+.crm-money-row {
+  display: grid;
+  gap: .45rem;
+}
+
+.crm-stat-label,
+.crm-money-label {
+  align-items: center;
+  display: flex;
+  gap: .75rem;
+  justify-content: space-between;
+}
+
+.crm-stat-label span,
+.crm-money-label span {
+  color: var(--apex-ink);
+  font-weight: 850;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-stat-label strong,
+.crm-money-label strong {
+  color: #155eef;
+  font-weight: 950;
+}
+
+.crm-stat-track {
+  background: #edf4ff;
+  border-radius: 999px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.crm-stat-track span {
+  background: linear-gradient(90deg, #1f73ff, #22c8b8);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 4px;
+}
+
+.crm-stat-row small {
+  color: var(--apex-muted);
+  font-weight: 700;
+}
+
+.crm-finance-strip {
+  display: grid;
+  gap: .75rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.crm-finance-strip div {
+  background: #f8fbff;
+  border: 1px solid #e0e9f6;
+  border-radius: 8px;
+  padding: .85rem;
+}
+
+.crm-finance-strip span {
+  color: var(--apex-muted);
+  display: block;
+  font-size: .82rem;
+  font-weight: 850;
+}
+
+.crm-finance-strip strong {
+  color: var(--apex-ink);
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 950;
+  margin-top: .25rem;
+}
+
 .crm-summary-card {
   background: #ffffff;
   border: 1px solid #dce6f3;
@@ -2682,6 +2816,9 @@ body {
   .motion-grid-respondent,
   .crm-metrics,
   .crm-summary-grid,
+  .crm-stats-kpis,
+  .crm-stats-grid,
+  .crm-finance-strip,
   .crm-board,
   .crm-detail-grid,
   .crm-form-grid,

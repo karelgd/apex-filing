@@ -1,0 +1,16 @@
+<div class="crm-stat-bars">
+  {% for row in rows %}
+    <div class="crm-stat-row">
+      <div class="crm-stat-label">
+        <span>{{ row.label }}</span>
+        <strong>{{ row.total }}</strong>
+      </div>
+      <div class="crm-stat-track">
+        <span style="width: {{ row.percent }}%"></span>
+      </div>
+      <small>{{ row.share }}% of this view</small>
+    </div>
+  {% else %}
+    <div class="crm-empty-state">No data yet.</div>
+  {% endfor %}
+</div>
