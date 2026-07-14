@@ -92,8 +92,21 @@
       <div class="crm-panel-head">
         <div><h2>Top Case Types</h2><p>Most-created services, ranked by volume.</p></div>
       </div>
-      {% set rows = case_type_rows %}
-      {% include "partials/crm_stat_count_bars.html" %}
+      <div class="crm-case-type-tiles">
+        {% for row in case_type_rows[:6] %}
+          <article class="crm-case-type-tile">
+            <div class="crm-case-type-rank">{{ loop.index }}</div>
+            <div class="crm-case-type-main">
+              <strong>{{ row.label }}</strong>
+              <small>{{ row.share }}% of case mix</small>
+              <div class="crm-stat-track" style="--bar-width: {{ row.percent }}%;"><span></span></div>
+            </div>
+            <div class="crm-case-type-count">{{ row.total }}</div>
+          </article>
+        {% else %}
+          <div class="crm-empty-state">No case type data yet.</div>
+        {% endfor %}
+      </div>
     </section>
 
     <section class="crm-panel crm-chart-card">
@@ -118,16 +131,12 @@
       <div class="crm-panel-head">
         <div><h2>Money Flow</h2><p>Billed, paid, open, discounts, and refunds.</p></div>
       </div>
-      <div class="crm-money-bars">
+      <div class="crm-money-columns">
         {% for row in invoice_amount_rows %}
-          <div class="crm-money-row">
-            <div class="crm-money-label">
-              <span>{{ row.label }}</span>
-              <strong>${{ '%.2f'|format(row.amount or 0) }}</strong>
-            </div>
-            <div class="crm-stat-track" style="--bar-width: {{ row.percent }}%;">
-              <span></span>
-            </div>
+          <div class="crm-money-column">
+            <strong>${{ '%.0f'|format(row.amount or 0) }}</strong>
+            <span style="height: {{ row.percent }}%"></span>
+            <small>{{ row.label }}</small>
           </div>
         {% endfor %}
       </div>
