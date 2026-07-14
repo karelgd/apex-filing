@@ -5977,13 +5977,14 @@ def generate_case_pdf(case):
     template = form_template_for_case_type(case.case_type)
     if not template or not template.pdf_stored_filename:
         return create_answer_summary_pdf(case)
-    visual = fill_pdf_with_visual_mappings(case, template)
-    if visual:
-        return visual
     if normalized_form_code(template.code) == "G1450":
         widget_filled = fill_pdf_widgets_with_pymupdf(case, template)
         if widget_filled:
             return widget_filled
+    visual = fill_pdf_with_visual_mappings(case, template)
+    if visual:
+        return visual
+    if normalized_form_code(template.code) == "G1450":
         acroform_filled = fill_acroform_pdf(case, template)
         if acroform_filled:
             return acroform_filled
@@ -6273,9 +6274,6 @@ def fill_pdf_widgets_with_pymupdf(case, template):
                 if checkbox_widget:
                     overlay_widget_text(page, widget, "X")
                 else:
-                    if field_entry.get("render_mode") != "split_boxes":
-                        widget.field_value = field_value
-                        widget.update()
                     overlay_widget_text(page, widget, field_value, field_entry)
                 matched_widgets.append(widget)
                 filled_count += 1
