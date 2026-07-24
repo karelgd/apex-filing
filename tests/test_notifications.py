@@ -102,6 +102,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(send_email.call_count, 1)
         self.assertEqual(send_email.call_args.args[1], "QUEREMOS SABER TU OPINION")
+        self.assertIn("http://localhost/survey/", send_email.call_args.args[2])
 
         with app.app_context():
             notification = Notification.query.one()
@@ -134,12 +135,18 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             self.assertEqual(survey.case_id, self.case_id)
             self.assertIsNotNone(survey.email_sent_at)
             survey_token = survey.token
+            survey_id = survey.id
 
         survey_page = self.web.get(f"/survey/{survey_token}")
         self.assertEqual(survey_page.status_code, 200)
         self.assertIn("Queremos saber tu opinión".encode("utf-8"), survey_page.data)
         self.assertIn("Morgan Manager".encode("utf-8"), survey_page.data)
         self.assertIn("Nuestro conocimiento y experiencia".encode("utf-8"), survey_page.data)
+
+        with patch("app.send_postmark_email", return_value=(True, "Email sent.")) as resend_email:
+            resent = self.web.post(f"/agency/crm/surveys/{survey_id}/resend")
+        self.assertEqual(resent.status_code, 302)
+        self.assertIn("http://localhost/survey/", resend_email.call_args.args[2])
 
         submitted = self.web.post(
             f"/survey/{survey_token}",

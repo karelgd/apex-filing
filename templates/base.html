@@ -106,7 +106,7 @@
           {% endif %}
           <span class="sidebar-label mt-4">Subscriptions</span>
           {% if current_user.agency.has_tool('CRM') %}
-            {% set crm_endpoints = ['agency_crm', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail', 'crm_calendar', 'crm_reports', 'crm_reports_download', 'crm_survey_detail', 'crm_statistics', 'crm_case_types', 'crm_case_type_delete'] %}
+            {% set crm_endpoints = ['agency_crm', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail', 'crm_calendar', 'crm_reports', 'crm_reports_download', 'crm_survey_detail', 'crm_survey_resend', 'crm_statistics', 'crm_case_types', 'crm_case_type_delete'] %}
             <details class="sidebar-group" {% if request.endpoint in crm_endpoints %}open{% endif %}>
               <summary class="tool-link sidebar-group-toggle {{ 'active' if request.endpoint in crm_endpoints else '' }}">CRM</summary>
               <div class="sidebar-submenu">

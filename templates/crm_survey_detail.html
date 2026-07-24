@@ -13,7 +13,15 @@
         <a href="{{ url_for('crm_client_detail', client_id=survey.client.id) }}">Open client profile</a>
       </p>
     </div>
-    <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_reports', report_type='surveys') }}">Back to Survey Report</a>
+    <div class="crm-actions">
+      {% if not survey.submitted_at %}
+        <form method="post" action="{{ url_for('crm_survey_resend', survey_id=survey.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-primary crm-action-btn" type="submit">Resend survey email</button>
+        </form>
+      {% endif %}
+      <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_reports', report_type='surveys') }}">Back to Survey Report</a>
+    </div>
   </div>
 
   <section class="crm-panel">

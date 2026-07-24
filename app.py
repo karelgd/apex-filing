@@ -1323,9 +1323,9 @@ def ensure_case_survey(case):
     return survey
 
 
-def send_case_survey_invitation(case):
+def send_case_survey_invitation(case, force=False):
     survey = ensure_case_survey(case)
-    if survey.submitted_at or survey.email_sent_at:
+    if survey.submitted_at or (survey.email_sent_at and not force):
         return survey.email_sent_at is not None
 
     client = case.client
@@ -1334,12 +1334,11 @@ def send_case_survey_invitation(case):
         crm_client_log(client, "Survey email skipped", f"{case.title}: client has no email address.")
         return False
 
-    base_url = (
-        os.environ.get("SURVEY_BASE_URL")
-        or os.environ.get("CLIENT_PORTAL_URL")
-        or "https://apexdf.com"
-    ).strip().rstrip("/")
-    survey_url = f"{base_url}{url_for('public_survey', token=survey.token)}"
+    survey_base_url = os.environ.get("SURVEY_BASE_URL", "").strip().rstrip("/")
+    if survey_base_url:
+        survey_url = f"{survey_base_url}{url_for('public_survey', token=survey.token)}"
+    else:
+        survey_url = url_for("public_survey", token=survey.token, _external=True)
     subject = "QUEREMOS SABER TU OPINION"
     text_body = (
         f"Hola {client.full_name},\n\n"
@@ -4566,6 +4565,24 @@ def register_routes(app):
             ease_labels=SURVEY_EASE_LABELS,
             selection_reason_labels=SURVEY_SELECTION_REASON_LABELS,
         )
+
+    @app.route("/agency/crm/surveys/<int:survey_id>/resend", methods=["POST"])
+    @role_required("agency")
+    def crm_survey_resend(survey_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        survey = CrmSurvey.query.filter_by(id=survey_id, agency_id=current_user.agency_id).first() or abort(404)
+        if survey.submitted_at:
+            flash("This survey has already been completed.", "info")
+        else:
+            sent = send_case_survey_invitation(survey.case, force=True)
+            db.session.commit()
+            flash(
+                "Survey email resent with a new link." if sent else f"Survey email could not be sent: {survey.email_error}",
+                "success" if sent else "warning",
+            )
+        return redirect(url_for("crm_survey_detail", survey_id=survey.id))
 
     @app.route("/agency/crm/reports/download")
     @role_required("agency")
