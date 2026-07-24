@@ -166,7 +166,12 @@
           <span>Sent</span><span>Client</span><span>Case</span><span>Status</span><span>Customer Service</span><span>Selection Reason</span>
         </div>
         {% for survey in surveys %}
-          <a class="crm-report-result-row crm-report-survey-row survey-severity-{{ survey.customer_service_severity }}" href="{{ url_for('crm_survey_detail', survey_id=survey.id) }}">
+          {% set survey_row_styles = {
+            'red': 'background-color:#ffe3e3;border-color:#e97878;box-shadow:inset 5px 0 0 #c92020;',
+            'yellow': 'background-color:#fff3c9;border-color:#d9b94f;box-shadow:inset 5px 0 0 #d99a00;',
+            'green': 'background-color:#ddf5e7;border-color:#78c99a;box-shadow:inset 5px 0 0 #138a4d;'
+          } %}
+          <a class="crm-report-result-row crm-report-survey-row survey-severity-{{ survey.customer_service_severity }}" style="{{ survey_row_styles.get(survey.customer_service_severity, '') }}" href="{{ url_for('crm_survey_detail', survey_id=survey.id) }}">
             <span>{{ survey.invited_at.strftime('%m/%d/%Y') }}</span>
             <span>{{ survey.client.full_name }}</span>
             <span>{{ survey.case.title }}</span>

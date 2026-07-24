@@ -5917,9 +5917,9 @@ textarea.form-control {
 }
 
 .crm-report-result-row.survey-severity-red {
-  background: #fff0f0;
-  border-color: #f2aaaa;
-  box-shadow: inset 4px 0 0 #d92d20;
+  background-color: #ffe3e3;
+  border-color: #e97878;
+  box-shadow: inset 5px 0 0 #c92020;
 }
 
 .crm-report-result-row.survey-severity-red:hover {
@@ -5929,9 +5929,9 @@ textarea.form-control {
 }
 
 .crm-report-result-row.survey-severity-yellow {
-  background: #fff9e8;
-  border-color: #ecd28b;
-  box-shadow: inset 4px 0 0 #e3a008;
+  background-color: #fff3c9;
+  border-color: #d9b94f;
+  box-shadow: inset 5px 0 0 #d99a00;
 }
 
 .crm-report-result-row.survey-severity-yellow:hover {
@@ -5941,9 +5941,9 @@ textarea.form-control {
 }
 
 .crm-report-result-row.survey-severity-green {
-  background: #ecf9f2;
-  border-color: #a9ddbf;
-  box-shadow: inset 4px 0 0 #159455;
+  background-color: #ddf5e7;
+  border-color: #78c99a;
+  box-shadow: inset 5px 0 0 #138a4d;
 }
 
 .crm-report-result-row.survey-severity-green:hover {

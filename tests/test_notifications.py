@@ -197,6 +197,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         self.assertIn(b"100.0%", report.data)
         self.assertIn(b"Alex Client", report.data)
         self.assertIn(b"survey-severity-yellow", report.data)
+        self.assertIn(b"background-color:#fff3c9", report.data)
 
         self.web.get("/logout")
         owner_login = self.web.post(
