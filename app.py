@@ -75,6 +75,7 @@ from models import (
     CrmClientNote,
     CrmInvoice,
     CrmInvoiceActivity,
+    CrmSurvey,
     FormTemplate,
     GeneratedForm,
     ImmigrationCourt,
@@ -115,6 +116,14 @@ CRM_KNOWLEDGE_TOPICS = [
     "Entendiendo los resultados de los reportes.",
     "Como ver o descargar un reporte",
 ]
+
+SURVEY_SCALE_LABELS = {
+    1: "Muy insatisfecho",
+    2: "Insatisfecho",
+    3: "Neutral",
+    4: "Satisfecho",
+    5: "Muy satisfecho",
+}
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -1278,6 +1287,84 @@ def notify_client_case_status_change(case, old_status, new_status):
     return sent
 
 
+def ensure_case_survey(case):
+    survey = CrmSurvey.query.filter_by(case_id=case.id).first()
+    if survey:
+        return survey
+    survey = CrmSurvey(
+        agency_id=case.agency_id,
+        case_id=case.id,
+        client_id=case.client_id,
+        token=secrets.token_urlsafe(32),
+    )
+    db.session.add(survey)
+    db.session.flush()
+    return survey
+
+
+def send_case_survey_invitation(case):
+    survey = ensure_case_survey(case)
+    if survey.submitted_at or survey.email_sent_at:
+        return survey.email_sent_at is not None
+
+    client = case.client
+    if not client or not client.email:
+        survey.email_error = "Client has no email address."
+        crm_client_log(client, "Survey email skipped", f"{case.title}: client has no email address.")
+        return False
+
+    base_url = (
+        os.environ.get("SURVEY_BASE_URL")
+        or os.environ.get("CLIENT_PORTAL_URL")
+        or "https://apexdf.com"
+    ).strip().rstrip("/")
+    survey_url = f"{base_url}{url_for('public_survey', token=survey.token)}"
+    subject = "QUEREMOS SABER TU OPINION"
+    text_body = (
+        f"Hola {client.full_name},\n\n"
+        f"Tu opinión es muy importante para {case.agency.agency_name}. "
+        "Nos ayuda a mejorar la atención y el servicio que ofrecemos.\n\n"
+        "La encuesta tiene solo 5 preguntas y toma aproximadamente 1 minuto.\n\n"
+        f"Completa la encuesta aquí: {survey_url}\n\n"
+        "¡Muchas gracias por compartir tu experiencia!"
+    )
+    client_name_html = html_lib.escape(client.full_name)
+    agency_name_html = html_lib.escape(case.agency.agency_name)
+    survey_url_html = html_lib.escape(survey_url, quote=True)
+    html_body = (
+        f"<p>Hola {client_name_html},</p>"
+        f"<p>Tu opinión es muy importante para <strong>{agency_name_html}</strong>. "
+        "Nos ayuda a mejorar la atención y el servicio que ofrecemos.</p>"
+        "<p>La encuesta tiene solo <strong>5 preguntas</strong> y toma aproximadamente "
+        "<strong>1 minuto</strong>.</p>"
+        f"<p><a href=\"{survey_url_html}\" style=\"background:#155eef;color:#fff;"
+        "display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;"
+        "font-weight:700\">Completar encuesta</a></p>"
+        "<p>¡Muchas gracias por compartir tu experiencia!</p>"
+    )
+    sent, message = send_postmark_email(
+        client.email,
+        subject,
+        text_body,
+        html_body,
+        metadata={
+            "agency_id": case.agency_id,
+            "client_id": client.id,
+            "crm_case_id": case.id,
+            "survey_id": survey.id,
+        },
+    )
+    if sent:
+        survey.email_sent_at = datetime.utcnow()
+        survey.email_error = None
+        crm_client_log(client, "Survey email sent", case.title)
+    else:
+        survey.email_error = message
+        action = "Survey email skipped" if not postmark_configured() else "Survey email failed"
+        crm_client_log(client, action, f"{case.title}: {message}")
+    return sent
+
+
 def notify_client_welcome(client, password):
     if not client or not client.email:
         crm_client_log(client, "Welcome email skipped", "Client has no email address.")
@@ -2074,7 +2161,9 @@ def save_knowledge_topic_pdf(topic, file_storage):
 
 def build_crm_report_data(agency_id, args):
     report_type = args.get("report_type", "cases").strip()
-    if report_type not in {"cases", "invoices"}:
+    if report_type == "surveys":
+        return build_crm_survey_report_data(agency_id, args)
+    if report_type not in {"cases", "invoices", "surveys"}:
         report_type = "cases"
     manager_id = args.get("case_manager_id", "").strip()
     preparer_id = args.get("form_preparer_id", "").strip()
@@ -2228,6 +2317,161 @@ def build_crm_report_data(agency_id, args):
             "total_discounts": sum((invoice.discount or Decimal("0")) for invoice in invoices),
             "total_refunds": sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund"),
             "open_balance": sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid"),
+        },
+    }
+
+
+def survey_distribution_chart(title, surveys, attribute, labels):
+    counts = {value: 0 for value in labels}
+    for survey in surveys:
+        value = getattr(survey, attribute)
+        if value in counts:
+            counts[value] += 1
+    total = sum(counts.values())
+    rows = []
+    cursor = 0
+    stops = []
+    for index, (value, label) in enumerate(labels.items()):
+        count = counts[value]
+        if not count:
+            continue
+        percent = (count / total) * 100 if total else 0
+        color = CRM_STAT_COLORS[index % len(CRM_STAT_COLORS)]
+        stops.append(f"{color} {cursor:.2f}% {cursor + percent:.2f}%")
+        cursor += percent
+        rows.append({"label": label, "value": count, "percent": percent, "color": color})
+    return {
+        "title": title,
+        "total": total,
+        "rows": rows,
+        "gradient": ", ".join(stops) if stops else "#edf4ff 0% 100%",
+    }
+
+
+def build_crm_survey_report_data(agency_id, args):
+    manager_id = args.get("case_manager_id", "").strip()
+    case_type = args.get("case_type", "").strip()
+    survey_status = args.get("survey_status", "").strip()
+    created_from = args.get("created_from", "").strip()
+    created_to = args.get("created_to", "").strip()
+    date_warning = False
+
+    query = CrmSurvey.query.join(CrmCase).filter(CrmSurvey.agency_id == agency_id)
+    if manager_id.isdigit():
+        query = query.filter(CrmCase.case_manager_id == int(manager_id))
+    if case_type:
+        query = query.filter(CrmCase.title == case_type)
+    if survey_status == "completed":
+        query = query.filter(CrmSurvey.submitted_at.isnot(None))
+    elif survey_status == "pending":
+        query = query.filter(CrmSurvey.submitted_at.is_(None))
+    try:
+        if created_from:
+            query = query.filter(CrmSurvey.invited_at >= datetime.strptime(created_from, "%Y-%m-%d"))
+        if created_to:
+            query = query.filter(CrmSurvey.invited_at < datetime.strptime(created_to, "%Y-%m-%d") + timedelta(days=1))
+    except ValueError:
+        date_warning = True
+
+    surveys = query.order_by(CrmSurvey.invited_at.desc(), CrmSurvey.id.desc()).all()
+    responses = [survey for survey in surveys if survey.submitted_at]
+    invitation_count = len(surveys)
+    response_count = len(responses)
+    response_rate = (response_count / invitation_count * 100) if invitation_count else 0
+    average_satisfaction = (
+        sum(survey.overall_satisfaction for survey in responses) / response_count
+        if response_count
+        else 0
+    )
+    average_recommendation = (
+        sum(survey.recommendation_rating for survey in responses) / response_count
+        if response_count
+        else 0
+    )
+
+    recommendation_labels = {
+        "detractor": "Detractors (0–6)",
+        "passive": "Passives (7–8)",
+        "promoter": "Promoters (9–10)",
+    }
+    for survey in responses:
+        survey.recommendation_group = (
+            "promoter" if survey.recommendation_rating >= 9
+            else "passive" if survey.recommendation_rating >= 7
+            else "detractor"
+        )
+
+    case_managers = AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all()
+    existing_case_types = [
+        row[0]
+        for row in db.session.query(CrmCase.title)
+        .filter_by(agency_id=agency_id)
+        .distinct()
+        .order_by(CrmCase.title)
+        .all()
+        if row[0]
+    ]
+    filters_text = []
+    if survey_status:
+        filters_text.append(survey_status)
+    if manager_id.isdigit():
+        manager = next((row for row in case_managers if row.id == int(manager_id)), None)
+        if manager:
+            filters_text.append(f'case manager "{manager.full_name}"')
+    if case_type:
+        filters_text.append(f'case type "{case_type}"')
+    if created_from:
+        filters_text.append(f"sent on or after {created_from}")
+    if created_to:
+        filters_text.append(f"sent on or before {created_to}")
+    report_answer = "Showing all CRM survey invitations for this agency."
+    if filters_text:
+        report_answer = "Showing CRM survey invitations with " + ", ".join(filters_text) + "."
+
+    return {
+        "cases": [],
+        "invoices": [],
+        "surveys": surveys,
+        "case_managers": case_managers,
+        "form_preparers": [],
+        "case_tags": [],
+        "case_type_options": existing_case_types,
+        "case_status_options": [],
+        "invoice_status_options": [],
+        "report_answer": report_answer,
+        "date_warning": date_warning,
+        "survey_charts": [
+            survey_distribution_chart("Overall satisfaction", responses, "overall_satisfaction", SURVEY_SCALE_LABELS),
+            survey_distribution_chart("Communication", responses, "communication_rating", SURVEY_SCALE_LABELS),
+            survey_distribution_chart("Process clarity", responses, "process_clarity_rating", SURVEY_SCALE_LABELS),
+            survey_distribution_chart("Recommendation", responses, "recommendation_group", recommendation_labels),
+        ],
+        "filters": {
+            "report_type": "surveys",
+            "manager_id": manager_id,
+            "preparer_id": "",
+            "tag_id": "",
+            "case_type": case_type,
+            "case_status": "",
+            "invoice_status": "",
+            "survey_status": survey_status,
+            "created_from": created_from,
+            "created_to": created_to,
+        },
+        "summary": {
+            "case_count": 0,
+            "invoice_count": 0,
+            "total_case_value": Decimal("0"),
+            "total_billed": Decimal("0"),
+            "total_paid": Decimal("0"),
+            "total_discounts": Decimal("0"),
+            "total_refunds": Decimal("0"),
+            "open_balance": Decimal("0"),
+            "survey_invitation_count": invitation_count,
+            "survey_response_count": response_count,
+            "survey_response_rate": response_rate,
+            "average_satisfaction": average_satisfaction,
+            "average_recommendation": average_recommendation,
         },
     }
 
@@ -2963,6 +3207,54 @@ def register_routes(app):
         if current_user.is_authenticated:
             return redirect(url_for(f"{current_user.role}_dashboard"))
         return render_template("home.html")
+
+    @app.route("/survey/<token>", methods=["GET", "POST"])
+    def public_survey(token):
+        survey = CrmSurvey.query.filter_by(token=token).first() or abort(404)
+        if not can_use_crm(survey.agency):
+            abort(404)
+        errors = []
+        values = {
+            "overall_satisfaction": request.form.get("overall_satisfaction", ""),
+            "communication_rating": request.form.get("communication_rating", ""),
+            "process_clarity_rating": request.form.get("process_clarity_rating", ""),
+            "recommendation_rating": request.form.get("recommendation_rating", ""),
+            "comments": request.form.get("comments", "").strip(),
+        }
+        if request.method == "POST" and not survey.submitted_at:
+            try:
+                overall = int(values["overall_satisfaction"])
+                communication = int(values["communication_rating"])
+                clarity = int(values["process_clarity_rating"])
+                recommendation = int(values["recommendation_rating"])
+            except (TypeError, ValueError):
+                overall = communication = clarity = recommendation = -1
+            if overall not in range(1, 6):
+                errors.append("Selecciona tu nivel de satisfacción general.")
+            if communication not in range(1, 6):
+                errors.append("Califica la comunicación de nuestro equipo.")
+            if clarity not in range(1, 6):
+                errors.append("Califica la claridad del proceso.")
+            if recommendation not in range(0, 11):
+                errors.append("Selecciona qué tan probable es que nos recomiendes.")
+            if not values["comments"]:
+                errors.append("Comparte brevemente qué valoraste o qué podemos mejorar.")
+            if not errors:
+                survey.overall_satisfaction = overall
+                survey.communication_rating = communication
+                survey.process_clarity_rating = clarity
+                survey.recommendation_rating = recommendation
+                survey.comments = values["comments"][:4000]
+                survey.submitted_at = datetime.utcnow()
+                crm_client_log(survey.client, "Survey submitted", survey.case.title)
+                db.session.commit()
+        return render_template(
+            "survey.html",
+            survey=survey,
+            errors=errors,
+            values=values,
+            scale_labels=SURVEY_SCALE_LABELS,
+        )
 
     @app.route("/login/<role>", methods=["GET", "POST"])
     def login(role):
@@ -4246,6 +4538,19 @@ def register_routes(app):
             flash("One of the report dates was invalid and was ignored.", "warning")
         return render_template("crm_reports.html", **report_data)
 
+    @app.route("/agency/crm/surveys/<int:survey_id>")
+    @role_required("agency")
+    def crm_survey_detail(survey_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        survey = CrmSurvey.query.filter_by(id=survey_id, agency_id=current_user.agency_id).first() or abort(404)
+        return render_template(
+            "crm_survey_detail.html",
+            survey=survey,
+            scale_labels=SURVEY_SCALE_LABELS,
+        )
+
     @app.route("/agency/crm/reports/download")
     @role_required("agency")
     def crm_reports_download():
@@ -4414,6 +4719,7 @@ def register_routes(app):
             record_crm_case_status(case)
             if case.status == "Completed":
                 create_completed_case_notification(case)
+                send_case_survey_invitation(case)
             sync_crm_case_questionnaire(case)
             if case.notes:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))
@@ -4453,6 +4759,7 @@ def register_routes(app):
                 notify_client_case_status_change(case, previous_status, case.status)
                 if case.status == "Completed":
                     create_completed_case_notification(case)
+                    send_case_survey_invitation(case)
             sync_crm_case_questionnaire(case)
             if case.notes and case.notes != existing_note:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))
@@ -5773,7 +6080,11 @@ def generate_crm_report_pdf(report_data):
     y = height - 52
     filters = report_data["filters"]
     summary = report_data["summary"]
-    report_label = "Invoices Report" if filters["report_type"] == "invoices" else "Cases Report"
+    report_label = (
+        "Invoices Report" if filters["report_type"] == "invoices"
+        else "Survey Report" if filters["report_type"] == "surveys"
+        else "Cases Report"
+    )
 
     pdf.setFont("Helvetica-Bold", 16)
     pdf.drawString(left, y, f"CRM {report_label}")
@@ -5787,7 +6098,15 @@ def generate_crm_report_pdf(report_data):
     y -= 8
 
     pdf.setFont("Helvetica-Bold", 10)
-    if filters["report_type"] == "invoices":
+    if filters["report_type"] == "surveys":
+        summary_lines = [
+            f"Survey invitations: {summary['survey_invitation_count']}",
+            f"Responses received: {summary['survey_response_count']}",
+            f"Response rate: {summary['survey_response_rate']:.1f}%",
+            f"Average satisfaction: {summary['average_satisfaction']:.1f}/5",
+            f"Average recommendation: {summary['average_recommendation']:.1f}/10",
+        ]
+    elif filters["report_type"] == "invoices":
         summary_lines = [
             f"Matching invoices: {summary['invoice_count']}",
             f"Total value: ${float(summary['total_billed'] or 0):,.2f}",
@@ -5804,7 +6123,21 @@ def generate_crm_report_pdf(report_data):
         y -= 14
     y -= 10
 
-    if filters["report_type"] == "invoices":
+    if filters["report_type"] == "surveys":
+        rows = [
+            (
+                survey.invited_at.strftime("%m/%d/%Y"),
+                survey.client.full_name,
+                survey.case.title,
+                "Completed" if survey.submitted_at else "Awaiting response",
+                f"{survey.overall_satisfaction}/5" if survey.submitted_at else "",
+                f"{survey.recommendation_rating}/10" if survey.submitted_at else "",
+            )
+            for survey in report_data["surveys"]
+        ]
+        headers = ("Sent", "Client", "Case", "Status", "Satisfaction", "Recommend")
+        widths = (55, 105, 145, 90, 75, 65)
+    elif filters["report_type"] == "invoices":
         rows = [
             (
                 invoice.invoice_number,

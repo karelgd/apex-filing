@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 TEST_DB = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -9,7 +10,7 @@ os.environ["AUTO_INIT_DB"] = "0"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.name.replace(os.sep, '/')}"
 
 from app import app  # noqa: E402
-from models import Agency, AgencyCaseManager, Client, CrmCase, Notification, SubscriptionTool, db  # noqa: E402
+from models import Agency, AgencyCaseManager, Client, CrmCase, CrmSurvey, Notification, SubscriptionTool, db  # noqa: E402
 
 
 class CompletedCaseNotificationTest(unittest.TestCase):
@@ -76,6 +77,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             db.session.commit()
             self.case_id = case.id
             self.client_id = client.id
+            self.manager_id = manager.id
 
         self.web = app.test_client()
         response = self.web.post(
@@ -85,18 +87,21 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_completing_case_creates_linked_unread_alert_and_opening_marks_read(self):
-        response = self.web.post(
-            f"/agency/crm/cases/{self.case_id}/edit",
-            data={
-                "title": "XYZ",
-                "status": "Completed",
-                "price": "0",
-                "case_manager_id": "1",
-                "form_preparer_id": "",
-                "notes": "",
-            },
-        )
+        with patch("app.send_postmark_email", return_value=(True, "Email sent.")) as send_email:
+            response = self.web.post(
+                f"/agency/crm/cases/{self.case_id}/edit",
+                data={
+                    "title": "XYZ",
+                    "status": "Completed",
+                    "price": "0",
+                    "case_manager_id": str(self.manager_id),
+                    "form_preparer_id": "",
+                    "notes": "",
+                },
+            )
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(send_email.call_count, 1)
+        self.assertEqual(send_email.call_args.args[1], "QUEREMOS SABER TU OPINION")
 
         with app.app_context():
             notification = Notification.query.one()
@@ -123,6 +128,41 @@ class CompletedCaseNotificationTest(unittest.TestCase):
 
         history = self.web.get("/agency/notifications")
         self.assertNotIn(b"notification-new-label", history.data)
+
+        with app.app_context():
+            survey = CrmSurvey.query.one()
+            self.assertEqual(survey.case_id, self.case_id)
+            self.assertIsNotNone(survey.email_sent_at)
+            survey_token = survey.token
+
+        survey_page = self.web.get(f"/survey/{survey_token}")
+        self.assertEqual(survey_page.status_code, 200)
+        self.assertIn("Queremos saber tu opinión".encode("utf-8"), survey_page.data)
+
+        submitted = self.web.post(
+            f"/survey/{survey_token}",
+            data={
+                "overall_satisfaction": "5",
+                "communication_rating": "4",
+                "process_clarity_rating": "5",
+                "recommendation_rating": "10",
+                "comments": "Excelente atención y comunicación.",
+            },
+        )
+        self.assertEqual(submitted.status_code, 200)
+        self.assertIn("Gracias por tu opinión".encode("utf-8"), submitted.data)
+
+        with app.app_context():
+            survey = CrmSurvey.query.one()
+            self.assertIsNotNone(survey.submitted_at)
+            self.assertEqual(survey.overall_satisfaction, 5)
+            self.assertEqual(survey.recommendation_rating, 10)
+
+        report = self.web.get("/agency/crm/reports?report_type=surveys")
+        self.assertEqual(report.status_code, 200)
+        self.assertIn(b"Survey Report", report.data)
+        self.assertIn(b"100.0%", report.data)
+        self.assertIn(b"Alex Client", report.data)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@
     <div class="crm-panel-head">
       <div>
         <h2>Report Criteria</h2>
-        <p>Choose whether you want case results or invoice results, then narrow the list.</p>
+        <p>Choose cases, invoices, or client survey feedback, then narrow the results.</p>
       </div>
     </div>
     <form class="crm-report-filters" method="get">
@@ -26,6 +26,7 @@
         <select class="form-select" name="report_type" onchange="this.form.submit()">
           <option value="cases" {% if filters.report_type == 'cases' %}selected{% endif %}>Cases Report</option>
           <option value="invoices" {% if filters.report_type == 'invoices' %}selected{% endif %}>Invoices Report</option>
+          <option value="surveys" {% if filters.report_type == 'surveys' %}selected{% endif %}>Survey Report</option>
         </select>
       </div>
       <div>
@@ -37,6 +38,7 @@
           {% endfor %}
         </select>
       </div>
+      {% if filters.report_type != 'surveys' %}
       <div>
         <label class="form-label">Form preparer</label>
         <select class="form-select" name="form_preparer_id">
@@ -46,6 +48,7 @@
           {% endfor %}
         </select>
       </div>
+      {% endif %}
       <div>
         <label class="form-label">Case type</label>
         <select class="form-select" name="case_type">
@@ -55,6 +58,7 @@
           {% endfor %}
         </select>
       </div>
+      {% if filters.report_type != 'surveys' %}
       <div>
         <label class="form-label">Tag</label>
         <select class="form-select" name="tag_id">
@@ -73,6 +77,7 @@
           {% endfor %}
         </select>
       </div>
+      {% endif %}
       {% if filters.report_type == 'invoices' %}
       <div>
         <label class="form-label">Invoice status</label>
@@ -84,12 +89,22 @@
         </select>
       </div>
       {% endif %}
+      {% if filters.report_type == 'surveys' %}
       <div>
-        <label class="form-label">{{ 'Invoice date from' if filters.report_type == 'invoices' else 'Created from' }}</label>
+        <label class="form-label">Survey status</label>
+        <select class="form-select" name="survey_status">
+          <option value="">All invitations</option>
+          <option value="completed" {% if filters.survey_status == 'completed' %}selected{% endif %}>Completed</option>
+          <option value="pending" {% if filters.survey_status == 'pending' %}selected{% endif %}>Awaiting response</option>
+        </select>
+      </div>
+      {% endif %}
+      <div>
+        <label class="form-label">{{ 'Invoice date from' if filters.report_type == 'invoices' else ('Survey sent from' if filters.report_type == 'surveys' else 'Created from') }}</label>
         <input class="form-control" type="date" name="created_from" value="{{ filters.created_from }}">
       </div>
       <div>
-        <label class="form-label">{{ 'Invoice date to' if filters.report_type == 'invoices' else 'Created to' }}</label>
+        <label class="form-label">{{ 'Invoice date to' if filters.report_type == 'invoices' else ('Survey sent to' if filters.report_type == 'surveys' else 'Created to') }}</label>
         <input class="form-control" type="date" name="created_to" value="{{ filters.created_to }}">
       </div>
       <div class="crm-report-filter-actions">
@@ -99,9 +114,17 @@
   </section>
 
   <section class="crm-report-answer">
-    <span class="crm-kicker">{{ 'Invoices Report' if filters.report_type == 'invoices' else 'Cases Report' }}</span>
+    <span class="crm-kicker">{{ 'Invoices Report' if filters.report_type == 'invoices' else ('Survey Report' if filters.report_type == 'surveys' else 'Cases Report') }}</span>
     <h2>{{ report_answer }}</h2>
-    {% if filters.report_type == 'invoices' %}
+    {% if filters.report_type == 'surveys' %}
+      <div class="crm-report-answer-grid survey">
+        <div><strong>{{ summary.survey_invitation_count }}</strong><span>survey invitations</span></div>
+        <div><strong>{{ summary.survey_response_count }}</strong><span>responses received</span></div>
+        <div><strong>{{ summary.survey_response_rate|round(1) }}%</strong><span>response rate</span></div>
+        <div><strong>{{ '%.1f'|format(summary.average_satisfaction) }}/5</strong><span>average satisfaction</span></div>
+        <div><strong>{{ '%.1f'|format(summary.average_recommendation) }}/10</strong><span>average recommendation</span></div>
+      </div>
+    {% elif filters.report_type == 'invoices' %}
       <div class="crm-report-answer-grid">
         <div><strong>{{ summary.invoice_count }}</strong><span>matching invoices</span></div>
         <div><strong>${{ '%.2f'|format(summary.total_billed or 0) }}</strong><span>total value</span></div>
@@ -116,7 +139,47 @@
     {% endif %}
   </section>
 
-  {% if filters.report_type == 'invoices' %}
+  {% if filters.report_type == 'surveys' %}
+    <section class="crm-report-section">
+      <div class="crm-panel-head">
+        <div>
+          <h2>Feedback overview</h2>
+          <p>Percentages reflect the completed responses in this report.</p>
+        </div>
+      </div>
+      <div class="crm-report-grid survey">
+        {% for chart in survey_charts %}
+          {% include "partials/crm_chart_card.html" %}
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="crm-report-section">
+      <div class="crm-panel-head">
+        <div>
+          <h2>Survey Results</h2>
+          <p>Open a response to review every answer and its related client and case.</p>
+        </div>
+      </div>
+      <div class="crm-report-results">
+        <div class="crm-report-result-head crm-report-survey-row">
+          <span>Sent</span><span>Client</span><span>Case</span><span>Status</span><span>Satisfaction</span><span>Recommendation</span>
+        </div>
+        {% for survey in surveys %}
+          <a class="crm-report-result-row crm-report-survey-row" href="{{ url_for('crm_survey_detail', survey_id=survey.id) }}">
+            <span>{{ survey.invited_at.strftime('%m/%d/%Y') }}</span>
+            <span>{{ survey.client.full_name }}</span>
+            <span>{{ survey.case.title }}</span>
+            <span><span class="survey-report-status {{ 'complete' if survey.submitted_at else 'pending' }}">{{ 'Completed' if survey.submitted_at else 'Awaiting response' }}</span></span>
+            <span>{{ (survey.overall_satisfaction ~ '/5') if survey.submitted_at else '—' }}</span>
+            <span>{{ (survey.recommendation_rating ~ '/10') if survey.submitted_at else '—' }}</span>
+          </a>
+        {% else %}
+          <p class="text-secondary mb-0">No survey invitations match those criteria.</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% elif filters.report_type == 'invoices' %}
     <section class="crm-report-section">
       <div class="crm-panel-head">
         <div>

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Tu opinión - {{ survey.agency.agency_name }}{% endblock %}
+{% block body_class %}survey-page{% endblock %}
+{% block content %}
+<section class="survey-shell">
+  <div class="survey-card">
+    {% if survey.submitted_at %}
+      <div class="survey-complete">
+        <span class="survey-complete-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6"/></svg>
+        </span>
+        <span class="survey-eyebrow">Encuesta completada</span>
+        <h1>¡Gracias por tu opinión!</h1>
+        <p>Tu respuesta fue recibida correctamente y ayudará a {{ survey.agency.agency_name }} a seguir mejorando.</p>
+      </div>
+    {% else %}
+      <header class="survey-header">
+        <span class="survey-eyebrow">5 preguntas · aproximadamente 1 minuto</span>
+        <h1>Queremos saber tu opinión</h1>
+        <p>Tu experiencia es muy importante para nosotros. Cuéntanos cómo fue el servicio relacionado con tu caso <strong>{{ survey.case.title }}</strong>.</p>
+      </header>
+
+      {% if errors %}
+        <div class="alert alert-danger" role="alert">
+          <strong>Revisa tus respuestas:</strong>
+          <ul class="mb-0 mt-2">
+            {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <form method="post" class="survey-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        {% set rating_questions = [
+          ('overall_satisfaction', '1', '¿Qué tan satisfecho(a) estás con el servicio recibido?'),
+          ('communication_rating', '2', '¿Cómo calificarías la comunicación de nuestro equipo?'),
+          ('process_clarity_rating', '3', '¿Qué tan claras fueron las explicaciones y los próximos pasos?')
+        ] %}
+        {% for field_name, question_number, question_text in rating_questions %}
+          <fieldset class="survey-question">
+            <legend><span>{{ question_number }}</span>{{ question_text }}</legend>
+            <div class="survey-rating-grid five">
+              {% for score, label in scale_labels.items() %}
+                <label class="survey-rating-option">
+                  <input type="radio" name="{{ field_name }}" value="{{ score }}" {% if values[field_name]|string == score|string %}checked{% endif %} required>
+                  <span class="survey-rating-score">{{ score }}</span>
+                  <small>{{ label }}</small>
+                </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+        {% endfor %}
+
+        <fieldset class="survey-question">
+          <legend><span>4</span>¿Qué tan probable es que recomiendes nuestros servicios?</legend>
+          <div class="survey-recommend-labels"><small>Nada probable</small><small>Muy probable</small></div>
+          <div class="survey-rating-grid eleven">
+            {% for score in range(0, 11) %}
+              <label class="survey-rating-option compact">
+                <input type="radio" name="recommendation_rating" value="{{ score }}" {% if values.recommendation_rating|string == score|string %}checked{% endif %} required>
+                <span class="survey-rating-score">{{ score }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <fieldset class="survey-question">
+          <legend><span>5</span>¿Qué fue lo que más valoraste o qué podríamos mejorar?</legend>
+          <textarea class="form-control survey-comments" name="comments" rows="4" maxlength="4000" placeholder="Comparte brevemente tu experiencia..." required>{{ values.comments }}</textarea>
+        </fieldset>
+
+        <button class="btn btn-primary survey-submit" type="submit">Enviar mis respuestas</button>
+        <p class="survey-privacy">Tus respuestas serán compartidas únicamente con {{ survey.agency.agency_name }}.</p>
+      </form>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

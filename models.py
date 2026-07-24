@@ -675,6 +675,31 @@ class Notification(db.Model):
         return self.read_at is None
 
 
+class CrmSurvey(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False, index=True)
+    case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False, unique=True, index=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False, index=True)
+    token = db.Column(db.String(96), nullable=False, unique=True, index=True)
+    invited_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    email_sent_at = db.Column(db.DateTime)
+    email_error = db.Column(db.Text)
+    submitted_at = db.Column(db.DateTime)
+    overall_satisfaction = db.Column(db.Integer)
+    communication_rating = db.Column(db.Integer)
+    process_clarity_rating = db.Column(db.Integer)
+    recommendation_rating = db.Column(db.Integer)
+    comments = db.Column(db.Text)
+
+    agency = db.relationship("Agency")
+    case = db.relationship("CrmCase")
+    client = db.relationship("Client")
+
+    @property
+    def is_completed(self):
+        return self.submitted_at is not None
+
+
 class CrmInvoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)

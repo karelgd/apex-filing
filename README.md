@@ -58,6 +58,7 @@ Change this password immediately after first login in any real environment.
 - `POSTMARK_FROM_EMAIL`: Required for Postmark sending. Must be a confirmed Postmark sender, for example `Apex Document Filing <notifications@yourdomain.com>`.
 - `POSTMARK_MESSAGE_STREAM`: Optional. Defaults to `outbound`.
 - `CLIENT_PORTAL_URL`: Optional. Defaults to `https://apexdf.com` and is included in client notification emails.
+- `SURVEY_BASE_URL`: Optional. Public site origin used for secure client survey links. Defaults to `CLIENT_PORTAL_URL`.
 
 When `POSTMARK_SERVER_TOKEN` and `POSTMARK_FROM_EMAIL` are configured, CRM case status changes automatically email the related client. If either value is missing, the status change still saves and the Activity Log records that email delivery was not configured.
 

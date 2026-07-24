@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Survey Response - {{ survey.client.full_name }}{% endblock %}
+{% block content %}
+<div class="crm-page survey-response-page">
+  <div class="crm-hero">
+    <div>
+      <span class="crm-kicker">Survey response</span>
+      <h1>{{ survey.client.full_name }}</h1>
+      <p>
+        Case:
+        <a href="{{ url_for('crm_case_detail', case_id=survey.case.id) }}">{{ survey.case.title }}</a>
+        · Client:
+        <a href="{{ url_for('crm_client_detail', client_id=survey.client.id) }}">Open client profile</a>
+      </p>
+    </div>
+    <a class="btn btn-outline-secondary crm-action-btn" href="{{ url_for('crm_reports', report_type='surveys') }}">Back to Survey Report</a>
+  </div>
+
+  <section class="crm-panel">
+    <div class="crm-panel-head">
+      <div>
+        <h2>Invitation status</h2>
+        <p>One survey invitation is maintained for each completed case.</p>
+      </div>
+      <span class="survey-report-status {{ 'complete' if survey.submitted_at else 'pending' }}">
+        {{ 'Completed' if survey.submitted_at else 'Awaiting response' }}
+      </span>
+    </div>
+    <div class="crm-detail-list survey-response-meta">
+      <div><strong>Client</strong><span><a href="{{ url_for('crm_client_detail', client_id=survey.client.id) }}">{{ survey.client.full_name }}</a></span></div>
+      <div><strong>Case</strong><span><a href="{{ url_for('crm_case_detail', case_id=survey.case.id) }}">{{ survey.case.title }}</a></span></div>
+      <div><strong>Invitation sent</strong><span>{{ survey.invited_at.strftime('%b %d, %Y at %I:%M %p') }}</span></div>
+      <div><strong>Email delivery</strong><span>{{ 'Sent' if survey.email_sent_at else ('Not sent: ' ~ survey.email_error if survey.email_error else 'Pending') }}</span></div>
+      <div><strong>Response received</strong><span>{{ survey.submitted_at.strftime('%b %d, %Y at %I:%M %p') if survey.submitted_at else 'Not received yet' }}</span></div>
+    </div>
+  </section>
+
+  {% if survey.submitted_at %}
+    <section class="crm-panel">
+      <div class="crm-panel-head">
+        <div><h2>Client answers</h2><p>All five answers submitted for this case.</p></div>
+      </div>
+      <div class="survey-answer-list">
+        <article>
+          <span>1</span>
+          <div><small>Overall satisfaction</small><strong>{{ survey.overall_satisfaction }}/5 · {{ scale_labels[survey.overall_satisfaction] }}</strong></div>
+        </article>
+        <article>
+          <span>2</span>
+          <div><small>Communication</small><strong>{{ survey.communication_rating }}/5 · {{ scale_labels[survey.communication_rating] }}</strong></div>
+        </article>
+        <article>
+          <span>3</span>
+          <div><small>Process clarity</small><strong>{{ survey.process_clarity_rating }}/5 · {{ scale_labels[survey.process_clarity_rating] }}</strong></div>
+        </article>
+        <article>
+          <span>4</span>
+          <div><small>Likelihood to recommend</small><strong>{{ survey.recommendation_rating }}/10</strong></div>
+        </article>
+        <article class="comment">
+          <span>5</span>
+          <div><small>What the client valued or would improve</small><p>{{ survey.comments }}</p></div>
+        </article>
+      </div>
+    </section>
+  {% else %}
+    <div class="crm-empty-state">The client has not submitted this survey yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
