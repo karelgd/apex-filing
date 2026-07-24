@@ -683,6 +683,7 @@ class CrmSurvey(db.Model):
     case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False, unique=True, index=True)
     client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False, index=True)
     token = db.Column(db.String(96), nullable=False, unique=True, index=True)
+    case_manager_name = db.Column(db.String(160))
     invited_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     email_sent_at = db.Column(db.DateTime)
     email_error = db.Column(db.Text)

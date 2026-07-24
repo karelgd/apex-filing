@@ -146,7 +146,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         survey_page = self.web.get(f"/survey/{survey_token}")
         self.assertEqual(survey_page.status_code, 200)
         self.assertIn("Queremos saber tu opinión".encode("utf-8"), survey_page.data)
-        self.assertIn("Morgan Manager".encode("utf-8"), survey_page.data)
+        self.assertEqual(survey_page.data.count(b"Morgan Manager"), 2)
         self.assertIn("Nuestro conocimiento y experiencia".encode("utf-8"), survey_page.data)
 
         with patch("app.send_postmark_email", return_value=(True, "Email sent.")) as resend_email:
@@ -170,6 +170,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         with app.app_context():
             survey = CrmSurvey.query.one()
             self.assertIsNotNone(survey.submitted_at)
+            self.assertEqual(survey.case_manager_name, "Morgan Manager")
             self.assertEqual(survey.overall_satisfaction, 5)
             self.assertEqual(survey.recommendation_rating, 1)
             manager_alert = Notification.query.filter_by(

@@ -1365,12 +1365,15 @@ def notify_client_case_status_change(case, old_status, new_status):
 def ensure_case_survey(case):
     survey = CrmSurvey.query.filter_by(case_id=case.id).first()
     if survey:
+        if not survey.case_manager_name and case.case_manager:
+            survey.case_manager_name = case.case_manager.full_name
         return survey
     survey = CrmSurvey(
         agency_id=case.agency_id,
         case_id=case.id,
         client_id=case.client_id,
         token=secrets.token_urlsafe(32),
+        case_manager_name=case.case_manager.full_name if case.case_manager else None,
     )
     db.session.add(survey)
     db.session.flush()
@@ -3278,6 +3281,9 @@ def register_routes(app):
         survey = CrmSurvey.query.filter_by(token=token).first() or abort(404)
         if not can_use_crm(survey.agency):
             abort(404)
+        if not survey.case_manager_name and survey.case.case_manager:
+            survey.case_manager_name = survey.case.case_manager.full_name
+            db.session.commit()
         errors = []
         values = {
             "overall_satisfaction": request.form.get("overall_satisfaction", ""),
@@ -7664,6 +7670,10 @@ def ensure_sqlite_schema():
         existing_notification_columns = {column["name"] for column in inspector.get_columns("notification")}
         if "survey_id" not in existing_notification_columns:
             db.session.execute(text("ALTER TABLE notification ADD COLUMN survey_id INTEGER"))
+    if "crm_survey" in inspector.get_table_names():
+        existing_survey_columns = {column["name"] for column in inspector.get_columns("crm_survey")}
+        if "case_manager_name" not in existing_survey_columns:
+            db.session.execute(text("ALTER TABLE crm_survey ADD COLUMN case_manager_name VARCHAR(160)"))
     if "client" in inspector.get_table_names():
         existing_client = {column["name"] for column in inspector.get_columns("client")}
         client_additions = {
