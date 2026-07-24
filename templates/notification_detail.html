@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Alert - Apex Document Filing{% endblock %}
+{% block content %}
+<div class="notification-page notification-detail-page">
+  <div class="notification-page-header">
+    <div>
+      <span class="crm-kicker">Alert</span>
+      <h1>Notification details</h1>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('notifications') }}">Back to alerts</a>
+  </div>
+
+  <article class="notification-detail-card">
+    <header class="notification-detail-header">
+      <span class="notification-avatar {{ 'system' if notification.sender_label == 'System' else 'user' }}">
+        {{ 'S' if notification.sender_label == 'System' else notification.sender_label[:1]|upper }}
+      </span>
+      <div>
+        <div><strong>From:</strong> {{ notification.sender_label }}</div>
+        <div><strong>On:</strong> {{ notification.created_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
+      </div>
+    </header>
+
+    <div class="notification-detail-message">
+      {% if notification.notification_type == 'case_completed' and notification.case and notification.client %}
+        Case No.
+        <a href="{{ url_for('crm_case_detail', case_id=notification.case.id) }}">{{ notification.case.title }}</a>
+        for Client
+        <a href="{{ url_for('crm_client_detail', client_id=notification.client.id) }}">{{ notification.client.full_name }}</a>
+        has been completed.
+      {% else %}
+        {{ notification.message }}
+      {% endif %}
+    </div>
+  </article>
+</div>
+{% endblock %}

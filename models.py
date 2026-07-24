@@ -653,6 +653,28 @@ class CrmCaseStatusHistory(db.Model):
     case = db.relationship("CrmCase", back_populates="status_history")
 
 
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False, index=True)
+    recipient_role = db.Column(db.String(40), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, nullable=False, index=True)
+    sender_label = db.Column(db.String(160), default="System", nullable=False)
+    notification_type = db.Column(db.String(60), default="system", nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id", ondelete="SET NULL"))
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    read_at = db.Column(db.DateTime)
+
+    agency = db.relationship("Agency")
+    case = db.relationship("CrmCase")
+    client = db.relationship("Client")
+
+    @property
+    def is_unread(self):
+        return self.read_at is None
+
+
 class CrmInvoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)

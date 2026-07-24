@@ -88,6 +88,7 @@ from models import (
     MotionDraft,
     MotionRespondent,
     MotionTemplate,
+    Notification,
     OplaOffice,
     PdfField,
     PdfManualField,
@@ -173,6 +174,9 @@ def create_app():
 
     @app.context_processor
     def inject_choices():
+        unread_notification_count = 0
+        if current_user.is_authenticated and current_user.role == "agency":
+            unread_notification_count = current_user_notification_query().filter(Notification.read_at.is_(None)).count()
         return {
             "case_statuses": CASE_STATUSES,
             "case_types": available_case_types(),
@@ -194,6 +198,7 @@ def create_app():
             "question_visual_mappings": question_visual_mappings,
             "pdf_field_visual_mapping": pdf_field_visual_mapping,
             "is_pdf_checkbox_field": is_pdf_checkbox_field,
+            "unread_notification_count": unread_notification_count,
         }
 
     register_routes(app)
@@ -1090,6 +1095,46 @@ def current_user_label():
         username = getattr(current_user, "username", "") or f"ID {current_user.id}"
         return f"{current_user.staff_role.replace('_', ' ').title()}: {current_user.full_name} ({username})"
     return f"Agency: {getattr(current_user, 'username', 'User')}"
+
+
+def current_user_notification_identity():
+    if not current_user.is_authenticated or current_user.role != "agency":
+        return None, None
+    if is_agency_owner():
+        return "agency_user", current_user.id
+    if current_user.staff_role == "case_manager":
+        return "agency_case_manager", current_user.id
+    if current_user.staff_role == "form_preparer":
+        return "agency_preparer", current_user.id
+    return None, None
+
+
+def current_user_notification_query():
+    recipient_role, recipient_id = current_user_notification_identity()
+    if not recipient_role:
+        return Notification.query.filter(Notification.id == -1)
+    return Notification.query.filter_by(
+        agency_id=current_user.agency_id,
+        recipient_role=recipient_role,
+        recipient_id=recipient_id,
+    )
+
+
+def create_completed_case_notification(case):
+    if not case.case_manager_id:
+        return None
+    notification = Notification(
+        agency_id=case.agency_id,
+        recipient_role="agency_case_manager",
+        recipient_id=case.case_manager_id,
+        sender_label="System",
+        notification_type="case_completed",
+        message=f"Case No. {case.title} for Client {case.client.full_name} has been completed.",
+        case_id=case.id,
+        client_id=case.client_id,
+    )
+    db.session.add(notification)
+    return notification
 
 
 def phone_tel_href(phone):
@@ -3531,6 +3576,21 @@ def register_routes(app):
         agency = current_user.agency
         return render_template("agency_dashboard.html", agency=agency)
 
+    @app.route("/agency/notifications")
+    @role_required("agency")
+    def notifications():
+        rows = current_user_notification_query().order_by(Notification.created_at.desc(), Notification.id.desc()).all()
+        return render_template("notifications.html", notifications=rows)
+
+    @app.route("/agency/notifications/<int:notification_id>")
+    @role_required("agency")
+    def notification_detail(notification_id):
+        notification = current_user_notification_query().filter_by(id=notification_id).first() or abort(404)
+        if notification.read_at is None:
+            notification.read_at = datetime.utcnow()
+            db.session.commit()
+        return render_template("notification_detail.html", notification=notification)
+
     @app.route("/agency/tools/form-filler", methods=["GET", "POST"])
     @role_required("agency")
     def agency_form_filler():
@@ -4352,6 +4412,8 @@ def register_routes(app):
             db.session.add(case)
             db.session.flush()
             record_crm_case_status(case)
+            if case.status == "Completed":
+                create_completed_case_notification(case)
             sync_crm_case_questionnaire(case)
             if case.notes:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))
@@ -4389,6 +4451,8 @@ def register_routes(app):
             if case.status != previous_status:
                 record_crm_case_status(case)
                 notify_client_case_status_change(case, previous_status, case.status)
+                if case.status == "Completed":
+                    create_completed_case_notification(case)
             sync_crm_case_questionnaire(case)
             if case.notes and case.notes != existing_note:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))

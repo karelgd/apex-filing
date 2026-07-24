@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Alerts - Apex Document Filing{% endblock %}
+{% block content %}
+<div class="notification-page">
+  <div class="notification-page-header">
+    <div>
+      <span class="crm-kicker">Messages</span>
+      <h1>Alerts</h1>
+      <p>System and staff notifications addressed to you. Read alerts remain available in your history.</p>
+    </div>
+    {% if unread_notification_count %}
+      <span class="notification-summary">{{ unread_notification_count }} new</span>
+    {% endif %}
+  </div>
+
+  <section class="notification-panel">
+    {% for notification in notifications %}
+      <a class="notification-row {{ 'unread' if notification.is_unread else 'read' }}" href="{{ url_for('notification_detail', notification_id=notification.id) }}">
+        <span class="notification-avatar {{ 'system' if notification.sender_label == 'System' else 'user' }}">
+          {{ 'S' if notification.sender_label == 'System' else notification.sender_label[:1]|upper }}
+        </span>
+        <span class="notification-row-content">
+          <span class="notification-row-meta">
+            <strong>From: {{ notification.sender_label }}</strong>
+            <time datetime="{{ notification.created_at.isoformat() }}">On: {{ notification.created_at.strftime('%b %d, %Y at %I:%M %p') }}</time>
+          </span>
+          <span class="notification-message">{{ notification.message }}</span>
+        </span>
+        {% if notification.is_unread %}
+          <span class="notification-new-label">New</span>
+        {% endif %}
+      </a>
+    {% else %}
+      <div class="notification-empty">
+        <span class="notification-bell-large" aria-hidden="true">&#128276;</span>
+        <h2>No alerts yet</h2>
+        <p>New system alerts and messages addressed to you will appear here.</p>
+      </div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

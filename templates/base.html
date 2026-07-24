@@ -23,6 +23,17 @@
       <div class="collapse navbar-collapse" id="navMenu">
         <ul class="navbar-nav ms-auto">
           {% if current_user.is_authenticated %}
+            {% if current_user.role == 'agency' %}
+              <li class="nav-item me-lg-2">
+                <a class="nav-link notification-nav-link {{ 'has-unread' if unread_notification_count else '' }}" href="{{ url_for('notifications') }}" aria-label="Alerts{% if unread_notification_count %}, {{ unread_notification_count }} unread{% endif %}">
+                  <span class="notification-bell" aria-hidden="true">&#128276;</span>
+                  <span>Alerts</span>
+                  {% if unread_notification_count %}
+                    <span class="notification-count">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
+                  {% endif %}
+                </a>
+              </li>
+            {% endif %}
             {% if current_user.role == 'client' %}
               <li class="nav-item me-lg-3 mb-2 mb-lg-0">
                 <label class="client-language-picker">
@@ -67,6 +78,12 @@
           {% else %}
           <span class="sidebar-label">Agency tools</span>
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_dashboard' else '' }}" href="{{ url_for('agency_dashboard') }}">Dashboard</a>
+          <a class="tool-link {{ 'active' if request.endpoint in ['notifications', 'notification_detail'] else '' }}" href="{{ url_for('notifications') }}">
+            <span>Alerts</span>
+            {% if unread_notification_count %}
+              <span class="sidebar-notification-count">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
+            {% endif %}
+          </a>
           <a class="tool-link {{ 'active' if request.endpoint == 'agency_knowledge_base' else '' }}" href="{{ url_for('agency_knowledge_base') }}">Knowledge Base</a>
           {% if can_manage_client_users_for_current_user() and not current_user.agency.has_tool('CRM') %}
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
