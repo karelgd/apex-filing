@@ -33,7 +33,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <fieldset class="survey-question">
-          <legend><span>1</span><span class="survey-question-copy">¿Cómo calificaría el servicio al cliente brindado por la persona encargada de su caso?<small>Considere su amabilidad, atención, disposición para ayudar y rapidez al responder.</small></span></legend>
+          <legend><span>1</span><span class="survey-question-copy">¿Cómo calificaría el servicio al cliente brindado por {{ survey.case.case_manager.full_name if survey.case.case_manager else 'la persona encargada de su caso' }}?<small>Considere su amabilidad, atención, disposición para ayudar y rapidez al responder.</small></span></legend>
           <div class="survey-choice-list">
             {% for score, label in service_labels.items() %}
               <label class="survey-choice-option">

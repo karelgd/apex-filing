@@ -166,7 +166,7 @@
           <span>Sent</span><span>Client</span><span>Case</span><span>Status</span><span>Customer Service</span><span>Selection Reason</span>
         </div>
         {% for survey in surveys %}
-          <a class="crm-report-result-row crm-report-survey-row" href="{{ url_for('crm_survey_detail', survey_id=survey.id) }}">
+          <a class="crm-report-result-row crm-report-survey-row survey-severity-{{ survey.customer_service_severity }}" href="{{ url_for('crm_survey_detail', survey_id=survey.id) }}">
             <span>{{ survey.invited_at.strftime('%m/%d/%Y') }}</span>
             <span>{{ survey.client.full_name }}</span>
             <span>{{ survey.case.title }}</span>

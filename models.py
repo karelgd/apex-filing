@@ -663,12 +663,14 @@ class Notification(db.Model):
     message = db.Column(db.Text, nullable=False)
     case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id", ondelete="SET NULL"))
     client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="SET NULL"))
+    survey_id = db.Column(db.Integer, db.ForeignKey("crm_survey.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     read_at = db.Column(db.DateTime)
 
     agency = db.relationship("Agency")
     case = db.relationship("CrmCase")
     client = db.relationship("Client")
+    survey = db.relationship("CrmSurvey")
 
     @property
     def is_unread(self):

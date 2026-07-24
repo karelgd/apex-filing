@@ -1167,6 +1167,60 @@ def create_completed_case_notification(case):
     return notification
 
 
+def survey_customer_service_severity(survey):
+    scores = [
+        survey.overall_satisfaction,
+        survey.communication_rating,
+        survey.process_clarity_rating,
+    ]
+    if not all(score in range(1, 6) for score in scores):
+        return "pending"
+    lowest_score = min(scores)
+    if lowest_score <= 3:
+        return "red"
+    if lowest_score == 4:
+        return "yellow"
+    return "green"
+
+
+def create_survey_submission_notifications(survey):
+    case = survey.case
+    client = survey.client
+    if case.case_manager_id:
+        db.session.add(
+            Notification(
+                agency_id=survey.agency_id,
+                recipient_role="agency_case_manager",
+                recipient_id=case.case_manager_id,
+                sender_label="System",
+                notification_type="survey_submitted",
+                message=f"Client {client.full_name} submitted a Survey for Case {case.title}.",
+                case_id=case.id,
+                client_id=client.id,
+                survey_id=survey.id,
+            )
+        )
+
+    severity = survey_customer_service_severity(survey)
+    if severity not in {"red", "yellow"}:
+        return
+    agency_owner = AgencyUser.query.filter_by(agency_id=survey.agency_id).first()
+    if agency_owner:
+        db.session.add(
+            Notification(
+                agency_id=survey.agency_id,
+                recipient_role="agency_user",
+                recipient_id=agency_owner.id,
+                sender_label="System",
+                notification_type="survey_customer_service_issue",
+                message=f"Client {client.full_name} reported customer service issues in their Survey for Case {case.title}.",
+                case_id=case.id,
+                client_id=client.id,
+                survey_id=survey.id,
+            )
+        )
+
+
 def phone_tel_href(phone):
     if not phone:
         return ""
@@ -2394,6 +2448,8 @@ def build_crm_survey_report_data(agency_id, args):
         date_warning = True
 
     surveys = query.order_by(CrmSurvey.invited_at.desc(), CrmSurvey.id.desc()).all()
+    for survey in surveys:
+        survey.customer_service_severity = survey_customer_service_severity(survey)
     responses = [survey for survey in surveys if survey.submitted_at]
     invitation_count = len(surveys)
     response_count = len(responses)
@@ -3255,6 +3311,7 @@ def register_routes(app):
                 survey.recommendation_rating = recommendation
                 survey.comments = values["comments"][:4000]
                 survey.submitted_at = datetime.utcnow()
+                create_survey_submission_notifications(survey)
                 crm_client_log(survey.client, "Survey submitted", survey.case.title)
                 db.session.commit()
         return render_template(
@@ -7603,6 +7660,10 @@ def ensure_sqlite_schema():
         existing_appointment_columns = {column["name"] for column in inspector.get_columns("crm_appointment")}
         if "author_label" not in existing_appointment_columns:
             db.session.execute(text("ALTER TABLE crm_appointment ADD COLUMN author_label VARCHAR(160)"))
+    if "notification" in inspector.get_table_names():
+        existing_notification_columns = {column["name"] for column in inspector.get_columns("notification")}
+        if "survey_id" not in existing_notification_columns:
+            db.session.execute(text("ALTER TABLE notification ADD COLUMN survey_id INTEGER"))
     if "client" in inspector.get_table_names():
         existing_client = {column["name"] for column in inspector.get_columns("client")}
         client_additions = {

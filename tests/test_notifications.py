@@ -10,7 +10,7 @@ os.environ["AUTO_INIT_DB"] = "0"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.name.replace(os.sep, '/')}"
 
 from app import app  # noqa: E402
-from models import Agency, AgencyCaseManager, Client, CrmCase, CrmSurvey, Notification, SubscriptionTool, db  # noqa: E402
+from models import Agency, AgencyCaseManager, AgencyUser, Client, CrmCase, CrmSurvey, Notification, SubscriptionTool, db  # noqa: E402
 
 
 class CompletedCaseNotificationTest(unittest.TestCase):
@@ -44,6 +44,11 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             db.session.add_all([crm_tool, agency])
             db.session.flush()
 
+            owner = AgencyUser(
+                agency_id=agency.id,
+                username="agencyowner",
+            )
+            owner.set_password("owner-password")
             manager = AgencyCaseManager(
                 agency_id=agency.id,
                 full_name="Morgan Manager",
@@ -63,7 +68,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
                 username="alexclient",
             )
             client.set_password("client-password")
-            db.session.add_all([manager, client])
+            db.session.add_all([owner, manager, client])
             db.session.flush()
 
             case = CrmCase(
@@ -78,6 +83,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             self.case_id = case.id
             self.client_id = client.id
             self.manager_id = manager.id
+            self.owner_id = owner.id
 
         self.web = app.test_client()
         response = self.web.post(
@@ -166,12 +172,41 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             self.assertIsNotNone(survey.submitted_at)
             self.assertEqual(survey.overall_satisfaction, 5)
             self.assertEqual(survey.recommendation_rating, 1)
+            manager_alert = Notification.query.filter_by(
+                notification_type="survey_submitted",
+                recipient_role="agency_case_manager",
+                recipient_id=self.manager_id,
+            ).one()
+            owner_alert = Notification.query.filter_by(
+                notification_type="survey_customer_service_issue",
+                recipient_role="agency_user",
+                recipient_id=self.owner_id,
+            ).one()
+            manager_alert_id = manager_alert.id
+            owner_alert_id = owner_alert.id
+
+        manager_alert_page = self.web.get(f"/agency/notifications/{manager_alert_id}")
+        self.assertEqual(manager_alert_page.status_code, 200)
+        self.assertIn(b">Survey</a>", manager_alert_page.data)
+        self.assertIn(f"/agency/crm/surveys/{survey_id}".encode(), manager_alert_page.data)
 
         report = self.web.get("/agency/crm/reports?report_type=surveys")
         self.assertEqual(report.status_code, 200)
         self.assertIn(b"Survey Report", report.data)
         self.assertIn(b"100.0%", report.data)
         self.assertIn(b"Alex Client", report.data)
+        self.assertIn(b"survey-severity-yellow", report.data)
+
+        self.web.get("/logout")
+        owner_login = self.web.post(
+            "/login/agency",
+            data={"username": "agencyowner", "password": "owner-password"},
+        )
+        self.assertEqual(owner_login.status_code, 302)
+        owner_alert_page = self.web.get(f"/agency/notifications/{owner_alert_id}")
+        self.assertEqual(owner_alert_page.status_code, 200)
+        self.assertIn(f"/agency/crm/clients/{self.client_id}".encode(), owner_alert_page.data)
+        self.assertIn(f"/agency/crm/surveys/{survey_id}".encode(), owner_alert_page.data)
 
 
 if __name__ == "__main__":
