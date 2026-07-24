@@ -138,6 +138,8 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         survey_page = self.web.get(f"/survey/{survey_token}")
         self.assertEqual(survey_page.status_code, 200)
         self.assertIn("Queremos saber tu opinión".encode("utf-8"), survey_page.data)
+        self.assertIn("Morgan Manager".encode("utf-8"), survey_page.data)
+        self.assertIn("Nuestro conocimiento y experiencia".encode("utf-8"), survey_page.data)
 
         submitted = self.web.post(
             f"/survey/{survey_token}",
@@ -145,8 +147,8 @@ class CompletedCaseNotificationTest(unittest.TestCase):
                 "overall_satisfaction": "5",
                 "communication_rating": "4",
                 "process_clarity_rating": "5",
-                "recommendation_rating": "10",
-                "comments": "Excelente atención y comunicación.",
+                "recommendation_rating": "1",
+                "comments": "Podrían ampliar el horario de atención.",
             },
         )
         self.assertEqual(submitted.status_code, 200)
@@ -156,7 +158,7 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             survey = CrmSurvey.query.one()
             self.assertIsNotNone(survey.submitted_at)
             self.assertEqual(survey.overall_satisfaction, 5)
-            self.assertEqual(survey.recommendation_rating, 10)
+            self.assertEqual(survey.recommendation_rating, 1)
 
         report = self.web.get("/agency/crm/reports?report_type=surveys")
         self.assertEqual(report.status_code, 200)

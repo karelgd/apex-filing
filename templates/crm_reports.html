@@ -121,8 +121,8 @@
         <div><strong>{{ summary.survey_invitation_count }}</strong><span>survey invitations</span></div>
         <div><strong>{{ summary.survey_response_count }}</strong><span>responses received</span></div>
         <div><strong>{{ summary.survey_response_rate|round(1) }}%</strong><span>response rate</span></div>
-        <div><strong>{{ '%.1f'|format(summary.average_satisfaction) }}/5</strong><span>average satisfaction</span></div>
-        <div><strong>{{ '%.1f'|format(summary.average_recommendation) }}/10</strong><span>average recommendation</span></div>
+        <div><strong>{{ '%.1f'|format(summary.average_satisfaction) }}/5</strong><span>average customer service</span></div>
+        <div><strong>{{ '%.1f'|format(summary.average_preparedness) }}/5</strong><span>average preparedness</span></div>
       </div>
     {% elif filters.report_type == 'invoices' %}
       <div class="crm-report-answer-grid">
@@ -163,7 +163,7 @@
       </div>
       <div class="crm-report-results">
         <div class="crm-report-result-head crm-report-survey-row">
-          <span>Sent</span><span>Client</span><span>Case</span><span>Status</span><span>Satisfaction</span><span>Recommendation</span>
+          <span>Sent</span><span>Client</span><span>Case</span><span>Status</span><span>Customer Service</span><span>Selection Reason</span>
         </div>
         {% for survey in surveys %}
           <a class="crm-report-result-row crm-report-survey-row" href="{{ url_for('crm_survey_detail', survey_id=survey.id) }}">
@@ -172,7 +172,7 @@
             <span>{{ survey.case.title }}</span>
             <span><span class="survey-report-status {{ 'complete' if survey.submitted_at else 'pending' }}">{{ 'Completed' if survey.submitted_at else 'Awaiting response' }}</span></span>
             <span>{{ (survey.overall_satisfaction ~ '/5') if survey.submitted_at else '—' }}</span>
-            <span>{{ (survey.recommendation_rating ~ '/10') if survey.submitted_at else '—' }}</span>
+            <span>{{ selection_reason_labels[survey.recommendation_rating] if survey.submitted_at else '—' }}</span>
           </a>
         {% else %}
           <p class="text-secondary mb-0">No survey invitations match those criteria.</p>

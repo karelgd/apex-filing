@@ -43,23 +43,23 @@
       <div class="survey-answer-list">
         <article>
           <span>1</span>
-          <div><small>Overall satisfaction</small><strong>{{ survey.overall_satisfaction }}/5 · {{ scale_labels[survey.overall_satisfaction] }}</strong></div>
+          <div><small>Servicio al cliente</small><strong>{{ service_labels[survey.overall_satisfaction] }}</strong></div>
         </article>
         <article>
           <span>2</span>
-          <div><small>Communication</small><strong>{{ survey.communication_rating }}/5 · {{ scale_labels[survey.communication_rating] }}</strong></div>
+          <div><small>Preparación y conocimiento de {{ survey.case.case_manager.full_name if survey.case.case_manager else 'la persona encargada del caso' }}</small><strong>{{ preparedness_labels[survey.communication_rating] }}</strong></div>
         </article>
         <article>
           <span>3</span>
-          <div><small>Process clarity</small><strong>{{ survey.process_clarity_rating }}/5 · {{ scale_labels[survey.process_clarity_rating] }}</strong></div>
+          <div><small>Facilidad para intercambiar documentos y comunicaciones</small><strong>{{ ease_labels[survey.process_clarity_rating] }}</strong></div>
         </article>
         <article>
           <span>4</span>
-          <div><small>Likelihood to recommend</small><strong>{{ survey.recommendation_rating }}/10</strong></div>
+          <div><small>Razón principal para escoger la oficina</small><strong>{{ selection_reason_labels[survey.recommendation_rating] }}</strong></div>
         </article>
         <article class="comment">
           <span>5</span>
-          <div><small>What the client valued or would improve</small><p>{{ survey.comments }}</p></div>
+          <div><small>Qué considera que deberíamos mejorar</small><p>{{ survey.comments }}</p></div>
         </article>
       </div>
     </section>

@@ -117,12 +117,33 @@ CRM_KNOWLEDGE_TOPICS = [
     "Como ver o descargar un reporte",
 ]
 
-SURVEY_SCALE_LABELS = {
-    1: "Muy insatisfecho",
-    2: "Insatisfecho",
-    3: "Neutral",
-    4: "Satisfecho",
-    5: "Muy satisfecho",
+SURVEY_SERVICE_LABELS = {
+    5: "Excelente",
+    4: "Bueno",
+    3: "Regular",
+    2: "Deficiente",
+    1: "Muy deficiente",
+}
+SURVEY_PREPAREDNESS_LABELS = {
+    5: "Muy preparado(a)",
+    4: "Preparado(a)",
+    3: "Moderadamente preparado(a)",
+    2: "Poco preparado(a)",
+    1: "Nada preparado(a)",
+}
+SURVEY_EASE_LABELS = {
+    5: "Muy fácil",
+    4: "Fácil",
+    3: "Ni fácil ni difícil",
+    2: "Difícil",
+    1: "Muy difícil",
+}
+SURVEY_SELECTION_REASON_LABELS = {
+    1: "Nuestro conocimiento y experiencia",
+    2: "Recomendación de otra persona",
+    3: "Confianza y profesionalismo",
+    4: "Precio de nuestros servicios",
+    5: "Ubicación de la oficina",
 }
 
 
@@ -2383,23 +2404,11 @@ def build_crm_survey_report_data(agency_id, args):
         if response_count
         else 0
     )
-    average_recommendation = (
-        sum(survey.recommendation_rating for survey in responses) / response_count
+    average_preparedness = (
+        sum(survey.communication_rating for survey in responses) / response_count
         if response_count
         else 0
     )
-
-    recommendation_labels = {
-        "detractor": "Detractors (0–6)",
-        "passive": "Passives (7–8)",
-        "promoter": "Promoters (9–10)",
-    }
-    for survey in responses:
-        survey.recommendation_group = (
-            "promoter" if survey.recommendation_rating >= 9
-            else "passive" if survey.recommendation_rating >= 7
-            else "detractor"
-        )
 
     case_managers = AgencyCaseManager.query.filter_by(agency_id=agency_id).order_by(AgencyCaseManager.full_name).all()
     existing_case_types = [
@@ -2441,11 +2450,12 @@ def build_crm_survey_report_data(agency_id, args):
         "report_answer": report_answer,
         "date_warning": date_warning,
         "survey_charts": [
-            survey_distribution_chart("Overall satisfaction", responses, "overall_satisfaction", SURVEY_SCALE_LABELS),
-            survey_distribution_chart("Communication", responses, "communication_rating", SURVEY_SCALE_LABELS),
-            survey_distribution_chart("Process clarity", responses, "process_clarity_rating", SURVEY_SCALE_LABELS),
-            survey_distribution_chart("Recommendation", responses, "recommendation_group", recommendation_labels),
+            survey_distribution_chart("Customer service", responses, "overall_satisfaction", SURVEY_SERVICE_LABELS),
+            survey_distribution_chart("Case manager preparedness", responses, "communication_rating", SURVEY_PREPAREDNESS_LABELS),
+            survey_distribution_chart("Document and communication exchange", responses, "process_clarity_rating", SURVEY_EASE_LABELS),
+            survey_distribution_chart("Reason for choosing the office", responses, "recommendation_rating", SURVEY_SELECTION_REASON_LABELS),
         ],
+        "selection_reason_labels": SURVEY_SELECTION_REASON_LABELS,
         "filters": {
             "report_type": "surveys",
             "manager_id": manager_id,
@@ -2471,7 +2481,7 @@ def build_crm_survey_report_data(agency_id, args):
             "survey_response_count": response_count,
             "survey_response_rate": response_rate,
             "average_satisfaction": average_satisfaction,
-            "average_recommendation": average_recommendation,
+            "average_preparedness": average_preparedness,
         },
     }
 
@@ -3230,13 +3240,13 @@ def register_routes(app):
             except (TypeError, ValueError):
                 overall = communication = clarity = recommendation = -1
             if overall not in range(1, 6):
-                errors.append("Selecciona tu nivel de satisfacción general.")
+                errors.append("Califica el servicio al cliente brindado.")
             if communication not in range(1, 6):
-                errors.append("Califica la comunicación de nuestro equipo.")
+                errors.append("Califica la preparación y conocimiento de la persona encargada de tu caso.")
             if clarity not in range(1, 6):
-                errors.append("Califica la claridad del proceso.")
-            if recommendation not in range(0, 11):
-                errors.append("Selecciona qué tan probable es que nos recomiendes.")
+                errors.append("Califica qué tan fácil fue intercambiar documentos y comunicaciones.")
+            if recommendation not in range(1, 6):
+                errors.append("Selecciona la razón principal por la que escogiste nuestra oficina.")
             if not values["comments"]:
                 errors.append("Comparte brevemente qué valoraste o qué podemos mejorar.")
             if not errors:
@@ -3253,7 +3263,10 @@ def register_routes(app):
             survey=survey,
             errors=errors,
             values=values,
-            scale_labels=SURVEY_SCALE_LABELS,
+            service_labels=SURVEY_SERVICE_LABELS,
+            preparedness_labels=SURVEY_PREPAREDNESS_LABELS,
+            ease_labels=SURVEY_EASE_LABELS,
+            selection_reason_labels=SURVEY_SELECTION_REASON_LABELS,
         )
 
     @app.route("/login/<role>", methods=["GET", "POST"])
@@ -4548,7 +4561,10 @@ def register_routes(app):
         return render_template(
             "crm_survey_detail.html",
             survey=survey,
-            scale_labels=SURVEY_SCALE_LABELS,
+            service_labels=SURVEY_SERVICE_LABELS,
+            preparedness_labels=SURVEY_PREPAREDNESS_LABELS,
+            ease_labels=SURVEY_EASE_LABELS,
+            selection_reason_labels=SURVEY_SELECTION_REASON_LABELS,
         )
 
     @app.route("/agency/crm/reports/download")
@@ -6103,8 +6119,8 @@ def generate_crm_report_pdf(report_data):
             f"Survey invitations: {summary['survey_invitation_count']}",
             f"Responses received: {summary['survey_response_count']}",
             f"Response rate: {summary['survey_response_rate']:.1f}%",
-            f"Average satisfaction: {summary['average_satisfaction']:.1f}/5",
-            f"Average recommendation: {summary['average_recommendation']:.1f}/10",
+            f"Average customer service: {summary['average_satisfaction']:.1f}/5",
+            f"Average case manager preparedness: {summary['average_preparedness']:.1f}/5",
         ]
     elif filters["report_type"] == "invoices":
         summary_lines = [
@@ -6131,12 +6147,12 @@ def generate_crm_report_pdf(report_data):
                 survey.case.title,
                 "Completed" if survey.submitted_at else "Awaiting response",
                 f"{survey.overall_satisfaction}/5" if survey.submitted_at else "",
-                f"{survey.recommendation_rating}/10" if survey.submitted_at else "",
+                SURVEY_SELECTION_REASON_LABELS.get(survey.recommendation_rating, "") if survey.submitted_at else "",
             )
             for survey in report_data["surveys"]
         ]
-        headers = ("Sent", "Client", "Case", "Status", "Satisfaction", "Recommend")
-        widths = (55, 105, 145, 90, 75, 65)
+        headers = ("Sent", "Client", "Case", "Status", "Service", "Selection reason")
+        widths = (50, 90, 120, 80, 65, 130)
     elif filters["report_type"] == "invoices":
         rows = [
             (
