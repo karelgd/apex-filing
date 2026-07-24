@@ -26,7 +26,10 @@
             {% if current_user.role == 'agency' %}
               <li class="nav-item me-lg-2">
                 <a class="nav-link notification-nav-link {{ 'has-unread' if unread_notification_count else '' }}" href="{{ url_for('notifications') }}" aria-label="Alerts{% if unread_notification_count %}, {{ unread_notification_count }} unread{% endif %}">
-                  <span class="notification-bell" aria-hidden="true">&#128276;</span>
+                  <svg class="notification-bell" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" />
+                    <path d="M10 21h4" />
+                  </svg>
                   <span>Alerts</span>
                   {% if unread_notification_count %}
                     <span class="notification-count">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
