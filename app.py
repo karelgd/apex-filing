@@ -1983,17 +1983,6 @@ def populate_crm_case_from_form(case):
     case.form_preparer_id = int(request.form["form_preparer_id"]) if request.form.get("form_preparer_id") else None
     case.tag_id = resolve_crm_case_tag(case.agency_id)
     case.notes = request.form.get("notes", "").strip()
-    case.immigration_judge = request.form.get("immigration_judge", "").strip() or None
-    case.hearing_type = request.form.get("hearing_type", "").strip() or None
-    case.hearing_mode = request.form.get("hearing_mode", "").strip() or None
-    case.court_name = request.form.get("court_name", "").strip() or None
-    case.court_address = request.form.get("court_address", "").strip() or None
-    case.court_phone = request.form.get("court_phone", "").strip() or None
-    case.court_email = request.form.get("court_email", "").strip() or None
-    hearing_at = request.form.get("hearing_at", "").strip()
-    case.hearing_at = datetime.strptime(hearing_at, "%Y-%m-%dT%H:%M") if hearing_at else None
-    if request.form.get("court_information_verified"):
-        case.court_verified_at = datetime.utcnow()
     if case.case_manager_id and not AgencyCaseManager.query.filter_by(id=case.case_manager_id, agency_id=case.agency_id).first():
         abort(403)
     if case.form_preparer_id and not AgencyPreparer.query.filter_by(id=case.form_preparer_id, agency_id=case.agency_id).first():
@@ -7792,15 +7781,6 @@ def ensure_sqlite_schema():
             "form_preparer_id": "INTEGER",
             "tag_id": "INTEGER",
             "form_filler_case_id": "INTEGER",
-            "immigration_judge": "VARCHAR(180)",
-            "hearing_at": "DATETIME",
-            "hearing_type": "VARCHAR(80)",
-            "hearing_mode": "VARCHAR(80)",
-            "court_name": "VARCHAR(180)",
-            "court_address": "TEXT",
-            "court_phone": "VARCHAR(40)",
-            "court_email": "VARCHAR(160)",
-            "court_verified_at": "DATETIME",
         }
         for column, ddl in crm_case_additions.items():
             if column not in existing_crm_case:

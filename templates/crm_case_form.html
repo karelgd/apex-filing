@@ -45,25 +45,6 @@
           <option value="{{ status }}" {% if case and case.status == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
       </select>
-      <fieldset class="border rounded p-3 mb-3">
-        <legend class="float-none w-auto px-2 fs-6 fw-bold">Immigration Court Information</legend>
-        <p class="form-text mt-0">Enter information from the latest court notice or a verified EOIR lookup.</p>
-        <label class="form-label">Immigration judge</label>
-        <input class="form-control mb-3" name="immigration_judge" value="{{ case.immigration_judge or '' if case else '' }}">
-        <label class="form-label">Next hearing date and time</label>
-        <input class="form-control mb-3" type="datetime-local" name="hearing_at" value="{{ case.hearing_at.strftime('%Y-%m-%dT%H:%M') if case and case.hearing_at else '' }}">
-        <div class="row">
-          <div class="col-md-6"><label class="form-label">Hearing type</label><input class="form-control mb-3" name="hearing_type" placeholder="Master, Individual, Bond" value="{{ case.hearing_type or '' if case else '' }}"></div>
-          <div class="col-md-6"><label class="form-label">Hearing mode</label><input class="form-control mb-3" name="hearing_mode" placeholder="In person, Internet, Telephone" value="{{ case.hearing_mode or '' if case else '' }}"></div>
-        </div>
-        <label class="form-label">Court name</label><input class="form-control mb-3" name="court_name" value="{{ case.court_name or '' if case else '' }}">
-        <label class="form-label">Court address</label><textarea class="form-control mb-3" name="court_address" rows="2">{{ case.court_address or '' if case else '' }}</textarea>
-        <div class="row">
-          <div class="col-md-6"><label class="form-label">Court phone</label><input class="form-control mb-3" name="court_phone" value="{{ case.court_phone or '' if case else '' }}"></div>
-          <div class="col-md-6"><label class="form-label">Court email</label><input class="form-control mb-3" type="email" name="court_email" value="{{ case.court_email or '' if case else '' }}"></div>
-        </div>
-        <div class="form-check"><input class="form-check-input" type="checkbox" name="court_information_verified" id="court-information-verified"><label class="form-check-label" for="court-information-verified">Mark this information as verified now</label></div>
-      </fieldset>
       {% if can_link_form_filler %}
         <label class="form-label">Send questionnaires</label>
         <div class="crm-questionnaire-picker mb-3" data-questionnaire-picker>

@@ -35,11 +35,6 @@
       <div><strong>Tag</strong><span>{{ case.tag.name if case.tag else 'No tag' }}</span></div>
       <div><strong>Opened</strong><span>{{ case.opened_at.strftime('%b %d, %Y') }}</span></div>
       <div><strong>Last Updated</strong><span>{{ case.updated_at.strftime('%b %d, %Y') }}</span></div>
-      <div><strong>Immigration Judge</strong><span>{{ case.immigration_judge or 'Not provided' }}</span></div>
-      <div><strong>Next Hearing</strong><span>{{ case.hearing_at.strftime('%b %d, %Y %I:%M %p') if case.hearing_at else 'Not provided' }}</span></div>
-      <div><strong>Hearing Type / Mode</strong><span>{{ case.hearing_type or 'Not provided' }}{% if case.hearing_mode %} · {{ case.hearing_mode }}{% endif %}</span></div>
-      <div><strong>Immigration Court</strong><span>{{ case.court_name or 'Not provided' }}</span></div>
-      <div><strong>Court Contact</strong><span>{{ case.court_phone or 'No phone' }}{% if case.court_email %} · {{ case.court_email }}{% endif %}</span></div>
     </div>
   </section>
 

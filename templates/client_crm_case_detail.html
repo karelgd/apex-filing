@@ -39,29 +39,6 @@
     </ol>
   </section>
 
-  <section class="client-case-panel">
-    <div class="client-panel-head">
-      <h2 data-i18n="immigration_court_information">Immigration court information</h2>
-      <p data-i18n="court_information_help">Review the latest court information verified by your agency.</p>
-    </div>
-    {% if case.court_name or case.immigration_judge or case.hearing_at %}
-      <div class="crm-detail-list crm-case-detail-list">
-        <div><strong data-i18n="immigration_judge">Immigration judge</strong><span>{{ case.immigration_judge or '—' }}</span></div>
-        <div><strong data-i18n="next_hearing">Next hearing</strong><span>{{ case.hearing_at.strftime('%m/%d/%Y %I:%M %p') if case.hearing_at else '—' }}</span></div>
-        <div><strong data-i18n="hearing_type">Hearing type</strong><span>{{ case.hearing_type or '—' }}</span></div>
-        <div><strong data-i18n="hearing_mode">Hearing mode</strong><span>{{ case.hearing_mode or '—' }}</span></div>
-        <div><strong data-i18n="court">Court</strong><span>{{ case.court_name or '—' }}</span></div>
-        <div><strong data-i18n="address">Address</strong><span>{{ case.court_address or '—' }}</span></div>
-        <div><strong data-i18n="phone">Phone</strong><span>{% if case.court_phone %}<a href="tel:{{ case.court_phone }}">{{ case.court_phone }}</a>{% else %}—{% endif %}</span></div>
-        <div><strong data-i18n="email">Email</strong><span>{% if case.court_email %}<a href="mailto:{{ case.court_email }}">{{ case.court_email }}</a>{% else %}—{% endif %}</span></div>
-      </div>
-      <small class="d-block mt-3 text-secondary"><span data-i18n="last_verified">Last verified</span>: {{ case.court_verified_at.strftime('%m/%d/%Y %I:%M %p') if case.court_verified_at else 'Not yet verified' }}</small>
-    {% else %}
-      <div class="client-empty-state" data-i18n="no_court_information">No immigration court information has been added to this case.</div>
-    {% endif %}
-    <p class="form-text mt-3" data-i18n="court_notice_disclaimer">Court notices issued to you or your representative are the official source of information.</p>
-  </section>
-
   <div class="client-case-grid">
     <section class="client-case-panel">
       <div class="client-panel-head">
