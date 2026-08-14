@@ -1175,13 +1175,3 @@ if __name__ == "__main__":
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
-
-
-    cmd = sys.argv[1].lower()
-
-    if cmd == "courts":
-        import_courts()
-    elif cmd == "opla":
-        import_opla()
-    else:
-        print("Unknown command. Use 'courts' or 'opla'.")
