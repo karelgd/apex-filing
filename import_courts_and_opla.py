@@ -643,10 +643,9 @@ Los Fresnos, TX 78566
 
 (956) 547-1700
 •	Louisville - OPLA
-Office of the Principal Legal Advisor, Chicago (Louisville)
-55 E. Monroe Street
-Suite 1400
-Chicago, IL 60603
+Office of the Principal Legal Advisor, New Orleans (Louisville)
+80 Monroe Avenue, Suite 200
+Memphis, TN 38103
 
 •	Illinois - OPLA
 Office of the Principal Legal Advisor, Chicago (Illinois)
@@ -667,10 +666,9 @@ Suite 1400
 Chicago, IL 60603
 
 •	Kentucky - OPLA
-Office of the Principal Legal Advisor, Chicago (Kentucky)
-55 E. Monroe Street
-Suite 1400
-Chicago, IL 60603
+Office of the Principal Legal Advisor, New Orleans (Kentucky)
+80 Monroe Avenue, Suite 200
+Memphis, TN 38103
 
 •	Missouri - OPLA
 Office of the Principal Legal Advisor, Chicago (Missouri)
@@ -1049,6 +1047,10 @@ def import_opla():
 
     with app.app_context():
         data = parse_opla_text(OPLA_TEXT)
+        renamed_offices = {
+            "OPLA New Orleans (Louisville)": "OPLA Chicago (Louisville)",
+            "OPLA New Orleans (Kentucky)": "OPLA Chicago (Kentucky)",
+        }
 
         created = 0
         updated = 0
@@ -1058,7 +1060,10 @@ def import_opla():
                 continue
 
             existing = OPLAOffice.query.filter_by(name=o["name"]).first()
+            if not existing and o["name"] in renamed_offices:
+                existing = OPLAOffice.query.filter_by(name=renamed_offices[o["name"]]).first()
             if existing:
+                existing.name = o["name"]
                 existing.address_line1 = o["address_line1"]
                 existing.address_line2 = o["address_line2"]
                 existing.city = o["city"]
