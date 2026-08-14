@@ -648,6 +648,42 @@ Office of the Principal Legal Advisor, Chicago (Louisville)
 Suite 1400
 Chicago, IL 60603
 
+•	Illinois - OPLA
+Office of the Principal Legal Advisor, Chicago (Illinois)
+55 E. Monroe Street
+Suite 1400
+Chicago, IL 60603
+
+•	Indiana - OPLA
+Office of the Principal Legal Advisor, Chicago (Indiana)
+55 E. Monroe Street
+Suite 1400
+Chicago, IL 60603
+
+•	Kansas - OPLA
+Office of the Principal Legal Advisor, Chicago (Kansas)
+55 E. Monroe Street
+Suite 1400
+Chicago, IL 60603
+
+•	Kentucky - OPLA
+Office of the Principal Legal Advisor, Chicago (Kentucky)
+55 E. Monroe Street
+Suite 1400
+Chicago, IL 60603
+
+•	Missouri - OPLA
+Office of the Principal Legal Advisor, Chicago (Missouri)
+55 E. Monroe Street
+Suite 1400
+Chicago, IL 60603
+
+•	Wisconsin - OPLA
+Office of the Principal Legal Advisor, Chicago (Wisconsin)
+55 E. Monroe Street
+Suite 1400
+Chicago, IL 60603
+
 •	Lumpkin - OPLA
 Office of the Principal Legal Advisor, Atlanta (Lumpkin)
 Stewart County Detention Facility
