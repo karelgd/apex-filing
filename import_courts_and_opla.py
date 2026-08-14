@@ -642,6 +642,12 @@ Port Isabel Detention Center
 Los Fresnos, TX 78566
 
 (956) 547-1700
+•	Louisville - OPLA
+Office of the Principal Legal Advisor, Chicago (Louisville)
+55 E. Monroe Street
+Suite 1400
+Chicago, IL 60603
+
 •	Lumpkin - OPLA
 Office of the Principal Legal Advisor, Atlanta (Lumpkin)
 Stewart County Detention Facility
