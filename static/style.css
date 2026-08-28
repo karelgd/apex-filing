@@ -6533,21 +6533,21 @@ textarea.form-control {
 }
 
 .client-timeline {
-  align-items: flex-start;
+  align-items: stretch;
   display: flex;
-  gap: 0;
+  flex-direction: column;
+  gap: .15rem;
   list-style: none;
   margin: 0;
-  overflow-x: auto;
-  padding: .3rem 0 .15rem;
+  padding: .25rem 0 0;
 }
 
 .client-timeline li {
-  display: block;
-  flex: 1 0 155px;
-  padding: 0 .75rem;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  padding: 0 0 1.15rem;
   position: relative;
-  text-align: center;
+  text-align: left;
 }
 
 .client-timeline-panel {
@@ -6557,23 +6557,15 @@ textarea.form-control {
 .client-timeline li::before {
   background: #d7e7fb;
   content: "";
-  height: 3px;
-  left: 0;
+  bottom: -.15rem;
+  left: 10px;
   position: absolute;
-  right: 0;
-  top: 10px;
+  top: 22px;
+  width: 2px;
   z-index: 0;
 }
 
-.client-timeline li:first-child::before {
-  left: 50%;
-}
-
 .client-timeline li:last-child::before {
-  right: 50%;
-}
-
-.client-timeline li:only-child::before {
   display: none;
 }
 
@@ -6583,7 +6575,7 @@ textarea.form-control {
   border-radius: 999px;
   display: inline-block;
   height: 22px;
-  margin-bottom: .55rem;
+  margin: 0;
   position: relative;
   width: 22px;
   z-index: 1;
@@ -6598,7 +6590,36 @@ textarea.form-control {
 
 .client-timeline strong {
   color: #101828;
+  display: inline;
   font-weight: 900;
+}
+
+.client-timeline-content {
+  background: #f8fbff;
+  border: 1px solid #e0eaf7;
+  border-radius: 12px;
+  padding: .8rem 1rem;
+}
+
+.client-timeline-content p {
+  color: #475467;
+  font-weight: 700;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.client-timeline-content a {
+  font-weight: 900;
+}
+
+.crm-barcode-scanner video {
+  background: #101828;
+  border-radius: 12px;
+  display: block;
+  max-height: 320px;
+  max-width: 520px;
+  object-fit: cover;
+  width: 100%;
 }
 
 .client-timeline small,

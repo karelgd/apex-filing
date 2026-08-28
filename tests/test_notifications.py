@@ -10,7 +10,7 @@ os.environ["AUTO_INIT_DB"] = "0"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.name.replace(os.sep, '/')}"
 
 from app import app  # noqa: E402
-from models import Agency, AgencyCaseManager, AgencyUser, Client, CrmCase, CrmSurvey, Notification, SubscriptionTool, db  # noqa: E402
+from models import Agency, AgencyCaseManager, AgencyUser, Client, CrmCase, CrmCaseStatusHistory, CrmSurvey, Notification, SubscriptionTool, db  # noqa: E402
 
 
 class CompletedCaseNotificationTest(unittest.TestCase):
@@ -209,6 +209,42 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         self.assertEqual(owner_alert_page.status_code, 200)
         self.assertIn(f"/agency/crm/clients/{self.client_id}".encode(), owner_alert_page.data)
         self.assertIn(f"/agency/crm/surveys/{survey_id}".encode(), owner_alert_page.data)
+
+    def test_completed_case_tracking_is_saved_and_linked_in_newest_first_client_timeline(self):
+        with patch("app.send_postmark_email", return_value=(True, "Email sent.")):
+            response = self.web.post(
+                f"/agency/crm/cases/{self.case_id}/edit",
+                data={
+                    "title": "XYZ",
+                    "status": "Completed",
+                    "price": "0",
+                    "case_manager_id": str(self.manager_id),
+                    "form_preparer_id": "",
+                    "notes": "",
+                    "has_tracking_number": "yes",
+                    "tracking_number": "9400 1000-0000 0000 0000 00",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+
+        with app.app_context():
+            case = db.session.get(CrmCase, self.case_id)
+            self.assertEqual(case.tracking_number, "9400100000000000000000")
+            history = CrmCaseStatusHistory.query.filter_by(case_id=self.case_id).order_by(CrmCaseStatusHistory.changed_at.desc()).all()
+            self.assertEqual(history[0].status, "Completed")
+            self.assertEqual(history[0].tracking_number, case.tracking_number)
+
+        self.web.get("/logout")
+        login = self.web.post(
+            "/login/client",
+            data={"username": "alexclient", "password": "client-password"},
+        )
+        self.assertEqual(login.status_code, 302)
+        detail = self.web.get(f"/client/crm-cases/{self.case_id}")
+        self.assertEqual(detail.status_code, 200)
+        tracking = b"9400100000000000000000"
+        self.assertIn(b"https://tools.usps.com/go/TrackConfirmAction?tLabels=" + tracking, detail.data)
+        self.assertLess(detail.data.index(b"Completed"), detail.data.index(b"Open"))
 
 
 if __name__ == "__main__":

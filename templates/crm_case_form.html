@@ -40,11 +40,39 @@
         {% endfor %}
       </select>
       <label class="form-label">Status</label>
-      <select class="form-select mb-3" name="status">
+      <select class="form-select mb-3" name="status" id="case-status-select">
         {% for status in ['Open', 'Documents Received', 'Documents Needed', 'Documents Ready', 'Completed', 'Cancelled'] %}
           <option value="{{ status }}" {% if case and case.status == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
       </select>
+      <div class="crm-tracking-panel mb-3" data-tracking-panel hidden>
+        <label class="form-label">Is there a USPS tracking number for this completed case?</label>
+        <div class="d-flex flex-wrap gap-3 mb-3">
+          <label class="form-check-label">
+            <input class="form-check-input me-1" type="radio" name="has_tracking_number" value="no" {% if not case or not case.tracking_number %}checked{% endif %}>
+            No
+          </label>
+          <label class="form-check-label">
+            <input class="form-check-input me-1" type="radio" name="has_tracking_number" value="yes" {% if case and case.tracking_number %}checked{% endif %}>
+            Yes
+          </label>
+        </div>
+        <div data-tracking-entry hidden>
+          <label class="form-label" for="case-tracking-number">Tracking number</label>
+          <div class="input-group">
+            <input class="form-control" id="case-tracking-number" name="tracking_number" value="{{ case.tracking_number if case and case.tracking_number else '' }}" autocomplete="off" inputmode="text" placeholder="Type or scan the USPS tracking number">
+            <button class="btn btn-outline-primary" type="button" data-scan-tracking>Scan barcode</button>
+          </div>
+          <div class="form-text">You may type it, use a handheld scanner, or scan the label with this device's camera.</div>
+          <div class="crm-barcode-scanner mt-3" data-barcode-scanner hidden>
+            <video data-barcode-video playsinline muted></video>
+            <div class="d-flex align-items-center gap-2 mt-2">
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-stop-scanner>Cancel scan</button>
+              <span class="form-text" data-scanner-message>Point the camera at the USPS barcode.</span>
+            </div>
+          </div>
+        </div>
+      </div>
       {% if can_link_form_filler %}
         <label class="form-label">Send questionnaires</label>
         <div class="crm-questionnaire-picker mb-3" data-questionnaire-picker>
@@ -155,5 +183,78 @@
 
     syncEmptyState();
   });
+
+  (() => {
+    const status = document.getElementById("case-status-select");
+    const panel = document.querySelector("[data-tracking-panel]");
+    const entry = document.querySelector("[data-tracking-entry]");
+    const input = document.getElementById("case-tracking-number");
+    const scanButton = document.querySelector("[data-scan-tracking]");
+    const scanner = document.querySelector("[data-barcode-scanner]");
+    const video = document.querySelector("[data-barcode-video]");
+    const message = document.querySelector("[data-scanner-message]");
+    let stream = null;
+    let scanning = false;
+
+    const trackingChoice = () => document.querySelector('input[name="has_tracking_number"]:checked')?.value;
+    const stopScanner = () => {
+      scanning = false;
+      stream?.getTracks().forEach((track) => track.stop());
+      stream = null;
+      if (video) video.srcObject = null;
+      if (scanner) scanner.hidden = true;
+    };
+    const syncTrackingFields = () => {
+      const completed = status?.value === "Completed";
+      panel.hidden = !completed;
+      entry.hidden = !completed || trackingChoice() !== "yes";
+      input.required = completed && trackingChoice() === "yes";
+      if (!completed || trackingChoice() !== "yes") stopScanner();
+    };
+
+    status?.addEventListener("change", syncTrackingFields);
+    document.querySelectorAll('input[name="has_tracking_number"]').forEach((radio) => radio.addEventListener("change", syncTrackingFields));
+    document.querySelector("[data-stop-scanner]")?.addEventListener("click", stopScanner);
+    scanButton?.addEventListener("click", async () => {
+      if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
+        message.textContent = "Camera barcode scanning is not supported on this browser. You can still type the number or use a handheld scanner.";
+        scanner.hidden = false;
+        return;
+      }
+      try {
+        const supported = await BarcodeDetector.getSupportedFormats();
+        const preferred = ["code_128", "data_matrix", "qr_code", "itf", "ean_13", "upc_a"].filter((format) => supported.includes(format));
+        const detector = preferred.length ? new BarcodeDetector({ formats: preferred }) : new BarcodeDetector();
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        video.srcObject = stream;
+        await video.play();
+        scanner.hidden = false;
+        message.textContent = "Point the camera at the USPS barcode.";
+        scanning = true;
+        const detect = async () => {
+          if (!scanning) return;
+          try {
+            const barcodes = await detector.detect(video);
+            if (barcodes.length) {
+              input.value = barcodes[0].rawValue.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+              stopScanner();
+              input.focus();
+              return;
+            }
+          } catch (error) {
+            message.textContent = "Keep the label steady and try again.";
+          }
+          if (scanning) window.setTimeout(detect, 250);
+        };
+        detect();
+      } catch (error) {
+        stopScanner();
+        scanner.hidden = false;
+        message.textContent = "The camera could not be opened. Check camera permission or enter the number manually.";
+      }
+    });
+    window.addEventListener("pagehide", stopScanner);
+    syncTrackingFields();
+  })();
 </script>
 {% endblock %}
