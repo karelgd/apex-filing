@@ -6612,16 +6612,6 @@ textarea.form-control {
   font-weight: 900;
 }
 
-.crm-barcode-scanner video {
-  background: #101828;
-  border-radius: 12px;
-  display: block;
-  max-height: 320px;
-  max-width: 520px;
-  object-fit: cover;
-  width: 100%;
-}
-
 .client-timeline small,
 .client-uploaded-item small,
 .client-upload-security {
