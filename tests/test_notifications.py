@@ -211,6 +211,11 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         self.assertIn(f"/agency/crm/surveys/{survey_id}".encode(), owner_alert_page.data)
 
     def test_completed_case_tracking_is_saved_and_linked_in_newest_first_client_timeline(self):
+        edit_page = self.web.get(f"/agency/crm/cases/{self.case_id}/edit")
+        self.assertEqual(edit_page.status_code, 200)
+        self.assertIn(b"Scan with handheld scanner", edit_page.data)
+        self.assertNotIn(b"Camera barcode scanning", edit_page.data)
+
         with patch("app.send_postmark_email", return_value=(True, "Email sent.")):
             response = self.web.post(
                 f"/agency/crm/cases/{self.case_id}/edit",
