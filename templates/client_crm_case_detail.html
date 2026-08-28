@@ -19,20 +19,18 @@
       <p data-i18n="timeline_help">Your agency updates this timeline when the case status changes.</p>
     </div>
     <ol class="client-timeline">
-      {% for event in case.status_history|reverse %}
+      {% for event in case.status_history %}
         <li>
           <span class="client-timeline-dot"></span>
-          <div>
-            <strong data-i18n-text="{{ event.status }}">{{ event.status }}</strong>
-            <small>{{ event.changed_at.strftime('%m/%d/%Y') }}</small>
+          <div class="client-timeline-content">
+            <p><span data-i18n="case_status_changed_to">Your case status was changed to</span> <strong data-i18n-text="{{ event.status }}">{{ event.status }}</strong> <span data-i18n="on_date">on</span> {{ event.changed_at.strftime('%m/%d/%Y') }}{% if event.tracking_number %}, <span data-i18n="tracking_number_intro">and the associated tracking number of your package is</span> <a href="https://tools.usps.com/go/TrackConfirmAction?tLabels={{ event.tracking_number }}" target="_blank" rel="noopener noreferrer">{{ event.tracking_number }}</a>{% endif %}.</p>
           </div>
         </li>
       {% else %}
         <li>
           <span class="client-timeline-dot"></span>
-          <div>
-            <strong data-i18n-text="{{ case.status }}">{{ case.status }}</strong>
-            <small>{{ case.opened_at.strftime('%m/%d/%Y') if case.opened_at else '' }}</small>
+          <div class="client-timeline-content">
+            <p><span data-i18n="case_status_changed_to">Your case status was changed to</span> <strong data-i18n-text="{{ case.status }}">{{ case.status }}</strong> <span data-i18n="on_date">on</span> {{ case.opened_at.strftime('%m/%d/%Y') if case.opened_at else '' }}{% if case.tracking_number %}, <span data-i18n="tracking_number_intro">and the associated tracking number of your package is</span> <a href="https://tools.usps.com/go/TrackConfirmAction?tLabels={{ case.tracking_number }}" target="_blank" rel="noopener noreferrer">{{ case.tracking_number }}</a>{% endif %}.</p>
           </div>
         </li>
       {% endfor %}

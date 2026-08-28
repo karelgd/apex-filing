@@ -583,6 +583,7 @@ class CrmCase(db.Model):
     form_filler_case_id = db.Column(db.Integer, db.ForeignKey("case.id"))
     opened_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     completed_at = db.Column(db.DateTime)
+    tracking_number = db.Column(db.String(80))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -647,6 +648,7 @@ class CrmCaseStatusHistory(db.Model):
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
     case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id"), nullable=False)
     status = db.Column(db.String(60), nullable=False)
+    tracking_number = db.Column(db.String(80))
     changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency")

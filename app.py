@@ -1991,6 +1991,10 @@ def populate_crm_case_from_form(case):
         abort(403)
     if case.status == "Completed" and not case.completed_at:
         case.completed_at = datetime.utcnow()
+    if case.status == "Completed" and request.form.get("has_tracking_number") == "yes":
+        case.tracking_number = re.sub(r"[^A-Za-z0-9]", "", request.form.get("tracking_number", "")).upper() or None
+    else:
+        case.tracking_number = None
     if case.status != "Completed":
         case.completed_at = None
 
@@ -1999,8 +2003,17 @@ def record_crm_case_status(case, status=None):
     status = status or case.status or "Open"
     last_entry = CrmCaseStatusHistory.query.filter_by(case_id=case.id).order_by(CrmCaseStatusHistory.changed_at.desc()).first()
     if last_entry and last_entry.status == status:
+        if status == "Completed":
+            last_entry.tracking_number = case.tracking_number
         return
-    db.session.add(CrmCaseStatusHistory(agency_id=case.agency_id, case_id=case.id, status=status))
+    db.session.add(
+        CrmCaseStatusHistory(
+            agency_id=case.agency_id,
+            case_id=case.id,
+            status=status,
+            tracking_number=case.tracking_number if status == "Completed" else None,
+        )
+    )
 
 
 def ensure_crm_case_status_history(case):
@@ -2011,6 +2024,7 @@ def ensure_crm_case_status_history(case):
             agency_id=case.agency_id,
             case_id=case.id,
             status=case.status or "Open",
+            tracking_number=case.tracking_number if case.status == "Completed" else None,
             changed_at=case.opened_at or case.created_at or datetime.utcnow(),
         )
     )
@@ -4856,6 +4870,8 @@ def register_routes(app):
                 if case.status == "Completed":
                     create_completed_case_notification(case)
                     send_case_survey_invitation(case)
+            elif case.status == "Completed":
+                record_crm_case_status(case)
             sync_crm_case_questionnaire(case)
             if case.notes and case.notes != existing_note:
                 db.session.add(CrmCaseNote(agency_id=case.agency_id, case_id=case.id, note_text=case.notes, author_label=current_user_label()))
@@ -7781,10 +7797,15 @@ def ensure_sqlite_schema():
             "form_preparer_id": "INTEGER",
             "tag_id": "INTEGER",
             "form_filler_case_id": "INTEGER",
+            "tracking_number": "VARCHAR(80)",
         }
         for column, ddl in crm_case_additions.items():
             if column not in existing_crm_case:
                 db.session.execute(text(f"ALTER TABLE crm_case ADD COLUMN {column} {ddl}"))
+    if "crm_case_status_history" in inspector.get_table_names():
+        existing_status_history = {column["name"] for column in inspector.get_columns("crm_case_status_history")}
+        if "tracking_number" not in existing_status_history:
+            db.session.execute(text("ALTER TABLE crm_case_status_history ADD COLUMN tracking_number VARCHAR(80)"))
     for table_name in ("agency_preparer", "agency_case_manager"):
         if table_name in inspector.get_table_names():
             existing_staff = {column["name"] for column in inspector.get_columns(table_name)}
