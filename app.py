@@ -10,7 +10,7 @@ import string
 import uuid
 from functools import wraps
 from io import BytesIO, StringIO
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 from flask import (
@@ -171,6 +171,7 @@ def create_app():
 
     db.init_app(app)
     CSRFProtect(app)
+    app.jinja_env.filters["eastern_time"] = eastern_time
 
     login_manager = LoginManager(app)
     login_manager.login_view = "home"
@@ -246,6 +247,21 @@ def create_app():
 
     register_routes(app)
     return app
+
+
+def eastern_time(value):
+    if not value:
+        return ""
+    source = value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+    year = source.year
+    march_first = datetime(year, 3, 1)
+    first_sunday_march = 1 + ((6 - march_first.weekday()) % 7)
+    dst_start_utc = datetime(year, 3, first_sunday_march + 7, 7)
+    november_first = datetime(year, 11, 1)
+    first_sunday_november = 1 + ((6 - november_first.weekday()) % 7)
+    dst_end_utc = datetime(year, 11, first_sunday_november, 6)
+    local_value = source - timedelta(hours=4 if dst_start_utc <= source < dst_end_utc else 5)
+    return local_value.strftime("%b %d, %Y at %I:%M %p ET")
 
 
 def role_required(*roles):
@@ -4977,6 +4993,25 @@ def register_routes(app):
             return redirect(url_for("agency_dashboard"))
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
         backfill_client_message_owner(client)
+        active_tab = request.args.get("tab", "cases")
+        allowed_tabs = {"cases", "appointments", "invoices", "questionnaires", "documents", "messages", "notes", "activity"}
+        if active_tab not in allowed_tabs:
+            active_tab = "cases"
+        message_thread = client.message_thread
+        can_open_message_center = agency_can_open_client_messages(client)
+        if active_tab == "messages" and message_thread and can_open_message_center:
+            Message.query.filter_by(thread_id=message_thread.id, sender_role="client", read_at=None).update(
+                {"read_at": datetime.utcnow()}
+            )
+            recipient_role, recipient_id = current_user_notification_identity()
+            Notification.query.filter_by(
+                agency_id=current_user.agency_id,
+                recipient_role=recipient_role,
+                recipient_id=recipient_id,
+                client_id=client.id,
+                notification_type="client_message",
+                read_at=None,
+            ).update({"read_at": datetime.utcnow()})
         for case in client.crm_cases:
             sync_case_invoice(case)
         db.session.commit()
@@ -5029,7 +5064,41 @@ def register_routes(app):
             note_timeline=crm_client_note_timeline(client),
             activity_logs=CrmClientActivityLog.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientActivityLog.created_at.desc()).all(),
             message_assignee_active=message_assignee_is_active(client),
+            active_tab=active_tab,
+            message_thread=message_thread,
+            messages=message_thread.messages if message_thread else [],
+            can_open_message_center=can_open_message_center,
         )
+
+    @app.route("/agency/crm/clients/<int:client_id>/messages", methods=["POST"])
+    @role_required("agency")
+    def crm_client_message_create(client_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        body = request.form.get("message", "").strip()
+        if body:
+            thread = get_or_create_message_thread(client)
+            identity = agency_message_identity()
+            db.session.add(
+                Message(
+                    thread_id=thread.id,
+                    agency_id=client.agency_id,
+                    client_id=client.id,
+                    sender_role="agency",
+                    sender_id=identity["id"],
+                    sender_label=identity["label"],
+                    body=body[:4000],
+                )
+            )
+            if agency_can_open_client_messages(client):
+                Message.query.filter_by(thread_id=thread.id, sender_role="client", read_at=None).update(
+                    {"read_at": datetime.utcnow()}
+                )
+            thread.last_message_at = datetime.utcnow()
+            db.session.commit()
+        return redirect(url_for("crm_client_detail", client_id=client.id, tab="messages") + "#messages")
 
     @app.route("/agency/crm/clients/<int:client_id>/send-credentials", methods=["POST"])
     @role_required("agency")
