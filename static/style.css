@@ -2509,6 +2509,12 @@ body {
   color: #5a36a3;
 }
 
+.crm-folder-tab.crm-tab-messages {
+  background: #e7f4ff;
+  border-color: #acd8ff;
+  color: #075ea8;
+}
+
 .crm-folder-tab.crm-tab-questionnaires {
   background: #e8f7ff;
   border-color: #a9ddff;
@@ -2560,6 +2566,10 @@ body {
 
 .crm-folder-tab.crm-tab-documents.active {
   background: #7b5cff;
+}
+
+.crm-folder-tab.crm-tab-messages.active {
+  background: #087fda;
 }
 
 .crm-folder-tab.crm-tab-questionnaires.active {
@@ -5202,6 +5212,18 @@ textarea.form-control {
 .message-bubble-row {
   display: flex;
   margin-bottom: .75rem;
+}
+
+.crm-client-message-history {
+  border: 1px solid #dbe5ef;
+  border-radius: 16px 16px 0 0;
+  max-height: 560px;
+  min-height: 420px;
+}
+
+.crm-client-message-composer {
+  border: 1px solid #dbe5ef;
+  border-bottom: 0;
 }
 
 .message-bubble-row.mine {

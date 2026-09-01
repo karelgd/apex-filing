@@ -308,11 +308,23 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         conversation = self.web.get(f"/agency/messages?client_id={self.client_id}")
         self.assertEqual(conversation.status_code, 200)
         self.assertIn("Necesito una actualización".encode("utf-8"), conversation.data)
+
+        client_profile_messages = self.web.get(f"/agency/crm/clients/{self.client_id}?tab=messages")
+        self.assertEqual(client_profile_messages.status_code, 200)
+        self.assertIn(b"Messages", client_profile_messages.data)
+        self.assertIn(b"Alex Client", client_profile_messages.data)
+        self.assertIn("Necesito una actualización".encode("utf-8"), client_profile_messages.data)
+        self.assertIn(b" ET", client_profile_messages.data)
         replied = self.web.post(
-            "/agency/messages",
-            data={"client_id": str(self.client_id), "message": "Estamos revisando su caso."},
+            f"/agency/crm/clients/{self.client_id}/messages",
+            data={"message": "Estamos revisando su caso."},
         )
         self.assertEqual(replied.status_code, 302)
+        self.assertIn(f"/agency/crm/clients/{self.client_id}?tab=messages".encode(), replied.headers["Location"].encode())
+
+        refreshed_profile = self.web.get(replied.headers["Location"])
+        self.assertIn(b"Taylor Responder", refreshed_profile.data)
+        self.assertIn(b"Estamos revisando su caso.", refreshed_profile.data)
 
         self.web.get("/logout")
         self.web.post("/login/client", data={"username": "alexclient", "password": "client-password"})

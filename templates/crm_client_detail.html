@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% set selected_tab = active_tab or 'cases' %}
 <div class="crm-page">
   <div class="crm-client-header">
     <div class="crm-avatar big">{{ client.first_name[:1] }}{{ client.last_name[:1] }}</div>
@@ -24,39 +25,42 @@
       </div>
     </div>
     <div class="crm-actions">
-      {% if client.message_thread %}<a class="btn btn-primary crm-action-btn" href="{{ url_for('agency_message_center', client_id=client.id) }}">Open Messages</a>{% endif %}
+      <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_client_detail', client_id=client.id, tab='messages') }}#messages">Open Messages</a>
       <a class="btn crm-edit-client-btn crm-action-btn" href="{{ url_for('client_edit', client_id=client.id) }}">Edit Client</a>
     </div>
   </div>
 
   <div class="crm-folder-workspace">
     <div class="crm-folder-tabs" role="tablist" aria-label="Client CRM folders">
-      <button class="crm-folder-tab crm-tab-cases active" type="button" data-crm-tab="cases">
+      <button class="crm-folder-tab crm-tab-cases {{ 'active' if selected_tab == 'cases' else '' }}" type="button" data-crm-tab="cases">
         Cases <span>{{ cases|length }}</span>
       </button>
-      <button class="crm-folder-tab crm-tab-appointments" type="button" data-crm-tab="appointments">
+      <button class="crm-folder-tab crm-tab-appointments {{ 'active' if selected_tab == 'appointments' else '' }}" type="button" data-crm-tab="appointments">
         Appointments <span>{{ appointments|length }}</span>
       </button>
-      <button class="crm-folder-tab crm-tab-invoices" type="button" data-crm-tab="invoices">
+      <button class="crm-folder-tab crm-tab-invoices {{ 'active' if selected_tab == 'invoices' else '' }}" type="button" data-crm-tab="invoices">
         Invoices <span>{{ invoices|length }}</span>
       </button>
       {% if client.agency.has_tool('Form Filler') %}
-      <button class="crm-folder-tab crm-tab-questionnaires" type="button" data-crm-tab="questionnaires">
+      <button class="crm-folder-tab crm-tab-questionnaires {{ 'active' if selected_tab == 'questionnaires' else '' }}" type="button" data-crm-tab="questionnaires">
         Questionnaires <span>{{ questionnaires|length }}</span>
       </button>
       {% endif %}
-      <button class="crm-folder-tab crm-tab-documents" type="button" data-crm-tab="documents">
+      <button class="crm-folder-tab crm-tab-documents {{ 'active' if selected_tab == 'documents' else '' }}" type="button" data-crm-tab="documents">
         Documents <span>{{ documents|length }}</span>
       </button>
-      <button class="crm-folder-tab crm-tab-notes" type="button" data-crm-tab="notes">
+      <button class="crm-folder-tab crm-tab-messages {{ 'active' if selected_tab == 'messages' else '' }}" type="button" data-crm-tab="messages">
+        Messages <span>{{ messages|length }}</span>
+      </button>
+      <button class="crm-folder-tab crm-tab-notes {{ 'active' if selected_tab == 'notes' else '' }}" type="button" data-crm-tab="notes">
         Notes <span>{{ note_timeline|length }}</span>
       </button>
-      <button class="crm-folder-tab crm-tab-activity" type="button" data-crm-tab="activity">
+      <button class="crm-folder-tab crm-tab-activity {{ 'active' if selected_tab == 'activity' else '' }}" type="button" data-crm-tab="activity">
         Activity Log <span>{{ activity_logs|length }}</span>
       </button>
     </div>
 
-    <section class="crm-folder-panel active" data-crm-panel="cases">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'cases' else '' }}" data-crm-panel="cases">
       <div class="crm-panel-head">
         <div><h2>Cases</h2><p>Every appointment and invoice connects back to a case.</p></div>
         <a class="btn btn-primary crm-action-btn" href="{{ url_for('crm_case_create', client_id=client.id) }}">Create Case</a>
@@ -90,7 +94,7 @@
       </div>
     </section>
 
-    <section class="crm-folder-panel" data-crm-panel="appointments">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'appointments' else '' }}" data-crm-panel="appointments">
       <div class="crm-panel-head">
         <div><h2>Appointments</h2><p>Always linked to a case.</p></div>
       </div>
@@ -113,7 +117,7 @@
       </div>
     </section>
 
-    <section class="crm-folder-panel" data-crm-panel="invoices">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'invoices' else '' }}" data-crm-panel="invoices">
       <div class="crm-panel-head">
         <div><h2>Invoices</h2><p>Billing records for this client.</p></div>
       </div>
@@ -132,7 +136,7 @@
     </section>
 
     {% if client.agency.has_tool('Form Filler') %}
-    <section class="crm-folder-panel" data-crm-panel="questionnaires">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'questionnaires' else '' }}" data-crm-panel="questionnaires">
       <div class="crm-panel-head">
         <div><h2>Questionnaires</h2><p>Form Filler questionnaires assigned to this client.</p></div>
       </div>
@@ -166,7 +170,7 @@
     </section>
     {% endif %}
 
-    <section class="crm-folder-panel" data-crm-panel="documents">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'documents' else '' }}" data-crm-panel="documents">
       <div class="crm-panel-head">
         <div><h2>Documents</h2><p>Client-level files, optionally linked to a case.</p></div>
       </div>
@@ -202,7 +206,45 @@
       </div>
     </section>
 
-    <section class="crm-folder-panel" data-crm-panel="notes">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'messages' else '' }}" data-crm-panel="messages" id="messages">
+      <div class="crm-panel-head">
+        <div>
+          <h2>Messages</h2>
+          <p>The client's complete conversation with the agency. Every reply keeps the name of the person who sent it.</p>
+        </div>
+        {% if can_open_message_center %}<a class="btn btn-outline-primary crm-action-btn" href="{{ url_for('agency_message_center', client_id=client.id) }}">Open Message Center</a>{% endif %}
+      </div>
+
+      <div class="message-stream crm-client-message-history" data-message-stream data-after-id="{{ messages[-1].id if messages else 0 }}" data-client-id="{{ client.id }}">
+        {% for message in messages %}
+          <article class="message-bubble-row {{ 'mine' if message.sender_role == 'agency' else 'theirs' }}" data-message-id="{{ message.id }}">
+            <div class="message-bubble">
+              <strong>{{ message.sender_label }}</strong>
+              <p>{{ message.body }}</p>
+              <time>{{ message.created_at|eastern_time }}</time>
+            </div>
+          </article>
+        {% else %}
+          <div class="message-welcome" data-message-empty>
+            <span class="message-welcome-icon" aria-hidden="true">&#10022;</span>
+            <strong>No messages yet</strong>
+            <p>Send the first message below. It will appear here and in the client's Message Center.</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <form class="message-composer crm-client-message-composer" method="post" action="{{ url_for('crm_client_message_create', client_id=client.id) }}" data-message-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <textarea name="message" rows="1" maxlength="4000" required data-message-input placeholder="Write a message to {{ client.full_name }}..."></textarea>
+        <button type="submit" aria-label="Send message">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m3 11 18-8-8 18-2-7-8-3Z"/><path d="m11 14 4-4"/></svg>
+          <span>Send</span>
+        </button>
+      </form>
+      <p class="message-enter-help">Press Enter to send. Use Shift + Enter for a new line.</p>
+    </section>
+
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'notes' else '' }}" data-crm-panel="notes">
       <div class="crm-panel-head">
         <div><h2>Notes</h2><p>All client, case, appointment, and invoice notes in one place.</p></div>
       </div>
@@ -229,7 +271,7 @@
       </div>
     </section>
 
-    <section class="crm-folder-panel" data-crm-panel="activity">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'activity' else '' }}" data-crm-panel="activity">
       <div class="crm-panel-head">
         <div><h2>Activity Log</h2><p>Actions taken by agency users on this client profile.</p></div>
       </div>
@@ -262,7 +304,27 @@
       document.querySelectorAll("[data-crm-panel]").forEach((panel) => {
         panel.classList.toggle("active", panel.dataset.crmPanel === target);
       });
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", target);
+      url.hash = target;
+      window.history.replaceState({}, "", url);
     });
   });
+
+  (() => {
+    const stream = document.querySelector("[data-message-stream]");
+    const form = document.querySelector("[data-message-form]");
+    const input = document.querySelector("[data-message-input]");
+    if (!stream || !form || !input) return;
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (input.value.trim()) form.requestSubmit();
+      }
+    });
+    if ({{ 'true' if selected_tab == 'messages' else 'false' }}) {
+      stream.scrollTop = stream.scrollHeight;
+    }
+  })();
 </script>
 {% endblock %}
