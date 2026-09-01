@@ -2056,6 +2056,66 @@ def active_agency_message_users(agency_id):
     return [user for user in users if user]
 
 
+def agency_message_user_by_identity(agency_id, role, user_id):
+    model = {
+        "agency_user": AgencyUser,
+        "agency_case_manager": AgencyCaseManager,
+        "agency_preparer": AgencyPreparer,
+    }.get(role)
+    if not model or not user_id:
+        return None
+    record = model.query.filter_by(id=user_id, agency_id=agency_id).first()
+    return agency_message_identity(record) if record else None
+
+
+def client_assignment_options(client):
+    options = active_agency_message_users(client.agency_id)
+    current = agency_message_user_by_identity(client.agency_id, client.assigned_to_role, client.assigned_to_id)
+    if current and not any(option["role"] == current["role"] and option["id"] == current["id"] for option in options):
+        current = {**current, "inactive": True}
+        options.insert(0, current)
+    for option in options:
+        option.setdefault("inactive", not option["record"].is_active)
+    return options
+
+
+def apply_manual_client_assignment(client, raw_identity):
+    if not raw_identity or ":" not in raw_identity:
+        return False
+    role, raw_id = raw_identity.split(":", 1)
+    if not raw_id.isdigit():
+        abort(400)
+    selected = agency_message_user_by_identity(client.agency_id, role, int(raw_id))
+    if not selected:
+        abort(400)
+    unchanged = client.assigned_to_role == selected["role"] and client.assigned_to_id == selected["id"]
+    if unchanged:
+        return False
+    if not selected["record"].is_active or not selected["record"].username:
+        flash("Only active users with a login account can receive a new client assignment.", "warning")
+        return False
+    old_role, old_id, old_label = client.assigned_to_role, client.assigned_to_id, client.assigned_to_label
+    client.assigned_to_role = selected["role"]
+    client.assigned_to_id = selected["id"]
+    client.assigned_to_label = selected["label"]
+    reason = f"Manually reassigned by {current_user_label()}."
+    db.session.add(
+        MessageAssignmentLog(
+            agency_id=client.agency_id,
+            client_id=client.id,
+            from_role=old_role,
+            from_id=old_id,
+            from_label=old_label,
+            to_role=selected["role"],
+            to_id=selected["id"],
+            to_label=selected["label"],
+            reason=reason,
+        )
+    )
+    crm_client_log(client, "Client assignment changed", f"{old_label or 'Unassigned'} reassigned to {selected['label']}.")
+    return True
+
+
 def message_assignee_is_active(client):
     model = {
         "agency_user": AgencyUser,
@@ -4916,6 +4976,7 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
+        backfill_client_message_owner(client)
         for case in client.crm_cases:
             sync_case_invoice(case)
         db.session.commit()
@@ -4967,6 +5028,7 @@ def register_routes(app):
             linked_crm_cases=linked_crm_cases,
             note_timeline=crm_client_note_timeline(client),
             activity_logs=CrmClientActivityLog.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientActivityLog.created_at.desc()).all(),
+            message_assignee_active=message_assignee_is_active(client),
         )
 
     @app.route("/agency/crm/clients/<int:client_id>/send-credentials", methods=["POST"])
@@ -5763,7 +5825,22 @@ def register_routes(app):
             client.set_password(password)
             db.session.add(client)
             db.session.flush()
-            crm_client_log(client, "Client created", "Client account and portal credentials were created.")
+            if creator:
+                db.session.add(
+                    MessageAssignmentLog(
+                        agency_id=client.agency_id,
+                        client_id=client.id,
+                        to_role=creator["role"],
+                        to_id=creator["id"],
+                        to_label=creator["label"],
+                        reason="Initial assignment to the user who created the client.",
+                    )
+                )
+            crm_client_log(
+                client,
+                "Client created and assigned",
+                f"Client account and portal credentials were created. Initially assigned to {client.assigned_to_label or 'unassigned'}.",
+            )
             notify_client_welcome(client, password)
             db.session.commit()
             flash("Client created.", "success")
@@ -5780,6 +5857,7 @@ def register_routes(app):
         client = db.session.get(Client, client_id) or abort(404)
         if current_user.role == "agency" and client.agency_id != current_user.agency_id:
             abort(403)
+        backfill_client_message_owner(client)
         agencies = Agency.query.order_by(Agency.agency_name).all() if current_user.role == "apex" else [current_user.agency]
         if request.method == "POST":
             agency_id = int(request.form.get("agency_id") or client.agency_id)
@@ -5801,7 +5879,7 @@ def register_routes(app):
                 client.username = generated_client_username(client.first_name, client.last_name)
             elif username_taken(client.username, client):
                 flash("That username is already in use. Please choose another one.", "danger")
-                return render_template("client_form.html", client=client, agencies=agencies)
+                return render_template("client_form.html", client=client, agencies=agencies, assignment_options=client_assignment_options(client))
             password = request.form.get("password", "").strip()
             password_changed = bool(password and password != (client.portal_password or ""))
             if password_changed:
@@ -5824,6 +5902,7 @@ def register_routes(app):
                     changes.append(f"{label} changed from {old_value or 'blank'} to {new_value or 'blank'}")
             if password_changed:
                 changes.append("Portal password was updated")
+            apply_manual_client_assignment(client, request.form.get("assigned_user", ""))
             if changes:
                 crm_client_log(client, "Client updated", "; ".join(changes))
             db.session.commit()
@@ -5831,7 +5910,8 @@ def register_routes(app):
             if current_user.role == "agency" and can_use_crm(current_user.agency):
                 return redirect(url_for("agency_crm", searched=1, q=client.full_name))
             return redirect(url_for("client_list"))
-        return render_template("client_form.html", client=client, agencies=agencies)
+        db.session.commit()
+        return render_template("client_form.html", client=client, agencies=agencies, assignment_options=client_assignment_options(client))
 
     @app.route("/clients/<int:client_id>/delete", methods=["POST"])
     @role_required("apex", "agency")

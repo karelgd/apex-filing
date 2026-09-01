@@ -324,6 +324,62 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             names = [message.sender_label for message in Message.query.order_by(Message.id).all()]
             self.assertEqual(names, ["Alex Client", "Taylor Responder"])
 
+    def test_client_can_be_manually_reassigned_without_changing_original_creator(self):
+        with app.app_context():
+            client = db.session.get(Client, self.client_id)
+            manager = db.session.get(AgencyCaseManager, self.manager_id)
+            client.created_by_role = "agency_case_manager"
+            client.created_by_id = manager.id
+            client.created_by_label = manager.full_name
+            client.assigned_to_role = "agency_case_manager"
+            client.assigned_to_id = manager.id
+            client.assigned_to_label = manager.full_name
+            preparer = AgencyPreparer(
+                agency_id=client.agency_id,
+                full_name="Jordan Active",
+                username="jordan",
+                is_active=True,
+            )
+            preparer.set_password("assignment-password")
+            db.session.add(preparer)
+            db.session.commit()
+            preparer_id = preparer.id
+
+        edit_page = self.web.get(f"/clients/{self.client_id}/edit")
+        self.assertEqual(edit_page.status_code, 200)
+        self.assertIn(b"Assigned user / case manager", edit_page.data)
+        self.assertIn(b"Morgan Manager", edit_page.data)
+        self.assertIn(b"Jordan Active", edit_page.data)
+
+        response = self.web.post(
+            f"/clients/{self.client_id}/edit",
+            data={
+                "first_name": "Alex",
+                "middle_name": "",
+                "last_name": "Client",
+                "a_number": "",
+                "phone": "555-0101",
+                "email": "alex@example.com",
+                "street_address": "2 Main Street",
+                "apartment": "",
+                "city": "Los Angeles",
+                "state": "CA",
+                "zip_code": "90001",
+                "agency_id": "1",
+                "username": "alexclient",
+                "password": "",
+                "assigned_user": f"agency_preparer:{preparer_id}",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            client = db.session.get(Client, self.client_id)
+            self.assertEqual(client.created_by_label, "Morgan Manager")
+            self.assertEqual(client.assigned_to_label, "Jordan Active")
+            log = MessageAssignmentLog.query.filter_by(client_id=client.id).one()
+            self.assertEqual(log.from_label, "Morgan Manager")
+            self.assertEqual(log.to_label, "Jordan Active")
+
 
 if __name__ == "__main__":
     unittest.main()
