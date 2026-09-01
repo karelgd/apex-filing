@@ -61,6 +61,19 @@
     </aside>
 
     <main class="client-main-stack">
+      <section class="client-section-card client-message-callout">
+        <div class="client-section-head">
+          <div>
+            <h2 data-i18n="message_center">Message Center</h2>
+            <p class="mb-0 text-secondary" data-i18n="message_center_card_help">Send a secure message to your agency and review the complete conversation history.</p>
+          </div>
+          <a class="btn btn-primary client-open-button" href="{{ url_for('client_message_center') }}">
+            <span data-i18n="open_messages">Open messages</span>
+            {% if unread_message_count %}<span class="badge text-bg-light ms-1">{{ unread_message_count }}</span>{% endif %}
+          </a>
+        </div>
+      </section>
+
       <section class="client-section-card">
         <div class="client-section-head">
           <h2 data-i18n="your_cases">Your cases</h2>

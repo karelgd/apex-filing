@@ -17,6 +17,7 @@ from flask import (
     Flask,
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     Response,
@@ -89,6 +90,9 @@ from models import (
     MotionDraft,
     MotionRespondent,
     MotionTemplate,
+    Message,
+    MessageAssignmentLog,
+    MessageThread,
     Notification,
     OplaOffice,
     PdfField,
@@ -193,6 +197,10 @@ def create_app():
     @app.before_request
     def refresh_active_session():
         if current_user.is_authenticated:
+            if current_user.role == "agency" and not current_user.is_active:
+                logout_user()
+                flash("This user account is inactive. Contact your agency administrator.", "warning")
+                return redirect(url_for("login", role="agency"))
             row = ActiveSession.query.filter_by(
                 user_id=current_user.id,
                 role=current_user.role,
@@ -205,8 +213,12 @@ def create_app():
     @app.context_processor
     def inject_choices():
         unread_notification_count = 0
+        unread_message_count = 0
         if current_user.is_authenticated and current_user.role == "agency":
             unread_notification_count = current_user_notification_query().filter(Notification.read_at.is_(None)).count()
+            unread_message_count = current_user_unread_message_query().count()
+        elif current_user.is_authenticated and current_user.role == "client":
+            unread_message_count = Message.query.filter_by(client_id=current_user.id, sender_role="agency", read_at=None).count()
         return {
             "case_statuses": CASE_STATUSES,
             "case_types": available_case_types(),
@@ -229,6 +241,7 @@ def create_app():
             "pdf_field_visual_mapping": pdf_field_visual_mapping,
             "is_pdf_checkbox_field": is_pdf_checkbox_field,
             "unread_notification_count": unread_notification_count,
+            "unread_message_count": unread_message_count,
         }
 
     register_routes(app)
@@ -1752,6 +1765,7 @@ def generate_client_credentials_image(client):
 def populate_staff_login_from_form(person, label):
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
+    person.is_active = request.form.get("is_active") == "1"
     if not username:
         person.username = None
         person.password_hash = None
@@ -2014,6 +2028,174 @@ def record_crm_case_status(case, status=None):
             tracking_number=case.tracking_number if status == "Completed" else None,
         )
     )
+
+
+def agency_message_identity(user=None):
+    user = user or current_user
+    if not getattr(user, "is_authenticated", False) or getattr(user, "role", None) != "agency":
+        return None
+    if isinstance(user, AgencyUser):
+        label = user.agency.registered_operator or user.agency.registered_owners or user.username
+        return {"role": "agency_user", "id": user.id, "label": label, "record": user}
+    if isinstance(user, AgencyCaseManager):
+        return {"role": "agency_case_manager", "id": user.id, "label": user.full_name, "record": user}
+    if isinstance(user, AgencyPreparer):
+        return {"role": "agency_preparer", "id": user.id, "label": user.full_name, "record": user}
+    return None
+
+
+def active_agency_message_users(agency_id):
+    users = []
+    owner = AgencyUser.query.filter_by(agency_id=agency_id, is_active=True).first()
+    if owner and owner.username:
+        users.append(agency_message_identity(owner))
+    for person in AgencyCaseManager.query.filter_by(agency_id=agency_id, is_active=True).filter(AgencyCaseManager.username.isnot(None)).all():
+        users.append(agency_message_identity(person))
+    for person in AgencyPreparer.query.filter_by(agency_id=agency_id, is_active=True).filter(AgencyPreparer.username.isnot(None)).all():
+        users.append(agency_message_identity(person))
+    return [user for user in users if user]
+
+
+def message_assignee_is_active(client):
+    model = {
+        "agency_user": AgencyUser,
+        "agency_case_manager": AgencyCaseManager,
+        "agency_preparer": AgencyPreparer,
+    }.get(client.assigned_to_role)
+    if not model or not client.assigned_to_id:
+        return False
+    person = db.session.get(model, client.assigned_to_id)
+    return bool(person and person.agency_id == client.agency_id and person.is_active and person.username)
+
+
+def backfill_client_message_owner(client):
+    if client.created_by_label:
+        return
+    created_log = CrmClientActivityLog.query.filter_by(
+        agency_id=client.agency_id,
+        client_id=client.id,
+        action="Client created",
+    ).order_by(CrmClientActivityLog.created_at.asc()).first()
+    if not created_log:
+        return
+    matched = None
+    records = []
+    owner = AgencyUser.query.filter_by(agency_id=client.agency_id).first()
+    if owner:
+        records.append(owner)
+    records.extend(AgencyCaseManager.query.filter_by(agency_id=client.agency_id).all())
+    records.extend(AgencyPreparer.query.filter_by(agency_id=client.agency_id).all())
+    for record in records:
+        candidate = agency_message_identity(record)
+        if not candidate:
+            continue
+        record = candidate["record"]
+        username = getattr(record, "username", "") or ""
+        full_name = getattr(record, "full_name", "") or ""
+        if username and username in created_log.user_label or full_name and full_name in created_log.user_label:
+            matched = candidate
+            break
+    client.created_by_label = matched["label"] if matched else created_log.user_label
+    if matched:
+        client.created_by_role = matched["role"]
+        client.created_by_id = matched["id"]
+        if not client.assigned_to_role:
+            client.assigned_to_role = matched["role"]
+            client.assigned_to_id = matched["id"]
+            client.assigned_to_label = matched["label"]
+
+
+def assign_client_message_user(client, reason):
+    backfill_client_message_owner(client)
+    if message_assignee_is_active(client):
+        return {
+            "role": client.assigned_to_role,
+            "id": client.assigned_to_id,
+            "label": client.assigned_to_label,
+        }
+    candidates = active_agency_message_users(client.agency_id)
+    if not candidates:
+        return None
+    previous_log = MessageAssignmentLog.query.filter_by(client_id=client.id).order_by(MessageAssignmentLog.created_at.desc()).first()
+    if len(candidates) > 1 and previous_log:
+        alternatives = [candidate for candidate in candidates if not (candidate["role"] == previous_log.to_role and candidate["id"] == previous_log.to_id)]
+        if alternatives:
+            candidates = alternatives
+    selected = secrets.choice(candidates)
+    old_role, old_id, old_label = client.assigned_to_role, client.assigned_to_id, client.assigned_to_label
+    client.assigned_to_role = selected["role"]
+    client.assigned_to_id = selected["id"]
+    client.assigned_to_label = selected["label"]
+    db.session.add(
+        MessageAssignmentLog(
+            agency_id=client.agency_id,
+            client_id=client.id,
+            from_role=old_role,
+            from_id=old_id,
+            from_label=old_label,
+            to_role=selected["role"],
+            to_id=selected["id"],
+            to_label=selected["label"],
+            reason=reason,
+        )
+    )
+    db.session.add(
+        CrmClientActivityLog(
+            agency_id=client.agency_id,
+            client_id=client.id,
+            user_label="System",
+            action="Message center reassignment",
+            details=f"{old_label or 'Unassigned'} reassigned to {selected['label']}. {reason}",
+        )
+    )
+    return selected
+
+
+def current_user_unread_message_query():
+    if not current_user.is_authenticated or current_user.role != "agency":
+        return Message.query.filter(Message.id == -1)
+    query = Message.query.join(Client, Client.id == Message.client_id).filter(
+        Message.agency_id == current_user.agency_id,
+        Message.sender_role == "client",
+        Message.read_at.is_(None),
+    )
+    if is_agency_owner():
+        return query
+    identity = agency_message_identity()
+    return query.filter(Client.assigned_to_role == identity["role"], Client.assigned_to_id == identity["id"])
+
+
+def get_or_create_message_thread(client):
+    thread = MessageThread.query.filter_by(client_id=client.id).first()
+    if not thread:
+        thread = MessageThread(agency_id=client.agency_id, client_id=client.id)
+        db.session.add(thread)
+        db.session.flush()
+    return thread
+
+
+def agency_can_open_client_messages(client):
+    if not current_user.is_authenticated or current_user.role != "agency" or client.agency_id != current_user.agency_id:
+        return False
+    if is_agency_owner():
+        return True
+    identity = agency_message_identity()
+    return bool(identity and client.assigned_to_role == identity["role"] and client.assigned_to_id == identity["id"])
+
+
+def message_json(message):
+    if current_user.role == "client":
+        mine = message.sender_role == "client" and message.sender_id == current_user.id
+    else:
+        mine = message.sender_role == "agency"
+    return {
+        "id": message.id,
+        "sender_label": message.sender_label,
+        "body": message.body,
+        "created_at": message.created_at.strftime("%b %d, %Y at %I:%M %p"),
+        "mine": bool(mine),
+        "sender_role": message.sender_role,
+    }
 
 
 def ensure_crm_case_status_history(case):
@@ -3365,6 +3547,9 @@ def register_routes(app):
                 user = Client.query.filter_by(username=username).first()
             if not user or not user.check_password(password):
                 flash("Invalid username or password.", "danger")
+                return render_template("login.html", role=role)
+            if role == "agency" and not user.is_active:
+                flash("This user account is inactive. Contact your agency administrator.", "warning")
                 return render_template("login.html", role=role)
             if role == "agency" and not agency_ip_allowed(user.agency, request.remote_addr or "unknown"):
                 flash("Agency IP login limit reached. Contact Apex to increase your plan.", "danger")
@@ -5560,6 +5745,14 @@ def register_routes(app):
                 abort(403)
             client = Client(agency_id=agency_id)
             populate_client_from_form(client)
+            creator = agency_message_identity() if current_user.role == "agency" else None
+            if creator:
+                client.created_by_role = creator["role"]
+                client.created_by_id = creator["id"]
+                client.created_by_label = creator["label"]
+                client.assigned_to_role = creator["role"]
+                client.assigned_to_id = creator["id"]
+                client.assigned_to_label = creator["label"]
             if not client.username:
                 client.username = generated_client_username(client.first_name, client.last_name)
             elif username_taken(client.username, client):
@@ -5847,6 +6040,142 @@ def register_routes(app):
             abort(403)
         case = query_case_for_role(case_id)
         return render_template("generated_documents.html", case=case)
+
+    @app.route("/agency/messages", methods=["GET", "POST"])
+    @role_required("agency")
+    def agency_message_center():
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        identity = agency_message_identity()
+        thread_query = MessageThread.query.join(Client, Client.id == MessageThread.client_id).filter(
+            MessageThread.agency_id == current_user.agency_id
+        )
+        if not is_agency_owner():
+            thread_query = thread_query.filter(
+                Client.assigned_to_role == identity["role"],
+                Client.assigned_to_id == identity["id"],
+            )
+        threads = thread_query.order_by(MessageThread.last_message_at.desc()).all()
+        selected_client_id = request.form.get("client_id") or request.args.get("client_id")
+        selected_client = None
+        thread = None
+        if selected_client_id and str(selected_client_id).isdigit():
+            selected_client = Client.query.filter_by(id=int(selected_client_id), agency_id=current_user.agency_id).first() or abort(404)
+            if not agency_can_open_client_messages(selected_client):
+                abort(403)
+            thread = get_or_create_message_thread(selected_client)
+        elif threads:
+            thread = threads[0]
+            selected_client = thread.client
+        if request.method == "POST":
+            if not selected_client or not thread:
+                abort(404)
+            body = request.form.get("message", "").strip()
+            if body:
+                db.session.add(
+                    Message(
+                        thread_id=thread.id,
+                        agency_id=selected_client.agency_id,
+                        client_id=selected_client.id,
+                        sender_role="agency",
+                        sender_id=identity["id"],
+                        sender_label=identity["label"],
+                        body=body[:4000],
+                    )
+                )
+                thread.last_message_at = datetime.utcnow()
+                db.session.commit()
+            return redirect(url_for("agency_message_center", client_id=selected_client.id))
+        if thread:
+            Message.query.filter_by(thread_id=thread.id, sender_role="client", read_at=None).update({"read_at": datetime.utcnow()})
+            recipient_role, recipient_id = current_user_notification_identity()
+            Notification.query.filter_by(
+                agency_id=current_user.agency_id,
+                recipient_role=recipient_role,
+                recipient_id=recipient_id,
+                client_id=selected_client.id,
+                notification_type="client_message",
+                read_at=None,
+            ).update({"read_at": datetime.utcnow()})
+            db.session.commit()
+        return render_template(
+            "message_center.html",
+            agency_view=True,
+            threads=threads,
+            selected_client=selected_client,
+            thread=thread,
+            messages=thread.messages if thread else [],
+        )
+
+    @app.route("/client/messages", methods=["GET", "POST"])
+    @role_required("client")
+    def client_message_center():
+        if not can_use_crm(current_user.agency):
+            abort(404)
+        thread = get_or_create_message_thread(current_user)
+        if request.method == "POST":
+            body = request.form.get("message", "").strip()
+            if body:
+                assignee = assign_client_message_user(current_user, "The prior assignee was inactive or the client did not yet have a message-center assignee.")
+                message = Message(
+                    thread_id=thread.id,
+                    agency_id=current_user.agency_id,
+                    client_id=current_user.id,
+                    sender_role="client",
+                    sender_id=current_user.id,
+                    sender_label=current_user.full_name,
+                    body=body[:4000],
+                )
+                db.session.add(message)
+                thread.last_message_at = datetime.utcnow()
+                if assignee:
+                    db.session.add(
+                        Notification(
+                            agency_id=current_user.agency_id,
+                            recipient_role=assignee["role"],
+                            recipient_id=assignee["id"],
+                            sender_label=current_user.full_name,
+                            notification_type="client_message",
+                            message=f"{current_user.full_name} sent a new message.",
+                            client_id=current_user.id,
+                        )
+                    )
+                db.session.commit()
+            return redirect(url_for("client_message_center"))
+        Message.query.filter_by(thread_id=thread.id, sender_role="agency", read_at=None).update({"read_at": datetime.utcnow()})
+        db.session.commit()
+        return render_template(
+            "message_center.html",
+            agency_view=False,
+            threads=[],
+            selected_client=current_user,
+            thread=thread,
+            messages=thread.messages,
+        )
+
+    @app.route("/messages/updates")
+    @role_required("agency", "client")
+    def message_center_updates():
+        after = request.args.get("after", "0")
+        after_id = int(after) if after.isdigit() else 0
+        if current_user.role == "client":
+            client = current_user
+        else:
+            client_id = request.args.get("client_id", "")
+            if not client_id.isdigit():
+                abort(400)
+            client = Client.query.filter_by(id=int(client_id), agency_id=current_user.agency_id).first() or abort(404)
+            if not agency_can_open_client_messages(client):
+                abort(403)
+        thread = MessageThread.query.filter_by(client_id=client.id).first()
+        if not thread:
+            return jsonify({"messages": []})
+        messages = Message.query.filter(Message.thread_id == thread.id, Message.id > after_id).order_by(Message.id.asc()).all()
+        incoming_role = "agency" if current_user.role == "client" else "client"
+        Message.query.filter_by(thread_id=thread.id, sender_role=incoming_role, read_at=None).update({"read_at": datetime.utcnow()})
+        db.session.commit()
+        return jsonify({"messages": [message_json(message) for message in messages]})
 
     @app.route("/client")
     @role_required("client")
@@ -7761,6 +8090,19 @@ def ensure_sqlite_schema():
         for column, ddl in case_additions.items():
             if column not in existing_case:
                 db.session.execute(text(f"ALTER TABLE 'case' ADD COLUMN {column} {ddl}"))
+    if "client" in inspector.get_table_names():
+        existing_client = {column["name"] for column in inspector.get_columns("client")}
+        client_message_additions = {
+            "created_by_role": "VARCHAR(40)",
+            "created_by_id": "INTEGER",
+            "created_by_label": "VARCHAR(160)",
+            "assigned_to_role": "VARCHAR(40)",
+            "assigned_to_id": "INTEGER",
+            "assigned_to_label": "VARCHAR(160)",
+        }
+        for column, ddl in client_message_additions.items():
+            if column not in existing_client:
+                db.session.execute(text(f"ALTER TABLE client ADD COLUMN {column} {ddl}"))
     if "motion_template" in inspector.get_table_names():
         existing_motion_template = {column["name"] for column in inspector.get_columns("motion_template")}
         motion_template_additions = {
@@ -7812,10 +8154,15 @@ def ensure_sqlite_schema():
             staff_additions = {
                 "username": "VARCHAR(80)",
                 "password_hash": "VARCHAR(255)",
+                "is_active": "BOOLEAN DEFAULT 1 NOT NULL",
             }
             for column, ddl in staff_additions.items():
                 if column not in existing_staff:
                     db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column} {ddl}"))
+    if "agency_user" in inspector.get_table_names():
+        existing_agency_user = {column["name"] for column in inspector.get_columns("agency_user")}
+        if "is_active" not in existing_agency_user:
+            db.session.execute(text("ALTER TABLE agency_user ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
     reference_table_additions = {
         "immigration_court": {
             "address_line1": "VARCHAR(180)",

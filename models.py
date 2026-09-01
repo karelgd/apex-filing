@@ -120,6 +120,7 @@ class AgencyUser(UserMixin, PasswordMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False, unique=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency", back_populates="user")
@@ -158,6 +159,7 @@ class AgencyPreparer(UserMixin, PasswordMixin, db.Model):
     phone = db.Column(db.String(40))
     email = db.Column(db.String(160))
     address = db.Column(db.String(240))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency", backref=db.backref("preparers", cascade="all, delete-orphan"))
@@ -182,6 +184,7 @@ class AgencyCaseManager(UserMixin, PasswordMixin, db.Model):
     phone = db.Column(db.String(40))
     email = db.Column(db.String(160))
     address = db.Column(db.String(240))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency", backref=db.backref("case_managers", cascade="all, delete-orphan"))
@@ -390,6 +393,12 @@ class Client(UserMixin, PasswordMixin, db.Model):
     zip_code = db.Column(db.String(12), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     portal_password = db.Column(db.String(80))
+    created_by_role = db.Column(db.String(40))
+    created_by_id = db.Column(db.Integer)
+    created_by_label = db.Column(db.String(160))
+    assigned_to_role = db.Column(db.String(40))
+    assigned_to_id = db.Column(db.Integer)
+    assigned_to_label = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -401,6 +410,8 @@ class Client(UserMixin, PasswordMixin, db.Model):
     crm_documents = db.relationship("CrmClientDocument", back_populates="client", cascade="all, delete-orphan")
     crm_notes = db.relationship("CrmClientNote", back_populates="client", cascade="all, delete-orphan", order_by="CrmClientNote.created_at.desc()")
     crm_activity_logs = db.relationship("CrmClientActivityLog", back_populates="client", cascade="all, delete-orphan", order_by="CrmClientActivityLog.created_at.desc()")
+    message_thread = db.relationship("MessageThread", back_populates="client", uselist=False, cascade="all, delete-orphan")
+    message_assignment_logs = db.relationship("MessageAssignmentLog", back_populates="client", cascade="all, delete-orphan", order_by="MessageAssignmentLog.created_at.desc()")
 
     @property
     def role(self):
@@ -418,6 +429,53 @@ class Client(UserMixin, PasswordMixin, db.Model):
     def display_address(self):
         unit = f", {self.apartment}" if self.apartment else ""
         return f"{self.street_address}{unit}, {self.city}, {self.state} {self.zip_code}"
+
+
+class MessageThread(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False, index=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_message_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    agency = db.relationship("Agency")
+    client = db.relationship("Client", back_populates="message_thread")
+    messages = db.relationship("Message", back_populates="thread", cascade="all, delete-orphan", order_by="Message.created_at.asc()")
+
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.Integer, db.ForeignKey("message_thread.id"), nullable=False, index=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False, index=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False, index=True)
+    sender_role = db.Column(db.String(40), nullable=False)
+    sender_id = db.Column(db.Integer, nullable=False)
+    sender_label = db.Column(db.String(160), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    read_at = db.Column(db.DateTime)
+
+    thread = db.relationship("MessageThread", back_populates="messages")
+    agency = db.relationship("Agency")
+    client = db.relationship("Client")
+
+
+class MessageAssignmentLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False, index=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False, index=True)
+    from_role = db.Column(db.String(40))
+    from_id = db.Column(db.Integer)
+    from_label = db.Column(db.String(160))
+    to_role = db.Column(db.String(40), nullable=False)
+    to_id = db.Column(db.Integer, nullable=False)
+    to_label = db.Column(db.String(160), nullable=False)
+    reason = db.Column(db.String(240), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    agency = db.relationship("Agency")
+    client = db.relationship("Client", back_populates="message_assignment_logs")
 
 
 class Case(db.Model):

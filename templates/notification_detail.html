@@ -28,6 +28,9 @@
         for Client
         <a href="{{ url_for('crm_client_detail', client_id=notification.client.id) }}">{{ notification.client.full_name }}</a>
         has been completed.
+      {% elif notification.notification_type == 'client_message' and notification.client %}
+        Client <a href="{{ url_for('crm_client_detail', client_id=notification.client.id) }}">{{ notification.client.full_name }}</a>
+        sent a new message. <a href="{{ url_for('agency_message_center', client_id=notification.client.id) }}">Open conversation</a>.
       {% elif notification.notification_type == 'survey_submitted' and notification.survey and notification.client %}
         Client
         <a href="{{ url_for('crm_client_detail', client_id=notification.client.id) }}">{{ notification.client.full_name }}</a>
