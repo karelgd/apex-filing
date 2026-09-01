@@ -41,6 +41,10 @@
           <label class="form-label">Username</label>
           <input class="form-control" name="username" autocomplete="off">
         </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" name="is_active" value="1" id="new-person-active" checked>
+          <label class="form-check-label" for="new-person-active"><strong>Active user</strong><br><span class="text-secondary small">Inactive users cannot sign in or receive newly routed client messages.</span></label>
+        </div>
         <div class="mb-3">
           <label class="form-label">Password</label>
           <div class="input-group password-group">
@@ -64,6 +68,7 @@
                 <div class="text-secondary small">
                   {% if person_type == 'translator' %}{{ person.language }}{% else %}{{ person_label|title }}{% endif %}
                   {% if person_type in ['preparer', 'case_manager'] and person.username %} &middot; Login: {{ person.username }}{% endif %}
+                  {% if person_type in ['preparer', 'case_manager'] %} &middot; <span class="badge {{ 'text-bg-success' if person.is_active else 'text-bg-secondary' }}">{{ 'Active' if person.is_active else 'Inactive' }}</span>{% endif %}
                   {% if person.email %} &middot; {{ person.email }}{% endif %}
                   {% if person.phone %} &middot; {{ person.phone }}{% endif %}
                 </div>

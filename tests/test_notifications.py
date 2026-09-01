@@ -10,7 +10,7 @@ os.environ["AUTO_INIT_DB"] = "0"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.name.replace(os.sep, '/')}"
 
 from app import app  # noqa: E402
-from models import Agency, AgencyCaseManager, AgencyUser, Client, CrmCase, CrmCaseStatusHistory, CrmSurvey, Notification, SubscriptionTool, db  # noqa: E402
+from models import Agency, AgencyCaseManager, AgencyPreparer, AgencyUser, Client, CrmCase, CrmCaseStatusHistory, CrmSurvey, Message, MessageAssignmentLog, Notification, SubscriptionTool, db  # noqa: E402
 
 
 class CompletedCaseNotificationTest(unittest.TestCase):
@@ -250,6 +250,79 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         tracking = b"9400100000000000000000"
         self.assertIn(b"https://tools.usps.com/go/TrackConfirmAction?tLabels=" + tracking, detail.data)
         self.assertLess(detail.data.index(b"Completed"), detail.data.index(b"Open"))
+
+    def test_client_message_reassigns_from_inactive_creator_and_preserves_sender_names(self):
+        with app.app_context():
+            client = db.session.get(Client, self.client_id)
+            manager = db.session.get(AgencyCaseManager, self.manager_id)
+            owner = db.session.get(AgencyUser, self.owner_id)
+            manager.is_active = False
+            owner.is_active = False
+            client.created_by_role = "agency_case_manager"
+            client.created_by_id = manager.id
+            client.created_by_label = manager.full_name
+            client.assigned_to_role = "agency_case_manager"
+            client.assigned_to_id = manager.id
+            client.assigned_to_label = manager.full_name
+            preparer = AgencyPreparer(
+                agency_id=client.agency_id,
+                full_name="Taylor Responder",
+                username="taylor",
+                is_active=True,
+            )
+            preparer.set_password("responder-password")
+            db.session.add(preparer)
+            db.session.commit()
+            preparer_id = preparer.id
+
+        self.web.get("/logout")
+        self.assertEqual(
+            self.web.post("/login/client", data={"username": "alexclient", "password": "client-password"}).status_code,
+            302,
+        )
+        sent = self.web.post("/client/messages", data={"message": "Necesito una actualización de mi caso."})
+        self.assertEqual(sent.status_code, 302)
+
+        with app.app_context():
+            client = db.session.get(Client, self.client_id)
+            self.assertEqual(client.created_by_label, "Morgan Manager")
+            self.assertEqual(client.assigned_to_role, "agency_preparer")
+            self.assertEqual(client.assigned_to_id, preparer_id)
+            self.assertEqual(client.assigned_to_label, "Taylor Responder")
+            assignment = MessageAssignmentLog.query.filter_by(client_id=client.id).one()
+            self.assertEqual(assignment.from_label, "Morgan Manager")
+            self.assertEqual(assignment.to_label, "Taylor Responder")
+            alert = Notification.query.filter_by(
+                notification_type="client_message",
+                recipient_role="agency_preparer",
+                recipient_id=preparer_id,
+            ).one()
+            self.assertIsNone(alert.read_at)
+
+        self.web.get("/logout")
+        inactive_login = self.web.post("/login/agency", data={"username": "manager", "password": "test-password"})
+        self.assertEqual(inactive_login.status_code, 200)
+        self.assertIn(b"inactive", inactive_login.data)
+        responder_login = self.web.post("/login/agency", data={"username": "taylor", "password": "responder-password"})
+        self.assertEqual(responder_login.status_code, 302)
+        conversation = self.web.get(f"/agency/messages?client_id={self.client_id}")
+        self.assertEqual(conversation.status_code, 200)
+        self.assertIn("Necesito una actualización".encode("utf-8"), conversation.data)
+        replied = self.web.post(
+            "/agency/messages",
+            data={"client_id": str(self.client_id), "message": "Estamos revisando su caso."},
+        )
+        self.assertEqual(replied.status_code, 302)
+
+        self.web.get("/logout")
+        self.web.post("/login/client", data={"username": "alexclient", "password": "client-password"})
+        client_chat = self.web.get("/client/messages")
+        self.assertEqual(client_chat.status_code, 200)
+        self.assertIn(b"Taylor Responder", client_chat.data)
+        self.assertIn(b"Estamos revisando su caso.", client_chat.data)
+        with app.app_context():
+            names = [message.sender_label for message in Message.query.order_by(Message.id).all()]
+            self.assertEqual(names, ["Alex Client", "Taylor Responder"])
 
 
 if __name__ == "__main__":

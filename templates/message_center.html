@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Message Center - Apex Document Filing{% endblock %}
+{% block content %}
+<div class="message-center-page {{ 'agency-message-center' if agency_view else 'client-message-center' }}">
+  <header class="message-center-header">
+    <div>
+      <span class="crm-kicker" {% if not agency_view %}data-i18n="communication"{% endif %}>Communication</span>
+      <h1 {% if not agency_view %}data-i18n="message_center"{% endif %}>Message Center</h1>
+      <p {% if not agency_view %}data-i18n="message_center_help"{% endif %}>Send and receive secure messages without leaving Apex.</p>
+    </div>
+  </header>
+
+  <div class="message-center-shell {{ 'with-thread-list' if agency_view else '' }}">
+    {% if agency_view %}
+      <aside class="message-thread-list">
+        <div class="message-thread-list-head">
+          <strong>Client conversations</strong>
+          <span>{{ threads|length }}</span>
+        </div>
+        {% for item in threads %}
+          {% set unread = item.messages|selectattr('sender_role', 'equalto', 'client')|selectattr('read_at', 'none')|list|length %}
+          <a class="message-thread-row {{ 'active' if selected_client and selected_client.id == item.client_id else '' }}" href="{{ url_for('agency_message_center', client_id=item.client_id) }}">
+            <span class="message-avatar">{{ item.client.full_name[:1]|upper }}</span>
+            <span class="message-thread-summary">
+              <strong>{{ item.client.full_name }}</strong>
+              <small>{{ item.messages[-1].body|truncate(46) if item.messages else 'No messages yet' }}</small>
+            </span>
+            {% if unread %}<span class="message-unread-count">{{ unread if unread < 100 else '99+' }}</span>{% endif %}
+          </a>
+        {% else %}
+          <div class="message-list-empty">No client conversations yet.</div>
+        {% endfor %}
+      </aside>
+    {% endif %}
+
+    <section class="message-conversation">
+      {% if selected_client and thread %}
+        <header class="message-conversation-head">
+          <span class="message-avatar large">{{ selected_client.full_name[:1]|upper }}</span>
+          <div>
+            <strong>{{ selected_client.full_name if agency_view else selected_client.agency.agency_name }}</strong>
+            <small>
+              {% if agency_view %}
+                Assigned to {{ selected_client.assigned_to_label or 'an active agency user when the client sends a message' }}
+              {% else %}
+                <span data-i18n="secure_agency_conversation">Secure conversation with your agency</span>
+              {% endif %}
+            </small>
+          </div>
+        </header>
+
+        <div class="message-stream" data-message-stream data-after-id="{{ messages[-1].id if messages else 0 }}" data-client-id="{{ selected_client.id }}">
+          {% for message in messages %}
+            {% set mine = (not agency_view and message.sender_role == 'client') or (agency_view and message.sender_role == 'agency') %}
+            <article class="message-bubble-row {{ 'mine' if mine else 'theirs' }}" data-message-id="{{ message.id }}">
+              <div class="message-bubble">
+                <strong>{{ 'You' if mine else message.sender_label }}</strong>
+                <p>{{ message.body }}</p>
+                <time>{{ message.created_at.strftime('%b %d, %Y at %I:%M %p') }}</time>
+              </div>
+            </article>
+          {% else %}
+            <div class="message-welcome" data-message-empty>
+              <span class="message-welcome-icon" aria-hidden="true">✦</span>
+              <strong {% if not agency_view %}data-i18n="start_conversation"{% endif %}>Start the conversation</strong>
+              <p {% if not agency_view %}data-i18n="start_conversation_help"{% endif %}>Write a message below. Your conversation history will remain available here.</p>
+            </div>
+          {% endfor %}
+        </div>
+
+        <form class="message-composer" method="post" data-message-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if agency_view %}<input type="hidden" name="client_id" value="{{ selected_client.id }}">{% endif %}
+          <textarea name="message" rows="1" maxlength="4000" required data-message-input {% if not agency_view %}data-i18n-placeholder="message_placeholder"{% endif %} placeholder="Write a message..."></textarea>
+          <button type="submit" aria-label="Send message">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m3 11 18-8-8 18-2-7-8-3Z"/><path d="m11 14 4-4"/></svg>
+            <span {% if not agency_view %}data-i18n="send"{% endif %}>Send</span>
+          </button>
+        </form>
+        <p class="message-enter-help" {% if not agency_view %}data-i18n="enter_to_send"{% endif %}>Press Enter to send. Use Shift + Enter for a new line.</p>
+      {% else %}
+        <div class="message-no-selection">
+          <span class="message-welcome-icon" aria-hidden="true">✦</span>
+          <h2>Select a conversation</h2>
+          <p>New client messages assigned to you will appear here.</p>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  (() => {
+    const stream = document.querySelector("[data-message-stream]");
+    const form = document.querySelector("[data-message-form]");
+    const input = document.querySelector("[data-message-input]");
+    if (!stream || !form || !input) return;
+
+    const appendMessage = (message) => {
+      if (stream.querySelector(`[data-message-id="${message.id}"]`)) return;
+      stream.querySelector("[data-message-empty]")?.remove();
+      const row = document.createElement("article");
+      row.className = `message-bubble-row ${message.mine ? "mine" : "theirs"}`;
+      row.dataset.messageId = message.id;
+      const bubble = document.createElement("div");
+      bubble.className = "message-bubble";
+      const sender = document.createElement("strong");
+      sender.textContent = message.mine ? "You" : message.sender_label;
+      const body = document.createElement("p");
+      body.textContent = message.body;
+      const time = document.createElement("time");
+      time.textContent = message.created_at;
+      bubble.append(sender, body, time);
+      row.appendChild(bubble);
+      stream.appendChild(row);
+      stream.dataset.afterId = Math.max(Number(stream.dataset.afterId || 0), Number(message.id));
+      stream.scrollTop = stream.scrollHeight;
+    };
+
+    const checkUpdates = async () => {
+      const params = new URLSearchParams({ after: stream.dataset.afterId || "0" });
+      {% if agency_view %}params.set("client_id", stream.dataset.clientId);{% endif %}
+      try {
+        const response = await fetch(`{{ url_for('message_center_updates') }}?${params.toString()}`, { headers: { Accept: "application/json" } });
+        if (response.ok) {
+          const data = await response.json();
+          data.messages.forEach(appendMessage);
+        }
+      } catch (error) {}
+    };
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (input.value.trim()) form.requestSubmit();
+      }
+    });
+    stream.scrollTop = stream.scrollHeight;
+    window.setInterval(checkUpdates, 5000);
+  })();
+</script>
+{% endblock %}
