@@ -170,7 +170,7 @@
     </section>
     {% endif %}
 
-    <section class="crm-folder-panel {{ 'active' if selected_tab == 'documents' else '' }}" data-crm-panel="documents">
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'documents' else '' }}" data-crm-panel="documents" id="documents">
       <div class="crm-panel-head">
         <div><h2>Documents</h2><p>Client-level files, optionally linked to a case.</p></div>
       </div>
@@ -189,9 +189,27 @@
           <div class="crm-record">
             <div>
               <strong>{{ document.original_filename }}</strong>
-              <small>{% if document.description %}{{ document.description }}{% else %}Client document{% endif %}{% if document.case %} &middot; {{ document.case.title }}{% endif %}</small>
+              <small>
+                {% if document.description %}{{ document.description }}{% else %}Client document{% endif %}
+                {% if document.case %} &middot; {{ document.case.title }}{% endif %}
+                &middot; Uploaded by {{ document.uploaded_by_label or ('Client' if document.document_type == 'Client upload' else 'Agency') }}
+              </small>
             </div>
             <div class="crm-row-actions">
+              {% set available_to_client = document.client_visible or document.uploaded_by_role == 'client' or document.document_type == 'Client upload' %}
+              {% if can_manage_client_document_visibility() and document.uploaded_by_role != 'client' and document.document_type != 'Client upload' %}
+                <form class="document-visibility-form" method="post" action="{{ url_for('crm_document_client_visibility', document_id=document.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="make_visible" value="{{ '1' if available_to_client else '0' }}">
+                  <label class="document-visibility-toggle" title="Control whether the client can view and download this document">
+                    <input type="checkbox" {{ 'checked' if available_to_client else '' }} data-document-visibility>
+                    <span aria-hidden="true"></span>
+                    <strong>{{ 'Available to client' if available_to_client else 'Private' }}</strong>
+                  </label>
+                </form>
+              {% elif available_to_client %}
+                <span class="badge text-bg-success">Available to client</span>
+              {% endif %}
               <a class="btn btn-sm btn-primary" href="{{ url_for('crm_document_view', document_id=document.id) }}" target="_blank">View</a>
               <a class="btn btn-sm btn-outline-primary" href="{{ url_for('crm_document_download', document_id=document.id) }}">Download</a>
               <form method="post" action="{{ url_for('crm_document_delete', document_id=document.id) }}" onsubmit="return confirm('Delete this document?')">
@@ -326,5 +344,17 @@
       stream.scrollTop = stream.scrollHeight;
     }
   })();
+
+  document.querySelectorAll("[data-document-visibility]").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked && !window.confirm("Are you sure you want this document to be visible and downloadable by the client?")) {
+        checkbox.checked = false;
+        return;
+      }
+      const form = checkbox.closest("form");
+      form.querySelector("[name='make_visible']").value = checkbox.checked ? "1" : "0";
+      form.submit();
+    });
+  });
 </script>
 {% endblock %}

@@ -236,6 +236,7 @@ def create_app():
             "can_add_invoice_refunds_for_current_user": can_add_invoice_refunds_for_current_user,
             "can_manage_client_users_for_current_user": can_manage_client_users_for_current_user,
             "can_create_crm_clients_for_current_user": can_create_crm_clients_for_current_user,
+            "can_manage_client_document_visibility": can_manage_client_document_visibility,
             "phone_tel_href": phone_tel_href,
             "question_visual_mapping": question_visual_mapping,
             "question_visual_mappings": question_visual_mappings,
@@ -349,6 +350,12 @@ def can_create_crm_clients_for_current_user():
                 or isinstance(current_user, AgencyPreparer)
             )
         )
+    )
+
+
+def can_manage_client_document_visibility():
+    return current_user.is_authenticated and current_user.role == "agency" and (
+        is_agency_owner() or isinstance(current_user, AgencyPreparer)
     )
 
 
@@ -5525,6 +5532,9 @@ def register_routes(app):
                 stored_filename=stored,
                 document_type="Client document",
                 description=description,
+                uploaded_by_role="agency",
+                uploaded_by_label=current_user_label(),
+                client_visible=False,
             )
             db.session.add(document)
             uploaded_names.append(original)
@@ -5534,7 +5544,32 @@ def register_routes(app):
         crm_client_log(client, "Documents uploaded", ", ".join(uploaded_names[:5]))
         db.session.commit()
         flash(f"{len(uploaded_names)} document(s) uploaded.", "success")
-        return redirect(url_for("crm_client_detail", client_id=client.id))
+        return redirect(url_for("crm_client_detail", client_id=client.id, tab="documents") + "#documents")
+
+    @app.route("/agency/crm/documents/<int:document_id>/client-visibility", methods=["POST"])
+    @role_required("agency")
+    def crm_document_client_visibility(document_id):
+        if not can_use_crm(current_user.agency):
+            flash("This feature is not included in your current membership.", "warning")
+            return redirect(url_for("agency_dashboard"))
+        if not can_manage_client_document_visibility():
+            abort(403)
+        document = CrmClientDocument.query.filter_by(id=document_id, agency_id=current_user.agency_id).first() or abort(404)
+        make_visible = request.form.get("make_visible") == "1"
+        document.client_visible = make_visible
+        crm_client_log(
+            document.client,
+            "Document made available to client" if make_visible else "Document removed from client portal",
+            document.original_filename,
+        )
+        db.session.commit()
+        flash(
+            "The document is now available in the client's Document Center."
+            if make_visible
+            else "The document is no longer available in the client's Document Center.",
+            "success" if make_visible else "info",
+        )
+        return redirect(url_for("crm_client_detail", client_id=document.client_id, tab="documents") + "#documents")
 
     @app.route("/agency/crm/documents/<int:document_id>/delete", methods=["POST"])
     @role_required("agency")
@@ -6353,6 +6388,57 @@ def register_routes(app):
             standalone_questionnaires=standalone_questionnaires,
         )
 
+    @app.route("/client/documents")
+    @role_required("client")
+    def client_document_center():
+        if not can_use_crm(current_user.agency):
+            abort(404)
+        documents = CrmClientDocument.query.filter(
+            CrmClientDocument.client_id == current_user.id,
+            CrmClientDocument.agency_id == current_user.agency_id,
+            or_(
+                CrmClientDocument.client_visible.is_(True),
+                CrmClientDocument.uploaded_by_role == "client",
+                CrmClientDocument.document_type == "Client upload",
+            ),
+        ).order_by(CrmClientDocument.uploaded_at.desc()).all()
+        return render_template("client_document_center.html", documents=documents)
+
+    def client_visible_document(document_id):
+        return CrmClientDocument.query.filter(
+            CrmClientDocument.id == document_id,
+            CrmClientDocument.client_id == current_user.id,
+            CrmClientDocument.agency_id == current_user.agency_id,
+            or_(
+                CrmClientDocument.client_visible.is_(True),
+                CrmClientDocument.uploaded_by_role == "client",
+                CrmClientDocument.document_type == "Client upload",
+            ),
+        ).first() or abort(404)
+
+    @app.route("/client/documents/<int:document_id>/view")
+    @role_required("client")
+    def client_document_view(document_id):
+        document = client_visible_document(document_id)
+        authorize_upload_access(document.stored_filename)
+        crm_client_log(document.client, "Document viewed by client", document.original_filename)
+        db.session.commit()
+        return send_from_directory(app.config["UPLOAD_FOLDER"], document.stored_filename, as_attachment=False)
+
+    @app.route("/client/documents/<int:document_id>/download")
+    @role_required("client")
+    def client_document_download(document_id):
+        document = client_visible_document(document_id)
+        authorize_upload_access(document.stored_filename)
+        crm_client_log(document.client, "Document downloaded by client", document.original_filename)
+        db.session.commit()
+        return send_from_directory(
+            app.config["UPLOAD_FOLDER"],
+            document.stored_filename,
+            as_attachment=True,
+            download_name=document.original_filename,
+        )
+
     @app.route("/client/crm-cases/<int:case_id>")
     @role_required("client")
     def client_crm_case_detail(case_id):
@@ -6363,6 +6449,12 @@ def register_routes(app):
             client_id=current_user.id,
             case_id=case.id,
             agency_id=case.agency_id,
+        ).filter(
+            or_(
+                CrmClientDocument.client_visible.is_(True),
+                CrmClientDocument.uploaded_by_role == "client",
+                CrmClientDocument.document_type == "Client upload",
+            )
         ).order_by(CrmClientDocument.uploaded_at.desc()).all()
         return render_template(
             "client_crm_case_detail.html",
@@ -6391,8 +6483,12 @@ def register_routes(app):
                 stored_filename=stored,
                 document_type="Client upload",
                 description=request.form.get("description", "").strip(),
+                uploaded_by_role="client",
+                uploaded_by_label=current_user.full_name,
+                client_visible=True,
             )
         )
+        crm_client_log(current_user, "Document uploaded by client", original)
         db.session.commit()
         flash("Document uploaded.", "success")
         return redirect(url_for("client_crm_case_detail", case_id=case.id))
@@ -8297,6 +8393,22 @@ def ensure_sqlite_schema():
         existing_status_history = {column["name"] for column in inspector.get_columns("crm_case_status_history")}
         if "tracking_number" not in existing_status_history:
             db.session.execute(text("ALTER TABLE crm_case_status_history ADD COLUMN tracking_number VARCHAR(80)"))
+    if "crm_client_document" in inspector.get_table_names():
+        existing_document = {column["name"] for column in inspector.get_columns("crm_client_document")}
+        document_additions = {
+            "uploaded_by_role": "VARCHAR(40) DEFAULT 'agency' NOT NULL",
+            "uploaded_by_label": "VARCHAR(160)",
+            "client_visible": "BOOLEAN DEFAULT 0 NOT NULL",
+        }
+        for column, ddl in document_additions.items():
+            if column not in existing_document:
+                db.session.execute(text(f"ALTER TABLE crm_client_document ADD COLUMN {column} {ddl}"))
+        db.session.execute(
+            text(
+                "UPDATE crm_client_document SET uploaded_by_role = 'client', client_visible = 1 "
+                "WHERE document_type = 'Client upload'"
+            )
+        )
     for table_name in ("agency_preparer", "agency_case_manager"):
         if table_name in inspector.get_table_names():
             existing_staff = {column["name"] for column in inspector.get_columns(table_name)}
