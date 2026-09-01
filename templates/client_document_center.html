@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Document Center - Apex Document Filing{% endblock %}
+{% block content %}
+<div class="client-document-center">
+  <header class="client-document-center-head">
+    <div>
+      <span class="crm-kicker" data-i18n="secure_files">Secure files</span>
+      <h1 data-i18n="document_center">Document Center</h1>
+      <p data-i18n="document_center_help">Review documents you uploaded and documents your agency shared with you.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('client_dashboard') }}" data-i18n="back_to_dashboard">Back to dashboard</a>
+  </header>
+
+  <section class="client-document-library">
+    {% for document in documents %}
+      {% set uploaded_by_client = document.uploaded_by_role == 'client' or document.document_type == 'Client upload' %}
+      <article class="client-document-card">
+        <div class="client-document-icon" aria-hidden="true"></div>
+        <div class="client-document-details">
+          <strong>{{ document.original_filename }}</strong>
+          <p>{{ document.description or ('Uploaded by you' if uploaded_by_client else 'Shared by your agency') }}</p>
+          <small>
+            <span data-i18n="uploaded_on">Uploaded</span> {{ document.uploaded_at|eastern_time }}
+            {% if document.case %} &middot; {{ document.case.title }}{% endif %}
+          </small>
+          <span class="client-document-source {{ 'from-client' if uploaded_by_client else 'from-agency' }}" data-i18n="{{ 'uploaded_by_you' if uploaded_by_client else 'shared_by_agency' }}">
+            {{ 'Uploaded by you' if uploaded_by_client else 'Shared by agency' }}
+          </span>
+        </div>
+        <div class="client-document-actions">
+          <a class="btn btn-outline-primary" href="{{ url_for('client_document_view', document_id=document.id) }}" target="_blank" data-i18n="view">View</a>
+          <a class="btn btn-primary" href="{{ url_for('client_document_download', document_id=document.id) }}" data-i18n="download">Download</a>
+        </div>
+      </article>
+    {% else %}
+      <div class="client-empty-state client-document-empty">
+        <div class="client-document-icon large" aria-hidden="true"></div>
+        <strong data-i18n="no_documents_available">No documents are available yet.</strong>
+        <p data-i18n="document_center_empty_help">Documents you upload through a case and documents shared by your agency will appear here.</p>
+      </div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

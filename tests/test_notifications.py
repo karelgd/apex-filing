@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from io import BytesIO
 from unittest.mock import patch
 
 
@@ -10,7 +11,7 @@ os.environ["AUTO_INIT_DB"] = "0"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.name.replace(os.sep, '/')}"
 
 from app import app  # noqa: E402
-from models import Agency, AgencyCaseManager, AgencyPreparer, AgencyUser, Client, CrmCase, CrmCaseStatusHistory, CrmSurvey, Message, MessageAssignmentLog, Notification, SubscriptionTool, db  # noqa: E402
+from models import Agency, AgencyCaseManager, AgencyPreparer, AgencyUser, Client, CrmCase, CrmCaseStatusHistory, CrmClientActivityLog, CrmClientDocument, CrmSurvey, Message, MessageAssignmentLog, Notification, SubscriptionTool, db  # noqa: E402
 
 
 class CompletedCaseNotificationTest(unittest.TestCase):
@@ -23,6 +24,9 @@ class CompletedCaseNotificationTest(unittest.TestCase):
 
     def setUp(self):
         app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
+        self.upload_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.upload_directory.cleanup)
+        app.config["UPLOAD_FOLDER"] = self.upload_directory.name
         with app.app_context():
             db.drop_all()
             db.create_all()
@@ -391,6 +395,71 @@ class CompletedCaseNotificationTest(unittest.TestCase):
             log = MessageAssignmentLog.query.filter_by(client_id=client.id).one()
             self.assertEqual(log.from_label, "Morgan Manager")
             self.assertEqual(log.to_label, "Jordan Active")
+
+    def test_document_center_visibility_permissions_and_client_activity_log(self):
+        self.web.get("/logout")
+        self.assertEqual(
+            self.web.post("/login/agency", data={"username": "agencyowner", "password": "owner-password"}).status_code,
+            302,
+        )
+        uploaded = self.web.post(
+            f"/agency/crm/clients/{self.client_id}/documents",
+            data={"documents": (BytesIO(b"%PDF-1.4 agency document"), "agency-letter.pdf"), "description": "Agency letter"},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(uploaded.status_code, 302)
+        with app.app_context():
+            document = CrmClientDocument.query.filter_by(original_filename="agency-letter.pdf").one()
+            self.assertFalse(document.client_visible)
+            self.assertEqual(document.uploaded_by_role, "agency")
+            document_id = document.id
+        document_tab = self.web.get(f"/agency/crm/clients/{self.client_id}?tab=documents")
+        self.assertIn(b"Private", document_tab.data)
+        self.assertIn(b"Are you sure you want this document to be visible", document_tab.data)
+
+        self.web.get("/logout")
+        self.web.post("/login/client", data={"username": "alexclient", "password": "client-password"})
+        private_center = self.web.get("/client/documents")
+        self.assertEqual(private_center.status_code, 200)
+        self.assertNotIn(b"agency-letter.pdf", private_center.data)
+        self.assertEqual(self.web.get(f"/client/documents/{document_id}/download").status_code, 404)
+
+        self.web.get("/logout")
+        self.web.post("/login/agency", data={"username": "agencyowner", "password": "owner-password"})
+        shared = self.web.post(
+            f"/agency/crm/documents/{document_id}/client-visibility",
+            data={"make_visible": "1"},
+        )
+        self.assertEqual(shared.status_code, 302)
+
+        self.web.get("/logout")
+        self.web.post("/login/client", data={"username": "alexclient", "password": "client-password"})
+        visible_center = self.web.get("/client/documents")
+        self.assertIn(b"agency-letter.pdf", visible_center.data)
+        self.assertEqual(self.web.get(f"/client/documents/{document_id}/view").status_code, 200)
+        self.assertEqual(self.web.get(f"/client/documents/{document_id}/download").status_code, 200)
+
+        with app.app_context():
+            actions = [row.action for row in CrmClientActivityLog.query.filter_by(client_id=self.client_id).all()]
+            self.assertIn("Document made available to client", actions)
+            self.assertIn("Document viewed by client", actions)
+            self.assertIn("Document downloaded by client", actions)
+
+        self.web.get("/logout")
+        self.web.post("/login/agency", data={"username": "manager", "password": "test-password"})
+        denied = self.web.post(f"/agency/crm/documents/{document_id}/client-visibility", data={"make_visible": "0"})
+        self.assertEqual(denied.status_code, 403)
+
+        self.web.get("/logout")
+        self.web.post("/login/agency", data={"username": "agencyowner", "password": "owner-password"})
+        hidden = self.web.post(f"/agency/crm/documents/{document_id}/client-visibility", data={"make_visible": "0"})
+        self.assertEqual(hidden.status_code, 302)
+        self.web.get("/logout")
+        self.web.post("/login/client", data={"username": "alexclient", "password": "client-password"})
+        self.assertNotIn(b"agency-letter.pdf", self.web.get("/client/documents").data)
+        with app.app_context():
+            actions = [row.action for row in CrmClientActivityLog.query.filter_by(client_id=self.client_id).all()]
+            self.assertIn("Document removed from client portal", actions)
 
 
 if __name__ == "__main__":

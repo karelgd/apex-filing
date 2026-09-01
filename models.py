@@ -886,6 +886,9 @@ class CrmClientDocument(db.Model):
     stored_filename = db.Column(db.String(255), nullable=False)
     document_type = db.Column(db.String(80), default="Client document", nullable=False)
     description = db.Column(db.String(240))
+    uploaded_by_role = db.Column(db.String(40), default="agency", nullable=False)
+    uploaded_by_label = db.Column(db.String(160))
+    client_visible = db.Column(db.Boolean, default=False, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     agency = db.relationship("Agency", backref=db.backref("crm_documents", cascade="all, delete-orphan"))
