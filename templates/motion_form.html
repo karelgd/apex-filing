@@ -34,6 +34,14 @@
         {% endfor %}
       </select>
     </div>
+    <label class="motion-change-venue-toggle mt-3">
+      <input type="checkbox" name="is_change_of_venue" value="1" id="is-change-of-venue" {% if motion and motion.is_change_of_venue %}checked{% endif %}>
+      <span aria-hidden="true"></span>
+      <div>
+        <strong>Change of Venue motion</strong>
+        <small>Append a completed EOIR-33/IC form to the generated motion PDF.</small>
+      </div>
+    </label>
   </section>
 
   <section class="motion-section">
@@ -48,11 +56,12 @@
       {% set respondent_rows = motion.respondents if motion else [None] %}
       {% for respondent in respondent_rows %}
       <div class="respondent-row">
+        <input type="hidden" name="respondent_client_id[]" value="{{ motion.client_id if motion and loop.first and motion.client_id else '' }}">
         <div class="motion-grid motion-grid-respondent">
           <div>
             <label class="form-label">Search Existing Client</label>
             <div class="autocomplete-wrap respondent-client-wrap">
-              <input class="form-control respondent-client-search" type="search" autocomplete="off" placeholder="Type client name or A-number">
+              <input class="form-control respondent-client-search" type="search" autocomplete="off" placeholder="Type client name or A-number" value="{% if motion and loop.first and motion.client %}{{ motion.client.full_name }}{% if motion.client.a_number %} - A# {{ motion.client.a_number }}{% endif %}{% endif %}">
               <div class="autocomplete-menu respondent-client-menu"></div>
             </div>
             <div class="form-text">Optional. Select a client to auto-fill the respondent fields below.</div>
@@ -88,6 +97,36 @@
           <option value="Individual" {% if motion and motion.next_hearing_type == 'Individual' %}selected{% endif %}>Individual</option>
         </select>
       </div>
+    </div>
+  </section>
+
+  <section class="motion-section motion-change-venue-section" id="change-of-venue-fields" {% if not motion or not motion.is_change_of_venue %}hidden{% endif %}>
+    <div class="motion-section-head">
+      <span>CV</span>
+      <div>
+        <h2>EOIR-33 Change of Address</h2>
+        <p>Enter the former and current mailing addresses exactly as they should appear on the EOIR-33. Phone and email come from the selected client's CRM profile.</p>
+      </div>
+    </div>
+    <div class="motion-address-comparison">
+      <div class="motion-address-card former">
+        <h3>Former address</h3>
+        <label class="form-label">Number, street, apartment</label>
+        <input class="form-control" name="former_address_line" value="{{ motion.former_address_line if motion else '' }}" data-cov-required>
+        <label class="form-label mt-3">City, state, ZIP code, country</label>
+        <input class="form-control" name="former_city_state_zip_country" value="{{ motion.former_city_state_zip_country if motion else '' }}" placeholder="Example: Newark, NJ 07102, USA" data-cov-required>
+      </div>
+      <div class="motion-address-card current">
+        <h3>Current address</h3>
+        <label class="form-label">Number, street, apartment</label>
+        <input class="form-control" name="current_address_line" value="{{ motion.current_address_line if motion else '' }}" data-cov-required>
+        <label class="form-label mt-3">City, state, ZIP code, country</label>
+        <input class="form-control" name="current_city_state_zip_country" value="{{ motion.current_city_state_zip_country if motion else '' }}" placeholder="Example: Miami, FL 33101, USA" data-cov-required>
+      </div>
+    </div>
+    <div class="motion-eoir-contact-preview">
+      <strong>EOIR-33 contact information</strong>
+      <span data-eoir-contact>{% if motion and motion.client %}Phone: {{ motion.client.phone or 'Not recorded' }} | Email: {{ motion.client.email or 'Not recorded' }}{% else %}Choose the primary respondent through Search Existing Client to load phone and email.{% endif %}</span>
     </div>
   </section>
 
@@ -249,10 +288,19 @@
   const respondentList = document.getElementById("respondent-list");
   const fillRespondentFromClient = (input, client) => {
     const row = input.closest(".respondent-row");
+    row.querySelector('[name="respondent_client_id[]"]').value = client.id || "";
     row.querySelector('[name="respondent_first_name[]"]').value = client.first_name || "";
     row.querySelector('[name="respondent_middle_name[]"]').value = client.middle_name || "";
     row.querySelector('[name="respondent_last_name[]"]').value = client.last_name || "";
     row.querySelector('[name="respondent_alien_number[]"]').value = client.alien_number || "";
+    if (row === respondentList.querySelector(".respondent-row")) {
+      const currentAddress = document.querySelector('[name="current_address_line"]');
+      const currentCity = document.querySelector('[name="current_city_state_zip_country"]');
+      if (currentAddress && !currentAddress.value.trim()) currentAddress.value = client.street_address || "";
+      if (currentCity && !currentCity.value.trim()) currentCity.value = client.city_state_zip_country || "";
+      const contact = document.querySelector("[data-eoir-contact]");
+      if (contact) contact.textContent = `Phone: ${client.phone || "Not recorded"} | Email: ${client.email || "Not recorded"}`;
+    }
   };
   const showRespondentClientMatches = (input) => {
     const menu = input.closest(".respondent-client-wrap")?.querySelector(".respondent-client-menu");
@@ -308,6 +356,7 @@
   });
   respondentList?.addEventListener("input", (event) => {
     if (event.target.classList.contains("respondent-client-search")) {
+      event.target.closest(".respondent-row").querySelector('[name="respondent_client_id[]"]').value = "";
       showRespondentClientMatches(event.target);
     }
   });
@@ -324,6 +373,18 @@
     });
   });
   updateRemoveButtons();
+
+  const changeVenueCheckbox = document.getElementById("is-change-of-venue");
+  const changeVenueFields = document.getElementById("change-of-venue-fields");
+  const updateChangeVenueFields = () => {
+    const enabled = Boolean(changeVenueCheckbox?.checked);
+    if (changeVenueFields) changeVenueFields.hidden = !enabled;
+    document.querySelectorAll("[data-cov-required]").forEach((field) => {
+      field.required = enabled;
+    });
+  };
+  changeVenueCheckbox?.addEventListener("change", updateChangeVenueFields);
+  updateChangeVenueFields();
 
   const exhibitList = document.getElementById("exhibit-list");
   const exhibitLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");

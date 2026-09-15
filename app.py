@@ -152,6 +152,7 @@ SURVEY_SELECTION_REASON_LABELS = {
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+EOIR33_TEMPLATE_PATH = os.path.join(BASE_DIR, "assets", "motion_forms", "eoir33icen_newark_02082022.pdf")
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx", "txt"}
 CLIENT_DOCUMENT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "docx"}
 
@@ -250,9 +251,9 @@ def create_app():
     return app
 
 
-def eastern_time(value):
+def eastern_datetime(value):
     if not value:
-        return ""
+        return None
     source = value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
     year = source.year
     march_first = datetime(year, 3, 1)
@@ -261,8 +262,12 @@ def eastern_time(value):
     november_first = datetime(year, 11, 1)
     first_sunday_november = 1 + ((6 - november_first.weekday()) % 7)
     dst_end_utc = datetime(year, 11, first_sunday_november, 6)
-    local_value = source - timedelta(hours=4 if dst_start_utc <= source < dst_end_utc else 5)
-    return local_value.strftime("%b %d, %Y at %I:%M %p ET")
+    return source - timedelta(hours=4 if dst_start_utc <= source < dst_end_utc else 5)
+
+
+def eastern_time(value):
+    local_value = eastern_datetime(value)
+    return local_value.strftime("%b %d, %Y at %I:%M %p ET") if local_value else ""
 
 
 def role_required(*roles):
@@ -3410,10 +3415,15 @@ def render_motion_form_response(templates, lawyers, law_firms, references, motio
     client_options = [
         {
             "label": f"{client.full_name} - A# {client.a_number}" if client.a_number else client.full_name,
+            "id": client.id,
             "first_name": client.first_name,
             "middle_name": client.middle_name or "",
             "last_name": client.last_name,
             "alien_number": client.a_number or "",
+            "street_address": ", ".join(part for part in [client.street_address, client.apartment] if part),
+            "city_state_zip_country": f"{client.city}, {client.state} {client.zip_code}, USA",
+            "phone": client.phone or "",
+            "email": client.email or "",
             "search_text": " ".join(
                 part
                 for part in [client.full_name, client.a_number, client.email, client.phone, client.username]
@@ -3439,6 +3449,7 @@ def update_motion_from_request(motion, agency):
     middle_names = request.form.getlist("respondent_middle_name[]")
     last_names = request.form.getlist("respondent_last_name[]")
     alien_numbers = request.form.getlist("respondent_alien_number[]")
+    respondent_client_ids = request.form.getlist("respondent_client_id[]")
     respondents = []
     for index, first_name in enumerate(first_names):
         person = {
@@ -3451,6 +3462,22 @@ def update_motion_from_request(motion, agency):
             respondents.append(person)
     if not respondents or any(not person["first_name"] or not person["last_name"] or not person["alien_number"] for person in respondents):
         flash("Each respondent needs first name, last name, and alien number.", "danger")
+        return False
+
+    is_change_of_venue = request.form.get("is_change_of_venue") == "1"
+    lead_client_id = respondent_client_ids[0].strip() if respondent_client_ids else ""
+    lead_client = None
+    if lead_client_id.isdigit():
+        lead_client = Client.query.filter_by(id=int(lead_client_id), agency_id=agency.id).first()
+    former_address_line = request.form.get("former_address_line", "").strip()
+    former_city_state_zip_country = request.form.get("former_city_state_zip_country", "").strip()
+    current_address_line = request.form.get("current_address_line", "").strip()
+    current_city_state_zip_country = request.form.get("current_city_state_zip_country", "").strip()
+    if is_change_of_venue and not lead_client:
+        flash("For a Change of Venue motion, select the primary respondent from Search Existing Client.", "danger")
+        return False
+    if is_change_of_venue and not all((former_address_line, former_city_state_zip_country, current_address_line, current_city_state_zip_country)):
+        flash("Former and current address details are required for the EOIR-33 form.", "danger")
         return False
 
     court = request.form["immigration_court"].strip()
@@ -3480,6 +3507,12 @@ def update_motion_from_request(motion, agency):
 
     motion.agency_id = agency.id
     motion.template_id = template.id
+    motion.client_id = lead_client.id if lead_client else None
+    motion.is_change_of_venue = is_change_of_venue
+    motion.former_address_line = former_address_line if is_change_of_venue else None
+    motion.former_city_state_zip_country = former_city_state_zip_country if is_change_of_venue else None
+    motion.current_address_line = current_address_line if is_change_of_venue else None
+    motion.current_city_state_zip_country = current_city_state_zip_country if is_change_of_venue else None
     motion.motion_title = template.motion_title
     motion.immigration_court = court
     motion.immigration_court_address = court_address
@@ -7848,6 +7881,116 @@ def motion_pdf_download_filename(motion):
     return f"{safe_name}-{safe_title}-{motion.id}.pdf"
 
 
+def eoir33_field_values(motion):
+    lead = principal_respondent(motion)
+    client = motion.client
+    if not lead or not client:
+        raise ValueError("A linked CRM client is required to complete EOIR-33.")
+    respondent_name = ", ".join(
+        part for part in [lead.last_name.upper(), " ".join(part for part in [lead.first_name, lead.middle_name] if part)] if part
+    )
+    today = eastern_datetime(datetime.utcnow()).strftime("%m/%d/%Y")
+    opla_address = ", ".join(line.strip() for line in (motion.opla_address or "").splitlines() if line.strip())
+    return {
+        "Name": respondent_name,
+        "A-Number": lead.alien_number,
+        "In care of - former": "",
+        "in care of - current": "",
+        "number street apartment - former": motion.former_address_line or "",
+        "number street address - current": motion.current_address_line or "",
+        "city state zip country - former": motion.former_city_state_zip_country or "",
+        "city state zip country - current": motion.current_city_state_zip_country or "",
+        "phone number - former": client.phone or "",
+        "phone number - current": client.phone or "",
+        "email address - former": client.email or "",
+        "email address - current": client.email or "",
+        "date": today,
+        "name - proof of service": lead.full_name,
+        "date - proof of service": today,
+        "office of principal legal advisor 1": motion.opla_office or "Office of the Principal Legal Advisor",
+        "office of principal legal advisor 2": opla_address,
+    }
+
+
+def completed_eoir33_pdf(motion):
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import ArrayObject, NameObject
+
+    if not os.path.exists(EOIR33_TEMPLATE_PATH):
+        raise FileNotFoundError("The EOIR-33 template is not installed.")
+    reader = PdfReader(EOIR33_TEMPLATE_PATH)
+    expected_values = eoir33_field_values(motion)
+    available_fields = reader.get_fields() or {}
+    missing = set(expected_values) - set(available_fields)
+    if missing:
+        raise ValueError(f"EOIR-33 template fields are missing: {sorted(missing)}")
+
+    page = reader.pages[0]
+    widget_rectangles = {}
+    retained_annotations = ArrayObject()
+    for annotation_ref in page.get("/Annots") or []:
+        annotation = annotation_ref.get_object()
+        if annotation.get("/Subtype") != "/Widget":
+            retained_annotations.append(annotation_ref)
+            continue
+        parent = annotation.get("/Parent")
+        field_name = annotation.get("/T") or (parent.get_object().get("/T") if parent else None)
+        if field_name and annotation.get("/Rect"):
+            widget_rectangles[str(field_name)] = [float(value) for value in annotation["/Rect"]]
+
+    overlay = BytesIO()
+    overlay_pdf = canvas.Canvas(overlay, pagesize=letter)
+    for field_name, value in expected_values.items():
+        if not value or field_name not in widget_rectangles:
+            continue
+        left, bottom, right, top = widget_rectangles[field_name]
+        available_width = max(10, right - left - 6)
+        available_height = max(8, top - bottom - 3)
+        font_size = min(9.5, available_height)
+        while font_size > 6 and overlay_pdf.stringWidth(str(value), "Helvetica", font_size) > available_width:
+            font_size -= 0.5
+        overlay_pdf.setFont("Helvetica", font_size)
+        overlay_pdf.drawCentredString((left + right) / 2, bottom + max(2, ((top - bottom) - font_size) / 2), str(value))
+    overlay_pdf.save()
+    overlay.seek(0)
+    page.merge_page(PdfReader(overlay).pages[0])
+    if retained_annotations:
+        page[NameObject("/Annots")] = retained_annotations
+    else:
+        page.pop(NameObject("/Annots"), None)
+
+    writer = PdfWriter()
+    writer.add_page(page)
+    output = BytesIO()
+    writer.write(output)
+    output.seek(0)
+    completed_bytes = output.getvalue()
+    completed_reader = PdfReader(BytesIO(completed_bytes))
+    if completed_reader.get_fields():
+        raise ValueError("The completed EOIR-33 unexpectedly retained interactive fields.")
+    remaining_widgets = [
+        annotation
+        for completed_page in completed_reader.pages
+        for annotation in (completed_page.get("/Annots") or [])
+        if annotation.get_object().get("/Subtype") == "/Widget"
+    ]
+    if remaining_widgets:
+        raise ValueError("The completed EOIR-33 unexpectedly retained form widgets.")
+    return completed_bytes
+
+
+def append_eoir33_to_motion_pdf(motion_pdf_bytes, motion):
+    from pypdf import PdfReader, PdfWriter
+
+    writer = PdfWriter()
+    writer.append(PdfReader(BytesIO(motion_pdf_bytes)))
+    writer.append(PdfReader(BytesIO(completed_eoir33_pdf(motion))))
+    combined = BytesIO()
+    writer.write(combined)
+    combined.seek(0)
+    return combined.getvalue()
+
+
 def draw_motion_page_intro(pdf, motion, title, y):
     y = draw_motion_header(pdf, motion, y)
     y = draw_motion_caption(pdf, motion, y)
@@ -8050,9 +8193,12 @@ def motion_pdf_response(motion):
     draw_pdf_lines(pdf, order_lines, left, y, max_chars=body_max_chars, font_size=11, leading=17)
     pdf.save()
     buffer.seek(0)
+    pdf_bytes = buffer.getvalue()
+    if motion.is_change_of_venue:
+        pdf_bytes = append_eoir33_to_motion_pdf(pdf_bytes, motion)
     filename = motion_pdf_download_filename(motion)
     return Response(
-        buffer.getvalue(),
+        pdf_bytes,
         mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
@@ -8360,6 +8506,12 @@ def ensure_sqlite_schema():
     if "motion_draft" in inspector.get_table_names():
         existing_motion = {column["name"] for column in inspector.get_columns("motion_draft")}
         motion_additions = {
+            "client_id": "INTEGER",
+            "is_change_of_venue": "BOOLEAN DEFAULT 0 NOT NULL",
+            "former_address_line": "VARCHAR(240)",
+            "former_city_state_zip_country": "VARCHAR(240)",
+            "current_address_line": "VARCHAR(240)",
+            "current_city_state_zip_country": "VARCHAR(240)",
             "immigration_court_address": "TEXT",
             "opla_address": "TEXT",
             "lawyer_id": "INTEGER",
