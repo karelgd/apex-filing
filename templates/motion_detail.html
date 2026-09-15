@@ -24,6 +24,14 @@
             <div>{{ person.full_name }} - A# {{ person.alien_number }}</div>
           {% endfor %}
         </dd>
+        <dt>Change of Venue / EOIR-33</dt>
+        <dd>{{ 'Included in PDF' if motion.is_change_of_venue else 'Not included' }}</dd>
+        {% if motion.is_change_of_venue %}
+          <dt>Former Address</dt>
+          <dd>{{ motion.former_address_line }}<br>{{ motion.former_city_state_zip_country }}</dd>
+          <dt>Current Address</dt>
+          <dd>{{ motion.current_address_line }}<br>{{ motion.current_city_state_zip_country }}</dd>
+        {% endif %}
         <dt>OPLA Office</dt>
         <dd>{{ motion.opla_office }}</dd>
         <dt>Immigration Court Address</dt>

@@ -10,8 +10,8 @@ TEST_DB.close()
 os.environ["AUTO_INIT_DB"] = "0"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.name.replace(os.sep, '/')}"
 
-from app import app  # noqa: E402
-from models import Agency, AgencyCaseManager, AgencyPreparer, AgencyUser, Client, CrmCase, CrmCaseStatusHistory, CrmClientActivityLog, CrmClientDocument, CrmSurvey, Message, MessageAssignmentLog, Notification, SubscriptionTool, db  # noqa: E402
+from app import app, completed_eoir33_pdf, motion_pdf_response  # noqa: E402
+from models import Agency, AgencyCaseManager, AgencyPreparer, AgencyUser, Client, CrmCase, CrmCaseStatusHistory, CrmClientActivityLog, CrmClientDocument, CrmSurvey, Message, MessageAssignmentLog, MotionDraft, MotionRespondent, MotionTemplate, Notification, SubscriptionTool, db  # noqa: E402
 
 
 class CompletedCaseNotificationTest(unittest.TestCase):
@@ -460,6 +460,80 @@ class CompletedCaseNotificationTest(unittest.TestCase):
         with app.app_context():
             actions = [row.action for row in CrmClientActivityLog.query.filter_by(client_id=self.client_id).all()]
             self.assertIn("Document removed from client portal", actions)
+
+    def test_change_of_venue_motion_appends_completed_eoir33(self):
+        from pypdf import PdfReader
+
+        with app.app_context():
+            client = db.session.get(Client, self.client_id)
+            motion_tool = SubscriptionTool(name="Motion Creation")
+            client.agency.subscriptions.append(motion_tool)
+            template = MotionTemplate(
+                agency_id=client.agency_id,
+                name="Change of Venue",
+                motion_title="Motion to Change Venue",
+                content="Respondent respectfully requests a change of venue.",
+            )
+            motion = MotionDraft(
+                agency_id=client.agency_id,
+                template=template,
+                client=client,
+                is_change_of_venue=True,
+                former_address_line="10 Old Street, Apt 2",
+                former_city_state_zip_country="Newark, NJ 07102, USA",
+                current_address_line="20 New Avenue, Apt 4",
+                current_city_state_zip_country="Miami, FL 33101, USA",
+                immigration_court="Newark Immigration Court",
+                immigration_court_address="970 Broad Street\nNewark, NJ 07102",
+                immigration_judge="Hon. Test Judge",
+                opla_office="Office of the Principal Legal Advisor",
+                opla_address="970 Broad Street, Suite 1200\nNewark, NJ 07102",
+                detention_status="Non-Detained",
+                next_hearing_date="2026-10-15",
+                next_hearing_type="Master",
+                rendered_content="MOTION TO CHANGE VENUE\n\nRespondent respectfully requests a change of venue.",
+            )
+            motion.respondents.append(
+                MotionRespondent(first_name="Alex", last_name="Client", alien_number="201520102", sort_order=1)
+            )
+            db.session.add(motion)
+            db.session.commit()
+
+            eoir_bytes = completed_eoir33_pdf(motion)
+            eoir_reader = PdfReader(BytesIO(eoir_bytes))
+            self.assertFalse(eoir_reader.get_fields())
+            self.assertFalse(any(
+                annotation.get_object().get("/Subtype") == "/Widget"
+                for page in eoir_reader.pages
+                for annotation in (page.get("/Annots") or [])
+            ))
+            eoir_text = eoir_reader.pages[0].extract_text()
+            for expected_text in (
+                "CLIENT, Alex",
+                "201520102",
+                "10 Old Street, Apt 2",
+                "20 New Avenue, Apt 4",
+                client.phone,
+                client.email,
+                "Office of the Principal Legal Advisor",
+            ):
+                self.assertIn(expected_text, eoir_text)
+
+            response = motion_pdf_response(motion)
+            packet = PdfReader(BytesIO(response.get_data()))
+            self.assertEqual(len(packet.pages), 5)
+            self.assertIn("CLIENT, Alex", packet.pages[-1].extract_text())
+            motion_id = motion.id
+
+        self.web.get("/logout")
+        self.web.post("/login/agency", data={"username": "agencyowner", "password": "owner-password"})
+        edit_page = self.web.get(f"/agency/tools/motions/{motion_id}/edit")
+        self.assertEqual(edit_page.status_code, 200)
+        self.assertIn(b"Change of Venue motion", edit_page.data)
+        self.assertIn(b"Append a completed EOIR-33/IC form", edit_page.data)
+        self.assertIn(b"10 Old Street, Apt 2", edit_page.data)
+        self.assertIn(b"20 New Avenue, Apt 4", edit_page.data)
+        self.assertIn(b"Phone: 555-0101", edit_page.data)
 
 
 if __name__ == "__main__":
