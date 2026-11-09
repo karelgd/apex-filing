@@ -6551,6 +6551,15 @@ textarea.form-control {
   grid-template-columns: minmax(110px, .6fr) minmax(150px, 1fr) minmax(220px, 1.3fr) minmax(110px, .6fr) minmax(90px, .45fr) minmax(110px, .55fr);
 }
 
+.crm-report-payment-row {
+  grid-template-columns: minmax(0, .75fr) minmax(0, .95fr) minmax(0, 1fr) minmax(0, .55fr) minmax(0, 1.5fr) minmax(0, .65fr);
+}
+
+.crm-report-payment-row > span {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .crm-report-survey-row {
   grid-template-columns: minmax(90px, .65fr) minmax(150px, 1fr) minmax(180px, 1.2fr) minmax(130px, .9fr) minmax(100px, .65fr) minmax(120px, .75fr);
 }
@@ -6686,6 +6695,7 @@ textarea.form-control {
   .crm-calendar-year-grid,
   .crm-report-case-row,
   .crm-report-invoice-row,
+  .crm-report-payment-row,
   .crm-report-survey-row {
     grid-template-columns: 1fr;
   }

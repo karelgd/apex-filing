@@ -12,6 +12,9 @@
           <option value="{{ type }}" {% if activity.activity_type == type %}selected{% endif %}>{{ type }}</option>
         {% endfor %}
       </select>
+      {% with activity_type=activity.activity_type, selected_method=activity.payment_method or ('Other' if activity.activity_type in method_activity_types else '') %}
+        {% include 'partials/crm_payment_method.html' %}
+      {% endwith %}
       <label class="form-label">Amount</label>
       <input class="form-control mb-3" type="number" step="0.01" min="0" name="amount" value="{{ activity.amount }}" required>
       <label class="form-label">Date</label>

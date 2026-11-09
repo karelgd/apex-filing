@@ -1,0 +1,28 @@
+{% set requires_method = activity_type in method_activity_types %}
+<div id="payment-method-field" {% if not requires_method %}hidden{% endif %}>
+  <label class="form-label" for="payment-method">{{ activity_type }} method</label>
+  <select class="form-select{{ ' mb-3' if activity is defined else '' }}" id="payment-method" name="payment_method" {% if requires_method %}required{% else %}disabled{% endif %}>
+    <option value="">Select method</option>
+    {% for method in payment_methods %}
+      <option value="{{ method }}" {% if selected_method == method %}selected{% endif %}>{{ method }}</option>
+    {% endfor %}
+  </select>
+</div>
+<script>
+  (() => {
+    const field = document.getElementById('payment-method-field');
+    const label = field.querySelector('label');
+    const method = field.querySelector('select');
+    const type = method.form.elements.activity_type;
+    const methodActivityTypes = {{ method_activity_types|tojson }};
+    const update = () => {
+      const requiresMethod = methodActivityTypes.includes(type.value);
+      field.hidden = !requiresMethod;
+      method.disabled = !requiresMethod;
+      method.required = requiresMethod;
+      if (requiresMethod) label.textContent = `${type.value} method`;
+    };
+    type.addEventListener('change', update);
+    update();
+  })();
+</script>

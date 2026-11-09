@@ -29,14 +29,17 @@ from flask import (
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect
 from reportlab.lib.pagesizes import landscape, letter
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph
 try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:  # Pillow is required only for credential JPG downloads.
     Image = ImageDraw = ImageFont = None
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, inspect, or_, text
+from sqlalchemy.orm import joinedload
 import click
 try:
     import requests
@@ -104,6 +107,8 @@ from models import (
 
 OPLAOffice = OplaOffice
 Judge = ImmigrationJudge
+CRM_PAYMENT_METHODS = ("Zelle", "Cash", "Stripe", "Other")
+CRM_METHOD_ACTIVITY_TYPES = ("Payment", "Refund")
 CRM_KNOWLEDGE_TOPICS = [
     "Como Acceder a la subscripcion CRM",
     "Entendiendo la pagina principal del CRM y sus datos",
@@ -1970,7 +1975,14 @@ def crm_client_note_timeline(client):
 
 
 def populate_invoice_activity_from_form(activity):
-    activity.activity_type = request.form["activity_type"].strip()
+    activity_type = request.form["activity_type"].strip()
+    payment_method = None
+    if activity_type in CRM_METHOD_ACTIVITY_TYPES:
+        payment_method = request.form.get("payment_method")
+        if payment_method not in CRM_PAYMENT_METHODS:
+            abort(400, description=f"Select a valid {activity_type.lower()} method.")
+    activity.activity_type = activity_type
+    activity.payment_method = payment_method
     activity.amount = decimal_from_form("amount")
     activity.activity_date = date_from_form("activity_date") or datetime.utcnow().date()
     activity.description = request.form.get("description", "").strip()
@@ -2522,6 +2534,8 @@ def save_knowledge_topic_pdf(topic, file_storage):
 
 def build_crm_report_data(agency_id, args):
     report_type = args.get("report_type", "cases").strip()
+    if report_type == "payments":
+        return build_crm_payment_report_data(agency_id, args)
     if report_type == "surveys":
         return build_crm_survey_report_data(agency_id, args)
     if report_type not in {"cases", "invoices", "surveys"}:
@@ -2678,6 +2692,77 @@ def build_crm_report_data(agency_id, args):
             "total_discounts": sum((invoice.discount or Decimal("0")) for invoice in invoices),
             "total_refunds": sum((activity.amount or Decimal("0")) for activity in activities if activity.activity_type == "Refund"),
             "open_balance": sum((invoice.balance_due or Decimal("0")) for invoice in invoices if invoice.status != "Paid"),
+        },
+    }
+
+
+def build_crm_payment_report_data(agency_id, args):
+    payment_query = CrmInvoiceActivity.query.filter_by(agency_id=agency_id, activity_type="Payment")
+    latest_by_recorder = (
+        payment_query.with_entities(func.max(CrmInvoiceActivity.id))
+        .filter(CrmInvoiceActivity.recorded_by_id.is_not(None))
+        .group_by(CrmInvoiceActivity.recorded_by_id)
+        .scalar_subquery()
+    )
+    recorder_options = dict(
+        payment_query.with_entities(CrmInvoiceActivity.recorded_by_id, CrmInvoiceActivity.recorded_by_label)
+        .filter(CrmInvoiceActivity.id.in_(latest_by_recorder))
+        .order_by(CrmInvoiceActivity.recorded_by_label)
+        .all()
+    )
+    if payment_query.filter(CrmInvoiceActivity.recorded_by_id.is_(None)).first():
+        recorder_options["unrecorded"] = "Not recorded"
+
+    filters = {"report_type": "payments"}
+    active_filters = []
+    date_warning = False
+    for key, label in (("created_from", "on or after"), ("created_to", "on or before")):
+        value = args.get(key, "").strip()
+        filters[key] = value
+        if not value:
+            continue
+        try:
+            payment_date = datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            date_warning = True
+            continue
+        if key == "created_from":
+            payment_query = payment_query.filter(CrmInvoiceActivity.activity_date >= payment_date)
+        else:
+            payment_query = payment_query.filter(CrmInvoiceActivity.activity_date <= payment_date)
+        active_filters.append(f"payment date {label} {value}")
+
+    method = args.get("payment_method", "").strip()
+    filters["payment_method"] = method
+    if method:
+        payment_query = payment_query.filter(func.coalesce(CrmInvoiceActivity.payment_method, "Other") == method)
+        active_filters.append(f"method {method}")
+
+    recorder = args.get("recorded_by", "").strip()
+    filters["recorded_by"] = recorder
+    if recorder:
+        recorder_id = None if recorder == "unrecorded" else recorder
+        payment_query = payment_query.filter(CrmInvoiceActivity.recorded_by_id == recorder_id)
+        active_filters.append(f"recorded by {recorder_options.get(recorder, 'selected user')}")
+
+    payments = (
+        payment_query.options(joinedload(CrmInvoiceActivity.invoice).joinedload(CrmInvoice.client))
+        .order_by(CrmInvoiceActivity.activity_date.desc(), CrmInvoiceActivity.id.desc())
+        .all()
+    )
+    report_answer = "Showing all CRM payments for this agency."
+    if active_filters:
+        report_answer = "Showing CRM payments with " + ", ".join(active_filters) + "."
+    return {
+        "payments": payments,
+        "payment_methods": CRM_PAYMENT_METHODS,
+        "recorder_options": recorder_options,
+        "report_answer": report_answer,
+        "date_warning": date_warning,
+        "filters": filters,
+        "summary": {
+            "payment_count": len(payments),
+            "total_payments": sum((payment.amount for payment in payments), Decimal("0")),
         },
     }
 
@@ -5346,7 +5431,10 @@ def register_routes(app):
         invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
         sync_case_invoice(invoice.case)
         db.session.commit()
-        return render_template("crm_invoice_detail.html", invoice=invoice, balance_due=invoice.balance_due)
+        return render_template(
+            "crm_invoice_detail.html", invoice=invoice, balance_due=invoice.balance_due,
+            payment_methods=CRM_PAYMENT_METHODS, method_activity_types=CRM_METHOD_ACTIVITY_TYPES,
+        )
 
     @app.route("/agency/crm/invoices/<int:invoice_id>/activities/new", methods=["POST"])
     @role_required("agency")
@@ -5355,9 +5443,14 @@ def register_routes(app):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         invoice = CrmInvoice.query.filter_by(id=invoice_id, agency_id=current_user.agency_id).first() or abort(404)
-        if request.form.get("activity_type") == "Refund" and not can_add_invoice_refunds_for_current_user():
+        if request.form.get("activity_type", "").strip() == "Refund" and not can_add_invoice_refunds_for_current_user():
             abort(403)
-        activity = CrmInvoiceActivity(agency_id=current_user.agency_id, invoice_id=invoice.id)
+        activity = CrmInvoiceActivity(
+            agency_id=current_user.agency_id,
+            invoice_id=invoice.id,
+            recorded_by_id=current_user.get_id(),
+            recorded_by_label=current_user_label(),
+        )
         populate_invoice_activity_from_form(activity)
         db.session.add(activity)
         db.session.flush()
@@ -5377,13 +5470,20 @@ def register_routes(app):
             abort(403)
         activity = CrmInvoiceActivity.query.filter_by(id=activity_id, agency_id=current_user.agency_id).first() or abort(404)
         if request.method == "POST":
+            previous_type = activity.activity_type
             populate_invoice_activity_from_form(activity)
+            if previous_type != "Payment" and activity.activity_type == "Payment":
+                activity.recorded_by_id = current_user.get_id()
+                activity.recorded_by_label = current_user_label()
             recalc_crm_invoice(activity.invoice)
             crm_client_log(activity.invoice.client, "Invoice activity edited", f"{activity.invoice.invoice_number}: {activity.activity_type} ${activity.amount}")
             db.session.commit()
             flash("Invoice activity updated.", "success")
             return redirect(url_for("crm_invoice_detail", invoice_id=activity.invoice_id))
-        return render_template("crm_invoice_activity_form.html", activity=activity)
+        return render_template(
+            "crm_invoice_activity_form.html", activity=activity,
+            payment_methods=CRM_PAYMENT_METHODS, method_activity_types=CRM_METHOD_ACTIVITY_TYPES,
+        )
 
     @app.route("/agency/crm/invoice-activities/<int:activity_id>/delete", methods=["POST"])
     @role_required("agency")
@@ -6799,11 +6899,12 @@ def generate_crm_report_pdf(report_data):
     y = height - 52
     filters = report_data["filters"]
     summary = report_data["summary"]
-    report_label = (
-        "Invoices Report" if filters["report_type"] == "invoices"
-        else "Survey Report" if filters["report_type"] == "surveys"
-        else "Cases Report"
-    )
+    report_type = filters["report_type"]
+    report_label = {
+        "invoices": "Invoices Report",
+        "payments": "Payments Report",
+        "surveys": "Survey Report",
+    }.get(report_type, "Cases Report")
 
     pdf.setFont("Helvetica-Bold", 16)
     pdf.drawString(left, y, f"CRM {report_label}")
@@ -6825,12 +6926,17 @@ def generate_crm_report_pdf(report_data):
             f"Average customer service: {summary['average_satisfaction']:.1f}/5",
             f"Average case manager preparedness: {summary['average_preparedness']:.1f}/5",
         ]
-    elif filters["report_type"] == "invoices":
+    elif report_type == "invoices":
         summary_lines = [
             f"Matching invoices: {summary['invoice_count']}",
             f"Total value: ${float(summary['total_billed'] or 0):,.2f}",
             f"Open balance: ${float(summary['open_balance'] or 0):,.2f}",
             f"Paid: ${float(summary['total_paid'] or 0):,.2f}",
+        ]
+    elif report_type == "payments":
+        summary_lines = [
+            f"Matching payments: {summary['payment_count']}",
+            f"Total payments: ${summary['total_payments']:,.2f}",
         ]
     else:
         summary_lines = [
@@ -6856,7 +6962,7 @@ def generate_crm_report_pdf(report_data):
         ]
         headers = ("Sent", "Client", "Case", "Status", "Service", "Selection reason")
         widths = (50, 90, 120, 80, 65, 130)
-    elif filters["report_type"] == "invoices":
+    elif report_type == "invoices":
         rows = [
             (
                 invoice.invoice_number,
@@ -6870,6 +6976,20 @@ def generate_crm_report_pdf(report_data):
         ]
         headers = ("Invoice", "Client", "Case", "Status", "Total", "Balance")
         widths = (70, 110, 150, 65, 65, 65)
+    elif report_type == "payments":
+        rows = [
+            (
+                payment.activity_date.strftime("%m/%d/%Y"),
+                payment.invoice.invoice_number,
+                payment.invoice.client.full_name,
+                payment.payment_method or "Other",
+                payment.recorded_by_label or "Not recorded",
+                f"${payment.amount:,.2f}",
+            )
+            for payment in report_data["payments"]
+        ]
+        headers = ("Payment date", "Invoice", "Client", "Method", "Recorded by", "Amount")
+        widths = (60, 85, 105, 50, 150, 62)
     else:
         rows = [
             (
@@ -6899,17 +7019,31 @@ def generate_crm_report_pdf(report_data):
 
     y = draw_header(y)
     pdf.setFont("Helvetica", 8)
+    payment_cell_style = ParagraphStyle("Payment cell", fontName="Helvetica", fontSize=8, leading=10)
     for row in rows:
-        if y < 70:
+        row_height = 14
+        if report_type == "payments":
+            cells = []
+            for value, col_width in zip(row, widths):
+                paragraph = Paragraph(html_lib.escape(value), payment_cell_style)
+                _, cell_height = paragraph.wrap(col_width - 6, height)
+                cells.append((paragraph, cell_height))
+            row_height = max(cell_height for _, cell_height in cells) + 4
+        if y - row_height < 56:
             pdf.showPage()
             y = height - 52
             y = draw_header(y)
             pdf.setFont("Helvetica", 8)
         x = left
-        for value, col_width in zip(row, widths):
-            pdf.drawString(x, y, str(value or "")[: max(8, int(col_width / 5))])
-            x += col_width
-        y -= 14
+        if report_type == "payments":
+            for (paragraph, cell_height), col_width in zip(cells, widths):
+                paragraph.drawOn(pdf, x, y + 8 - cell_height)
+                x += col_width
+        else:
+            for value, col_width in zip(row, widths):
+                pdf.drawString(x, y, str(value or "")[: max(8, int(col_width / 5))])
+                x += col_width
+        y -= row_height
     if not rows:
         pdf.drawString(left, y, "No results matched those criteria.")
 
@@ -8402,6 +8536,20 @@ def ensure_sqlite_schema():
         existing_appointment_columns = {column["name"] for column in inspector.get_columns("crm_appointment")}
         if "author_label" not in existing_appointment_columns:
             db.session.execute(text("ALTER TABLE crm_appointment ADD COLUMN author_label VARCHAR(160)"))
+    if "crm_invoice_activity" in inspector.get_table_names():
+        activity_columns = {column["name"] for column in inspector.get_columns("crm_invoice_activity")}
+        activity_additions = {
+            "payment_method": "VARCHAR(20)",
+            "recorded_by_id": "VARCHAR(80)",
+            "recorded_by_label": "VARCHAR(255)",
+        }
+        for column, ddl in activity_additions.items():
+            if column not in activity_columns:
+                db.session.execute(text(f"ALTER TABLE crm_invoice_activity ADD COLUMN {column} {ddl}"))
+        db.session.execute(text(
+            "UPDATE crm_invoice_activity SET payment_method = 'Other' "
+            "WHERE activity_type IN ('Payment', 'Refund') AND payment_method IS NULL"
+        ))
     if "notification" in inspector.get_table_names():
         existing_notification_columns = {column["name"] for column in inspector.get_columns("notification")}
         if "survey_id" not in existing_notification_columns:
