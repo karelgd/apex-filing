@@ -681,6 +681,61 @@ class CrmCaseQuestionnaire(db.Model):
     __table_args__ = (db.UniqueConstraint("crm_case_id", "form_filler_case_id", name="uq_crm_case_questionnaire"),)
 
 
+class CrmLead(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False, index=True)
+    submission_id = db.Column(db.String(32), nullable=False, unique=True)
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(160))
+    phone = db.Column(db.String(32))
+    topic = db.Column(db.String(24), nullable=False)
+    intake_ciphertext = db.Column(db.Text)
+    consent_version = db.Column(db.String(20))
+    consented_at = db.Column(db.DateTime)
+    tag = db.Column(db.String(20), nullable=False, default="New")
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    assigned_case_manager_id = db.Column(db.Integer, db.ForeignKey("agency_case_manager.id", ondelete="SET NULL"))
+    assigned_at = db.Column(db.DateTime)
+    follow_up_from = db.Column(db.Date)
+    follow_up_count = db.Column(db.Integer, nullable=False, default=0)
+    converted_at = db.Column(db.DateTime)
+    converted_client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="SET NULL"))
+
+    agency = db.relationship("Agency", backref=db.backref("crm_leads", cascade="all, delete-orphan"))
+    assigned_case_manager = db.relationship("AgencyCaseManager")
+    converted_client = db.relationship("Client")
+    notes = db.relationship("CrmLeadNote", cascade="all, delete-orphan")
+    tasks = db.relationship("CrmLeadTask", cascade="all, delete-orphan")
+
+
+class CrmLeadNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("crm_lead.id"), nullable=False, index=True)
+    case_manager_id = db.Column(db.Integer, db.ForeignKey("agency_case_manager.id", ondelete="SET NULL"))
+    author_label = db.Column(db.String(160), nullable=False)
+    kind = db.Column(db.String(20), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+
+
+class CrmLeadTask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("crm_lead.id"), nullable=False, index=True)
+    title = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    due_on = db.Column(db.Date, nullable=False)
+    is_automatic = db.Column(db.Boolean, nullable=False, default=False)
+    created_by_label = db.Column(db.String(280))
+    created_at = db.Column(db.DateTime, nullable=False)
+    alerted_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    cancelled_at = db.Column(db.DateTime)
+
+    @property
+    def creator_label(self):
+        return "System" if self.is_automatic else (self.created_by_label or "Not recorded")
+
+
 class CrmCaseTag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agency_id = db.Column(db.Integer, db.ForeignKey("agency.id"), nullable=False)
@@ -731,6 +786,7 @@ class Notification(db.Model):
     case_id = db.Column(db.Integer, db.ForeignKey("crm_case.id", ondelete="SET NULL"))
     client_id = db.Column(db.Integer, db.ForeignKey("client.id", ondelete="SET NULL"))
     survey_id = db.Column(db.Integer, db.ForeignKey("crm_survey.id", ondelete="SET NULL"))
+    lead_id = db.Column(db.Integer, db.ForeignKey("crm_lead.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     read_at = db.Column(db.DateTime)
 
@@ -738,6 +794,7 @@ class Notification(db.Model):
     case = db.relationship("CrmCase")
     client = db.relationship("Client")
     survey = db.relationship("CrmSurvey")
+    lead = db.relationship("CrmLead")
 
     @property
     def is_unread(self):

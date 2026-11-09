@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ 'Data handling terms' if lang == 'en' else 'Términos de tratamiento de datos' }} | Odaisa</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='odaisa.css', v='intake') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='odaisa_intake.css') }}">
+</head>
+<body class="intake-page">
+  <header class="intake-header">
+    <div class="site-width header-row">
+      <a class="brand" href="{{ url_for('odaisa_website') }}">
+        <img src="{{ url_for('static', filename='img/odaisa-logo.png') }}" width="40" height="40" alt="">
+        <span><strong>Odaisa</strong><small>Immigration Services</small></span>
+      </a>
+      <nav class="language-switch" aria-label="{{ 'Language' if lang == 'en' else 'Idioma' }}">
+        <a href="{{ url_for('odaisa_privacy', lang='es') }}" lang="es" {% if lang == 'es' %}aria-current="page"{% endif %}>Español</a>
+        <a href="{{ url_for('odaisa_privacy', lang='en') }}" lang="en" {% if lang == 'en' %}aria-current="page"{% endif %}>English</a>
+      </nav>
+    </div>
+  </header>
+  <main class="intake-main privacy-main">
+    {% if lang == 'en' %}
+      <p class="eyebrow">Version {{ version }}</p>
+      <h1>Data handling terms</h1>
+      <p>Odaisa Consultancy Services LLC handles the information you provide through this contact form.</p>
+      <h2>What we collect</h2>
+      <p>We request your name, Alien Registration Number (A-number), U.S. phone number, email address and U.S. address. We also record the service selected, if any, and your acceptance of these terms. Please do not send passwords, Social Security numbers, payment details or copies of documents through this form.</p>
+      <h2>How we use your information</h2>
+      <p>We use your information to register your inquiry in Odaisa's Apex CRM, identify your record if you choose to use our document preparation services, and contact you about this request by phone, email, or text. Accepting these terms does not authorize us to file a form on your behalf.</p>
+      <h2>Marketing by email and text</h2>
+      <p>Where permitted by law, Odaisa Consultancy Services LLC may use your name, email address, and phone number to send news, offers, promotional email campaigns, and marketing text messages (SMS). We do not use your A-number or street address for these campaigns. Where separate consent is required, we will obtain it before sending promotional messages.</p>
+      <p>SMS frequency may vary. Your mobile carrier may charge message and data rates.</p>
+      <p>To opt out, use the unsubscribe link in a promotional email, reply <strong>STOP</strong> to a promotional text, or email <a href="mailto:immigration@odaisa.com">immigration@odaisa.com</a>. Opting out of marketing does not prevent us from responding to an inquiry you initiated.</p>
+      <h2>Access and retention</h2>
+      <p>Authorized Odaisa staff and service providers that support the website or CRM may access information as needed for their work. We may also disclose information when required by law. The A-number and address collected by this form are encrypted in the lead record. We retain information for as long as needed to handle your request, provide any services you request, or meet applicable legal and recordkeeping obligations.</p>
+      <h2>Your choice and privacy requests</h2>
+      <p>You may decline these terms and leave the form. To ask about your information, request access, correction or deletion, or withdraw permission for future contact about this inquiry, email <a href="mailto:immigration@odaisa.com">immigration@odaisa.com</a>. We may need to verify your identity and retain records where required by law.</p>
+      <h2>Scope of the service</h2>
+      <p>Submitting the form is a request for contact. It does not create an attorney-client relationship or an agreement to provide services. Odaisa provides administrative document preparation services and does not provide legal advice or representation.</p>
+    {% else %}
+      <p class="eyebrow">Versión {{ version }}</p>
+      <h1>Términos de tratamiento de datos</h1>
+      <p>Odaisa Consultancy Services LLC trata la información que compartas mediante este formulario de contacto.</p>
+      <h2>Qué datos pedimos</h2>
+      <p>Pedimos tu nombre, número de registro de extranjero (número A), teléfono de Estados Unidos, correo electrónico y dirección en Estados Unidos. También registramos el servicio seleccionado, si lo hay, y tu aceptación de estos términos. No envíes contraseñas, números de Seguro Social, datos de pago ni copias de documentos por este formulario.</p>
+      <h2>Cómo usamos tu información</h2>
+      <p>Usamos tus datos para registrar tu solicitud en el CRM Apex de Odaisa, identificar tu ficha si decides usar nuestros servicios de preparación de documentos y contactarte sobre esta solicitud por llamada, correo electrónico o SMS. Aceptar estos términos no nos autoriza a presentar un formulario en tu nombre.</p>
+      <h2>Marketing por correo electrónico y SMS</h2>
+      <p>Cuando la ley lo permita, Odaisa Consultancy Services LLC podrá usar tu nombre, correo electrónico y número de teléfono para enviarte novedades, ofertas, campañas promocionales por correo electrónico y mensajes de texto promocionales (SMS). No usamos tu número A ni tu dirección de calle para estas campañas. Si se requiere un consentimiento separado, lo obtendremos antes de enviar mensajes promocionales.</p>
+      <p>La frecuencia de los SMS puede variar. Tu proveedor de telefonía puede cobrar por mensajes y datos.</p>
+      <p>Para darte de baja, usa el enlace de cancelación en un correo promocional, responde <strong>STOP</strong> a un SMS promocional o escribe a <a href="mailto:immigration@odaisa.com">immigration@odaisa.com</a>. Darte de baja de la publicidad no nos impide responder a una consulta que tú iniciaste.</p>
+      <h2>Acceso y conservación</h2>
+      <p>El personal autorizado de Odaisa y los proveedores que dan soporte al sitio o al CRM pueden acceder a la información cuando sea necesario para su trabajo. También podemos divulgarla cuando lo exija la ley. El número A y la dirección recogidos por este formulario se guardan cifrados en el registro del lead. Conservamos la información durante el tiempo necesario para atender tu solicitud, prestar los servicios que solicites o cumplir obligaciones legales y de conservación de registros.</p>
+      <h2>Tu decisión y solicitudes de privacidad</h2>
+      <p>Puedes rechazar estos términos y salir del formulario. Para consultar sobre tus datos, pedir acceso, corrección o eliminación, o retirar el permiso para futuros contactos sobre esta solicitud, escribe a <a href="mailto:immigration@odaisa.com">immigration@odaisa.com</a>. Es posible que necesitemos verificar tu identidad y conservar registros cuando lo exija la ley.</p>
+      <h2>Alcance del servicio</h2>
+      <p>Enviar el formulario es una solicitud de contacto. No crea una relación abogado-cliente ni un contrato de servicios. Odaisa presta apoyo administrativo para preparar documentos y no ofrece asesoría legal ni representación.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

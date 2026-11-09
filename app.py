@@ -10,13 +10,15 @@ import string
 import uuid
 from functools import wraps
 from io import BytesIO, StringIO
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 from flask import (
     Flask,
     abort,
+    current_app,
     flash,
+    get_flashed_messages,
     jsonify,
     redirect,
     render_template,
@@ -24,8 +26,10 @@ from flask import (
     request,
     send_file,
     send_from_directory,
+    session,
     url_for,
 )
+from cryptography.fernet import Fernet, InvalidToken
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import CSRFProtect
 from reportlab.lib.pagesizes import landscape, letter
@@ -39,6 +43,7 @@ except ImportError:  # Pillow is required only for credential JPG downloads.
     Image = ImageDraw = ImageFont = None
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, inspect, or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 import click
 try:
@@ -46,7 +51,16 @@ try:
 except ImportError:  # Email notifications should not prevent the app from loading.
     requests = None
 
-from forms import CASE_STATUSES, CASE_TYPES, CRM_CASE_SERVICES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS, SUBSCRIPTION_TOOLS, US_STATES
+from forms import (
+    CASE_STATUSES, CASE_TYPES, CRM_CASE_SERVICES, FORM_TEMPLATES, I485_QUESTIONS, I589_QUESTIONS,
+    ODAISA_INTAKE_STEPS, ODAISA_LEAD_TOPICS, SUBSCRIPTION_TOOLS, US_PHONE_ERROR, US_STATES,
+    OdaisaConsentForm, OdaisaLeadDetailsForm, OdaisaLeadForm, normalize_us_phone,
+)
+from lead_workflow import (
+    FOLLOW_UP_DESCRIPTION, FOLLOW_UP_TITLE, LEAD_NOTE_TYPES, LEAD_TAGS, active_leads, alert_due_lead_tasks,
+    cancel_lead_tasks, lock_active_lead, open_lead_tasks,
+    process_lead_reminders, reset_follow_up,
+)
 from models import (
     ActiveSession,
     Agency,
@@ -79,6 +93,9 @@ from models import (
     CrmClientNote,
     CrmInvoice,
     CrmInvoiceActivity,
+    CrmLead,
+    CrmLeadNote,
+    CrmLeadTask,
     CrmSurvey,
     FormTemplate,
     GeneratedForm,
@@ -160,6 +177,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 EOIR33_TEMPLATE_PATH = os.path.join(BASE_DIR, "assets", "motion_forms", "eoir33icen_newark_02082022.pdf")
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx", "txt"}
 CLIENT_DOCUMENT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "docx"}
+ODAISA_CONSENT_VERSION = "2026-11-09.3"
 
 
 def create_app():
@@ -171,6 +189,15 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["UPLOAD_FOLDER"] = os.environ.get("UPLOAD_FOLDER", os.path.join(BASE_DIR, "uploads"))
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
+    odaisa_agency_id = os.environ.get("ODAISA_LEAD_AGENCY_ID", "").strip()
+    app.config["ODAISA_LEAD_AGENCY_ID"] = int(odaisa_agency_id) if odaisa_agency_id.isascii() and odaisa_agency_id.isdecimal() else None
+    app.config["ODAISA_LEAD_CIPHER"] = None
+    odaisa_key = os.environ.get("ODAISA_LEAD_ENCRYPTION_KEY", "").strip()
+    if odaisa_key:
+        try:
+            app.config["ODAISA_LEAD_CIPHER"] = Fernet(odaisa_key)
+        except ValueError:
+            app.logger.error("Invalid ODAISA_LEAD_ENCRYPTION_KEY; the Odaisa intake is disabled.")
 
     os.makedirs(app.instance_path, exist_ok=True)
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -181,6 +208,14 @@ def create_app():
 
     login_manager = LoginManager(app)
     login_manager.login_view = "home"
+
+    @app.after_request
+    def prevent_caching_intake_data(response):
+        if request.endpoint in {"odaisa_contact", "odaisa_validate_phone", "crm_leads", "crm_client_detail"} or (
+            request.endpoint and request.endpoint.startswith("crm_lead_")
+        ):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     @login_manager.user_loader
     def load_user(user_key):
@@ -241,6 +276,7 @@ def create_app():
             "can_use_joinder_for_current_user": can_use_joinder_for_current_user,
             "can_add_invoice_refunds_for_current_user": can_add_invoice_refunds_for_current_user,
             "can_manage_client_users_for_current_user": can_manage_client_users_for_current_user,
+            "can_view_odaisa_leads": can_view_odaisa_leads,
             "can_create_crm_clients_for_current_user": can_create_crm_clients_for_current_user,
             "can_manage_client_document_visibility": can_manage_client_document_visibility,
             "phone_tel_href": phone_tel_href,
@@ -361,6 +397,75 @@ def can_create_crm_clients_for_current_user():
             )
         )
     )
+
+
+def can_view_odaisa_leads():
+    return (
+        current_user.is_authenticated
+        and current_user.role == "agency"
+        and current_user.agency_id == current_app.config["ODAISA_LEAD_AGENCY_ID"]
+        and can_use_crm(current_user.agency)
+        and (is_agency_owner() or isinstance(current_user, AgencyCaseManager))
+    )
+
+
+def is_active_lead_manager():
+    return isinstance(current_user, AgencyCaseManager) and current_user.is_active
+
+
+def lead_manager_is_available(lead):
+    manager = lead.assigned_case_manager
+    return bool(manager and manager.is_active and manager.agency_id == lead.agency_id)
+
+
+def manages_lead(lead):
+    return is_active_lead_manager() and lead.assigned_case_manager_id == current_user.id
+
+
+def writable_lead(lead_id):
+    if not can_view_odaisa_leads() or not is_active_lead_manager():
+        abort(403)
+    lead = lock_active_lead(current_user.agency_id, lead_id)
+    if not lead:
+        abort(404)
+    return lead
+
+
+def odaisa_lead_details(lead):
+    if not lead.intake_ciphertext:
+        return {}
+    cipher = current_app.config["ODAISA_LEAD_CIPHER"]
+    if not cipher:
+        abort(503, description="The lead encryption key is not configured.")
+    try:
+        return json.loads(cipher.decrypt(lead.intake_ciphertext))
+    except (InvalidToken, ValueError):
+        current_app.logger.error("Could not decrypt Odaisa lead %s.", lead.id)
+        abort(503, description="The lead details could not be decrypted.")
+
+
+def lead_task_values():
+    title = request.form.get("title", "").strip()
+    description = request.form.get("description", "").strip()
+    try:
+        due_on = date.fromisoformat(request.form.get("due_on", ""))
+    except ValueError:
+        due_on = None
+    if not title or len(title) > 120 or not description or len(description) > 4000 or not due_on:
+        return None
+    return {"title": title, "description": description, "due_on": due_on}
+
+
+def active_odaisa_intake():
+    intake = session.get("odaisa_intake")
+    if (
+        intake
+        and intake["version"] == ODAISA_CONSENT_VERSION
+        and intake["agency_id"] == current_app.config["ODAISA_LEAD_AGENCY_ID"]
+        and datetime.now(timezone.utc).timestamp() - intake["accepted_at"] < 7200
+    ):
+        return intake
+    return None
 
 
 def can_manage_client_document_visibility():
@@ -1306,6 +1411,26 @@ def crm_client_log(client, action, details=""):
             action=action,
             details=details,
         )
+    )
+
+
+def stage_new_client(client, password, creator, assignment_reason="Initial assignment to the user who created the client."):
+    if creator:
+        client.created_by_role = client.assigned_to_role = creator["role"]
+        client.created_by_id = client.assigned_to_id = creator["id"]
+        client.created_by_label = client.assigned_to_label = creator["label"]
+    client.portal_password = password
+    client.set_password(password)
+    db.session.add(client)
+    db.session.flush()
+    if creator:
+        db.session.add(MessageAssignmentLog(
+            agency_id=client.agency_id, client_id=client.id, to_role=creator["role"],
+            to_id=creator["id"], to_label=creator["label"], reason=assignment_reason,
+        ))
+    crm_client_log(
+        client, "Client created and assigned",
+        f"Client account and portal credentials were created. Initially assigned to {client.assigned_to_label or 'unassigned'}.",
     )
 
 
@@ -3640,6 +3765,15 @@ def register_routes(app):
         init_database()
         print("Database initialized.")
 
+    @app.cli.command("process-lead-reminders")
+    def process_lead_reminders_command():
+        agency_id = app.config["ODAISA_LEAD_AGENCY_ID"]
+        if not agency_id or not can_use_crm(db.session.get(Agency, agency_id)):
+            raise click.ClickException("Configure ODAISA_LEAD_AGENCY_ID for an agency with CRM access.")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        generated, alerted, closed = process_lead_reminders(agency_id, eastern_datetime(now).date(), now)
+        click.echo(f"Follow-ups created: {generated}; alerts sent: {alerted}; leads marked Not interested: {closed}.")
+
     @app.cli.command("import-motion-references")
     @click.argument("source_path", required=False)
     @click.option("--kind", "kinds", multiple=True, type=click.Choice(["courts", "opla", "judges"]), help="Reference type to import. Repeat for more than one.")
@@ -3672,6 +3806,100 @@ def register_routes(app):
         if current_user.is_authenticated:
             return redirect(url_for(f"{current_user.role}_dashboard"))
         return render_template("home.html")
+
+    @app.get("/odaisa")
+    def odaisa_website():
+        return render_template("odaisa_website.html")
+
+    @app.get("/odaisa/privacidad")
+    def odaisa_privacy():
+        lang = "en" if request.args.get("lang") == "en" else "es"
+        return render_template("odaisa_privacy.html", lang=lang, version=ODAISA_CONSENT_VERSION)
+
+    @app.route("/odaisa/contacto", methods=["GET", "POST"])
+    def odaisa_contact():
+        agency_id = app.config["ODAISA_LEAD_AGENCY_ID"]
+        agency = db.session.get(Agency, agency_id) if agency_id is not None else None
+        cipher = app.config["ODAISA_LEAD_CIPHER"]
+        if not can_use_crm(agency) or not cipher or not app.secret_key or app.secret_key == "dev-change-me":
+            return render_template("odaisa_contact.html", phase="unavailable"), 503
+
+        if request.method == "GET" and get_flashed_messages(category_filter=["odaisa-success"]):
+            return render_template("odaisa_contact.html", phase="success")
+
+        topics = dict(ODAISA_LEAD_TOPICS)
+        action = request.form.get("action") if request.method == "POST" else None
+        intake = active_odaisa_intake()
+        if action == "submit" and (not intake or request.form.get("submission_id") != intake["id"]):
+            return render_template("odaisa_contact.html", phase="expired"), 400
+
+        if action != "submit" and not (request.method == "GET" and request.args.get("paso") == "datos" and intake):
+            consent = OdaisaConsentForm()
+            if request.method == "GET":
+                topic = request.args.get("servicio", "other")
+                consent.topic.data = topic if topic in topics else "other"
+            elif action == "consent" and consent.validate_on_submit():
+                session["odaisa_intake"] = {
+                    "id": uuid.uuid4().hex,
+                    "agency_id": agency.id,
+                    "topic": consent.topic.data,
+                    "version": ODAISA_CONSENT_VERSION,
+                    "accepted_at": int(datetime.now(timezone.utc).timestamp()),
+                }
+                return redirect(url_for("odaisa_contact", paso="datos"), code=303)
+            return render_template("odaisa_contact.html", phase="consent", form=consent), 422 if request.method == "POST" else 200
+
+        form = OdaisaLeadForm()
+        if request.method == "GET":
+            form.submission_id.data = intake["id"]
+        elif form.website.data:
+            session.pop("odaisa_intake", None)
+            return redirect(url_for("odaisa_contact"), code=303)
+        elif form.validate_on_submit():
+            details = {
+                field: form[field].data for field in (
+                    "first_name", "middle_name", "last_name", "a_number", "street_address", "city", "state", "zip_code",
+                )
+            }
+            name = " ".join(part for part in (form.first_name.data, form.middle_name.data, form.last_name.data) if part)
+            lead = CrmLead(
+                agency_id=agency.id,
+                submission_id=intake["id"],
+                name=name[:120],
+                email=form.email.data,
+                phone=form.phone.data,
+                topic=intake["topic"],
+                intake_ciphertext=cipher.encrypt(json.dumps(details, ensure_ascii=False).encode()).decode("ascii"),
+                consent_version=intake["version"],
+                consented_at=datetime.fromtimestamp(intake["accepted_at"], timezone.utc).replace(tzinfo=None),
+            )
+            db.session.add(lead)
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                if not CrmLead.query.filter_by(agency_id=agency.id, submission_id=intake["id"]).first():
+                    raise
+            session.pop("odaisa_intake", None)
+            flash("Recibimos tu solicitud. Te contactaremos por el medio que indicaste.", "odaisa-success")
+            return redirect(url_for("odaisa_contact"), code=303)
+        active_step = next(
+            (index for index, fields in enumerate(ODAISA_INTAKE_STEPS, start=2)
+             if any(form[field].errors for field in fields)),
+            2,
+        )
+        return render_template(
+            "odaisa_contact.html", phase="intake", form=form, active_step=active_step, phone_error=US_PHONE_ERROR,
+        ), 422 if action else 200
+
+    @app.post("/odaisa/contacto/telefono")
+    def odaisa_validate_phone():
+        if not active_odaisa_intake():
+            return jsonify(error="La sesión venció. Vuelve a abrir el formulario."), 400
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or not normalize_us_phone(payload.get("phone")):
+            return jsonify(error=US_PHONE_ERROR), 422
+        return jsonify(valid=True)
 
     @app.route("/survey/<token>", methods=["GET", "POST"])
     def public_survey(token):
@@ -4796,6 +5024,183 @@ def register_routes(app):
         flash("Law firm deleted.", "info")
         return redirect(url_for("law_firm_list"))
 
+    @app.route("/agency/crm/leads")
+    @role_required("agency")
+    def crm_leads():
+        if not can_view_odaisa_leads():
+            abort(403)
+        query = active_leads(current_user.agency_id)
+        search = request.args.get("q", "").strip()[:160]
+        tag = request.args.get("tag", "")
+        if search:
+            query = query.filter(or_(*(column.icontains(search, autoescape=True) for column in (
+                CrmLead.name, CrmLead.email, CrmLead.phone,
+            ))))
+        if tag in LEAD_TAGS:
+            query = query.filter_by(tag=tag)
+        else:
+            tag = ""
+        page = query.options(joinedload(CrmLead.assigned_case_manager)).order_by(
+            CrmLead.created_at.desc(), CrmLead.id.desc(),
+        ).paginate(per_page=25)
+        return render_template(
+            "crm_leads.html", page=page, search=search, tag=tag, tags=LEAD_TAGS,
+            manager_available=lead_manager_is_available,
+        )
+
+    def render_lead_profile(lead, tab="notes", conversion_form=None, conversion_error=False):
+        can_work = manages_lead(lead)
+        assigned = lead_manager_is_available(lead)
+        can_claim = is_active_lead_manager() and not assigned and lead.tag != "Not interested"
+        show_history = can_work or is_agency_owner()
+        details = odaisa_lead_details(lead) if show_history or can_claim else {}
+        notes = CrmLeadNote.query.filter_by(lead_id=lead.id).order_by(
+            CrmLeadNote.created_at.desc(), CrmLeadNote.id.desc(),
+        ).all() if show_history else []
+        tasks = CrmLeadTask.query.filter_by(lead_id=lead.id, cancelled_at=None).order_by(
+            CrmLeadTask.due_on, CrmLeadTask.id,
+        ).all() if show_history else []
+        if can_work and not details and conversion_form is None:
+            conversion_form = OdaisaLeadDetailsForm(
+                formdata=None, data={"email": lead.email or "", "phone": lead.phone or ""},
+            )
+        if conversion_form is not None:
+            conversion_form.state.choices = [("", "Select a state"), *((state, state) for state in US_STATES)]
+        return render_template(
+            "crm_lead_detail.html", lead=lead, details=details,
+            can_work=can_work, can_claim=can_claim, assigned=assigned, show_history=show_history,
+            notes=notes, tasks=tasks, note_types=LEAD_NOTE_TYPES,
+            tab="tasks" if tab == "tasks" else "notes",
+            conversion_form=conversion_form, conversion_error=conversion_error,
+        )
+
+    @app.get("/agency/crm/leads/<int:lead_id>")
+    @role_required("agency")
+    def crm_lead_detail(lead_id):
+        if not can_view_odaisa_leads():
+            abort(403)
+        lead = active_leads(current_user.agency_id).filter_by(id=lead_id).first_or_404()
+        return render_lead_profile(lead, tab=request.args.get("tab"))
+
+    @app.post("/agency/crm/leads/<int:lead_id>/claim")
+    @role_required("agency")
+    def crm_lead_claim(lead_id):
+        lead = writable_lead(lead_id)
+        if lead_manager_is_available(lead) or lead.tag == "Not interested":
+            abort(409, description="This lead is no longer available to claim.")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        lead.assigned_case_manager_id = current_user.id
+        lead.assigned_at = now
+        lead.tag = "Assigned"
+        reset_follow_up(lead, eastern_datetime(now).date(), now)
+        open_lead_tasks(lead.id).update({CrmLeadTask.alerted_at: None}, synchronize_session=False)
+        alert_due_lead_tasks(lead, eastern_datetime(now).date(), now)
+        db.session.commit()
+        flash("Lead assigned to you.", "success")
+        return redirect(url_for("crm_lead_detail", lead_id=lead_id))
+
+    @app.post("/agency/crm/leads/<int:lead_id>/notes")
+    @role_required("agency")
+    def crm_lead_note_create(lead_id):
+        lead = writable_lead(lead_id)
+        if not manages_lead(lead):
+            abort(403)
+        kind = request.form.get("kind")
+        body = request.form.get("body", "").strip()
+        if kind not in LEAD_NOTE_TYPES or not body or len(body) > 4000:
+            abort(400, description="Select a note type and enter between 1 and 4,000 characters.")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.session.add(CrmLeadNote(
+            lead_id=lead.id, case_manager_id=current_user.id, author_label=current_user.full_name,
+            kind=kind, body=body, created_at=now,
+        ))
+        if lead.tag == "Assigned":
+            reset_follow_up(lead, eastern_datetime(now).date(), now)
+        db.session.commit()
+        flash("Note saved.", "success")
+        return redirect(url_for("crm_lead_detail", lead_id=lead_id))
+
+    @app.post("/agency/crm/leads/<int:lead_id>/tasks")
+    @role_required("agency")
+    def crm_lead_task_create(lead_id):
+        lead = writable_lead(lead_id)
+        if not manages_lead(lead):
+            abort(403)
+        values = lead_task_values()
+        if not values:
+            abort(400, description="Enter a valid title, description, and date.")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.session.add(CrmLeadTask(
+            lead_id=lead.id, created_at=now, created_by_label=current_user_label(), **values,
+        ))
+        alert_due_lead_tasks(lead, eastern_datetime(now).date(), now)
+        db.session.commit()
+        flash("Task saved.", "success")
+        return redirect(url_for("crm_lead_detail", lead_id=lead_id, tab="tasks"))
+
+    @app.post("/agency/crm/leads/<int:lead_id>/tasks/<int:task_id>")
+    @role_required("agency")
+    def crm_lead_task_update(lead_id, task_id):
+        lead = writable_lead(lead_id)
+        if not manages_lead(lead):
+            abort(403)
+        task = open_lead_tasks(lead.id).filter_by(id=task_id).first_or_404()
+        action = request.form.get("action")
+        if action == "complete":
+            task.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            flash("Task completed.", "success")
+        elif action == "edit":
+            values = lead_task_values()
+            if not values:
+                abort(400, description="Enter a valid title, description, and date.")
+            if values["due_on"] != task.due_on:
+                task.alerted_at = None
+            for key, value in values.items():
+                setattr(task, key, value)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            alert_due_lead_tasks(lead, eastern_datetime(now).date(), now)
+            flash("Task updated.", "success")
+        else:
+            abort(400)
+        db.session.commit()
+        return redirect(url_for("crm_lead_detail", lead_id=lead_id, tab="tasks"))
+
+    @app.post("/agency/crm/leads/<int:lead_id>/convert")
+    @role_required("agency")
+    def crm_lead_convert(lead_id):
+        lead = writable_lead(lead_id)
+        if not manages_lead(lead):
+            abort(403)
+        if request.form.get("payment_confirmed") != "yes":
+            abort(400, description="Confirm that you have already collected at least one payment.")
+        details = odaisa_lead_details(lead)
+        if details:
+            details.update(email=lead.email, phone=lead.phone)
+        else:
+            conversion_form = OdaisaLeadDetailsForm()
+            if not conversion_form.validate_on_submit():
+                return render_lead_profile(lead, conversion_form=conversion_form, conversion_error=True), 422
+            details = {field: conversion_form[field].data for group in ODAISA_INTAKE_STEPS for field in group}
+        client = Client(agency_id=lead.agency_id, **details)
+        client.username = generated_client_username(client.first_name, client.last_name)
+        password = generated_client_password()
+        stage_new_client(
+            client, password, agency_message_identity(),
+            assignment_reason="Kept the assigned case manager from the lead.",
+        )
+        crm_client_log(client, "Converted from lead", f"Lead #{lead.id}. First payment confirmed by the assigned case manager.")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        lead.converted_at = now
+        lead.converted_client = client
+        cancel_lead_tasks(lead.id, now)
+        db.session.commit()
+        sent = notify_client_welcome(client, password)
+        db.session.commit()
+        flash("Lead converted to client.", "success")
+        if not sent:
+            flash("The welcome email could not be sent. You can resend the credentials from the client profile.", "warning")
+        return redirect(url_for("crm_client_detail", client_id=client.id))
+
     @app.route("/agency/crm")
     @role_required("agency")
     def agency_crm():
@@ -5119,7 +5524,7 @@ def register_routes(app):
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
         backfill_client_message_owner(client)
         active_tab = request.args.get("tab", "cases")
-        allowed_tabs = {"cases", "appointments", "invoices", "questionnaires", "documents", "messages", "notes", "activity"}
+        allowed_tabs = {"cases", "appointments", "invoices", "questionnaires", "documents", "messages", "notes", "activity", "lead-notes"}
         if active_tab not in allowed_tabs:
             active_tab = "cases"
         message_thread = client.message_thread
@@ -5177,6 +5582,23 @@ def register_routes(app):
             for row in linked_rows:
                 if row.crm_case_id in crm_case_lookup:
                     linked_crm_cases[row.form_filler_case_id] = crm_case_lookup[row.crm_case_id]
+        can_view_lead_history = is_agency_owner() or (
+            is_active_lead_manager()
+            and client.assigned_to_role == "agency_case_manager"
+            and client.assigned_to_id == current_user.id
+        )
+        lead_notes = (
+            CrmLeadNote.query.join(CrmLead, CrmLeadNote.lead_id == CrmLead.id)
+            .filter(
+                CrmLead.agency_id == client.agency_id,
+                CrmLead.converted_client_id == client.id,
+                CrmLead.converted_at >= client.created_at,
+                CrmLeadNote.created_at <= CrmLead.converted_at,
+            )
+            .order_by(CrmLeadNote.created_at.desc(), CrmLeadNote.id.desc())
+            .all()
+            if can_view_lead_history else []
+        )
         return render_template(
             "crm_client_detail.html",
             client=client,
@@ -5187,6 +5609,8 @@ def register_routes(app):
             questionnaires=questionnaires,
             linked_crm_cases=linked_crm_cases,
             note_timeline=crm_client_note_timeline(client),
+            lead_notes=lead_notes,
+            lead_note_types=LEAD_NOTE_TYPES,
             activity_logs=CrmClientActivityLog.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmClientActivityLog.created_at.desc()).all(),
             message_assignee_active=message_assignee_is_active(client),
             active_tab=active_tab,
@@ -6045,39 +6469,13 @@ def register_routes(app):
             client = Client(agency_id=agency_id)
             populate_client_from_form(client)
             creator = agency_message_identity() if current_user.role == "agency" else None
-            if creator:
-                client.created_by_role = creator["role"]
-                client.created_by_id = creator["id"]
-                client.created_by_label = creator["label"]
-                client.assigned_to_role = creator["role"]
-                client.assigned_to_id = creator["id"]
-                client.assigned_to_label = creator["label"]
             if not client.username:
                 client.username = generated_client_username(client.first_name, client.last_name)
             elif username_taken(client.username, client):
                 flash("That username is already in use. Please choose another one.", "danger")
                 return render_template("client_form.html", client=client, agencies=agencies)
             password = request.form.get("password", "").strip() or generated_client_password()
-            client.portal_password = password
-            client.set_password(password)
-            db.session.add(client)
-            db.session.flush()
-            if creator:
-                db.session.add(
-                    MessageAssignmentLog(
-                        agency_id=client.agency_id,
-                        client_id=client.id,
-                        to_role=creator["role"],
-                        to_id=creator["id"],
-                        to_label=creator["label"],
-                        reason="Initial assignment to the user who created the client.",
-                    )
-                )
-            crm_client_log(
-                client,
-                "Client created and assigned",
-                f"Client account and portal credentials were created. Initially assigned to {client.assigned_to_label or 'unassigned'}.",
-            )
+            stage_new_client(client, password, creator)
             notify_client_welcome(client, password)
             db.session.commit()
             flash("Client created.", "success")
@@ -8448,6 +8846,25 @@ def seed_sample_form_templates():
 
 def ensure_sqlite_schema():
     inspector = inspect(db.engine)
+    if "crm_lead" in inspector.get_table_names():
+        lead_columns = {column["name"] for column in inspector.get_columns("crm_lead")}
+        lead_additions = {
+            "intake_ciphertext": "TEXT", "consent_version": "VARCHAR(20)", "consented_at": "DATETIME",
+            "assigned_case_manager_id": "INTEGER REFERENCES agency_case_manager(id) ON DELETE SET NULL",
+            "assigned_at": "DATETIME", "follow_up_from": "DATE", "follow_up_count": "INTEGER NOT NULL DEFAULT 0",
+            "converted_at": "DATETIME", "converted_client_id": "INTEGER REFERENCES client(id) ON DELETE SET NULL",
+        }
+        for column, ddl in lead_additions.items():
+            if column not in lead_columns:
+                db.session.execute(text(f"ALTER TABLE crm_lead ADD COLUMN {column} {ddl}"))
+    if "crm_lead_task" in inspector.get_table_names():
+        task_columns = {column["name"] for column in inspector.get_columns("crm_lead_task")}
+        if "created_by_label" not in task_columns:
+            db.session.execute(text("ALTER TABLE crm_lead_task ADD COLUMN created_by_label VARCHAR(280)"))
+        CrmLeadTask.query.filter_by(
+            is_automatic=True, title="Seguimiento",
+            description="Haz un seguimiento a este lead hoy, empezando por llamar, dejar mensaje de voz, y luego mandar mensaje de texto.",
+        ).update({"title": FOLLOW_UP_TITLE, "description": FOLLOW_UP_DESCRIPTION}, synchronize_session=False)
     if "form_template" not in inspector.get_table_names():
         return
     existing = {column["name"] for column in inspector.get_columns("form_template")}
@@ -8554,6 +8971,13 @@ def ensure_sqlite_schema():
         existing_notification_columns = {column["name"] for column in inspector.get_columns("notification")}
         if "survey_id" not in existing_notification_columns:
             db.session.execute(text("ALTER TABLE notification ADD COLUMN survey_id INTEGER"))
+        if "lead_id" not in existing_notification_columns:
+            db.session.execute(text("ALTER TABLE notification ADD COLUMN lead_id INTEGER REFERENCES crm_lead(id) ON DELETE SET NULL"))
+        legacy_prefix = "Tarea pendiente para "
+        db.session.execute(text(
+            "UPDATE notification SET message = 'Task due for ' || substr(message, :start) "
+            "WHERE notification_type = 'lead_task_due' AND message LIKE :prefix"
+        ), {"start": len(legacy_prefix) + 1, "prefix": legacy_prefix + "%"})
     if "crm_survey" in inspector.get_table_names():
         existing_survey_columns = {column["name"] for column in inspector.get_columns("crm_survey")}
         if "case_manager_name" not in existing_survey_columns:

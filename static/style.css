@@ -2865,6 +2865,45 @@ body {
   justify-self: end;
 }
 
+.crm-lead-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.crm-lead-task-edit[open] {
+  flex-basis: 100%;
+}
+
+.crm-lead-actions {
+  align-items: stretch;
+  flex: 0 0 auto;
+  flex-direction: column;
+}
+
+.crm-lead-tabs {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.crm-lead-tabs .crm-folder-tab {
+  min-width: 7rem;
+}
+
+.crm-lead-dialog {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #182334;
+  max-height: calc(100% - 2rem);
+  overflow: auto;
+  padding: 1.25rem;
+  width: min(34rem, calc(100% - 2rem));
+}
+
+.crm-lead-dialog::backdrop {
+  background: rgb(15 23 42 / 60%);
+}
+
 .crm-client-result-head {
   background: #ffffff;
   border-color: transparent;

@@ -1,0 +1,17 @@
+{% macro lead_note_history(notes, note_types, empty_message) %}
+  {% set note_icons = {'call': '1F4DE', 'text': '1F4AC', 'whatsapp': '1F4F2', 'email': '1F4E7'} %}
+  <div class="crm-stack">
+    {% for note in notes %}
+      <article class="crm-record d-block">
+        <strong>
+          {% if note.kind in note_icons %}<span class="me-1" aria-hidden="true">&#x{{ note_icons[note.kind] }};</span>{% endif %}
+          {{ note_types.get(note.kind, note.kind) }}
+        </strong>
+        <small>{{ note.author_label }} &middot; {{ note.created_at|eastern_time }}</small>
+        <p class="crm-lead-text mb-0 mt-2">{{ note.body }}</p>
+      </article>
+    {% else %}
+      <p class="text-secondary mb-0">{{ empty_message }}</p>
+    {% endfor %}
+  </div>
+{% endmacro %}

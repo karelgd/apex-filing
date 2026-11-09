@@ -47,6 +47,9 @@
         {% if notification.case %}
           for Case <a href="{{ url_for('crm_case_detail', case_id=notification.case.id) }}">{{ notification.case.title }}</a>.
         {% endif %}
+      {% elif notification.notification_type == 'lead_task_due' and notification.lead and not notification.lead.converted_at and notification.lead.assigned_case_manager_id == notification.recipient_id and can_view_odaisa_leads() %}
+        {{ notification.message }}.
+        <a href="{{ url_for('crm_lead_detail', lead_id=notification.lead.id, tab='tasks') }}">View lead tasks</a>.
       {% else %}
         {{ notification.message }}
       {% endif %}

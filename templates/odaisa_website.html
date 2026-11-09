@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Odaisa ofrece apoyo administrativo para preparar formularios de inmigración en Estados Unidos. Contáctanos en español.">
+  <title>Odaisa Immigration Services | Preparación de formularios</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/odaisa-logo.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='odaisa.css', v='immigration-hero') }}">
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Ir al contenido</a>
+  <header class="site-header">
+    <div class="utility-bar">
+      <div class="site-width utility-row">
+        <span>Miami, Florida</span>
+        <a href="tel:+13059128613">(305) 912-8613</a>
+      </div>
+    </div>
+    <div class="site-width header-row">
+      <a class="brand" href="{{ url_for('odaisa_website') }}" aria-label="Odaisa Immigration Services, inicio">
+        <img src="{{ url_for('static', filename='img/odaisa-logo.png') }}" width="47" height="47" alt="">
+        <span><strong>Odaisa</strong><small>Immigration Services</small></span>
+      </a>
+      <nav aria-label="Navegación principal">
+        <a class="nav-section" href="#servicios">Servicios</a>
+        <a class="nav-section" href="#nosotros">Nosotros</a>
+        <a class="button button-small" href="{{ url_for('odaisa_contact') }}">Contáctanos</a>
+      </nav>
+    </div>
+  </header>
+  <main id="contenido">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="site-width hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">Odaisa Immigration Services</p>
+          <h1 id="hero-title">Preparación de formularios de inmigración</h1>
+          <p class="hero-description">Apoyo administrativo en español para completar tus formularios y organizar tus documentos.</p>
+          <div class="hero-actions">
+            <a class="button button-small" href="{{ url_for('odaisa_contact') }}">Contáctanos</a>
+            <a class="hero-secondary" href="#servicios">Ver servicios <span aria-hidden="true">↓</span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+    <aside class="legal-band" aria-labelledby="legal-title">
+      <div class="site-width legal-inner">
+        <h2 id="legal-title">Aviso legal</h2>
+        <div>
+          <p>NO SOY ABOGADO CON LICENCIA PARA EJERCER EL DERECHO Y NO PUEDO DAR ASESORÍA LEGAL NI ACEPTAR HONORARIOS POR ASESORÍA LEGAL. NO ESTOY ACREDITADO PARA REPRESENTARLE EN ASUNTOS DE INMIGRACIÓN.</p>
+          <p lang="en">I AM NOT AN ATTORNEY LICENSED TO PRACTICE LAW AND MAY NOT GIVE LEGAL ADVICE OR ACCEPT FEES FOR LEGAL ADVICE. I AM NOT ACCREDITED TO REPRESENT YOU IN IMMIGRATION MATTERS.</p>
+        </div>
+      </div>
+    </aside>
+    <section class="site-width section services" id="servicios" aria-labelledby="services-title">
+      <p class="eyebrow">Nuestros servicios</p>
+      <h2 id="services-title">Formularios que preparamos</h2>
+      {% set services = [
+        ('work', 'I-765', 'Permiso de trabajo', 'Formulario de autorización de empleo.'),
+        ('family', 'I-130', 'Petición familiar', 'Formulario de petición para un familiar.'),
+        ('asylum', 'I-589', 'Formularios de asilo', 'Preparación administrativa con tus respuestas.'),
+        ('citizenship', 'N-400', 'Ciudadanía', 'Formulario de solicitud de naturalización.'),
+        ('residence', 'I-485', 'Residencia permanente', 'Formulario de ajuste de estatus.'),
+        ('other', 'FORMULARIOS', 'Otros', 'Contáctanos para consultar sobre otros formularios de inmigración.')
+      ] %}
+      <ul class="service-list">
+        {% for topic, code, title, description in services %}
+          <li>
+            <a href="{{ url_for('odaisa_contact', servicio=topic) }}">
+              <span class="service-code">{{ code }}</span>
+              <h3>{{ title }}</h3>
+              <p>{{ description }}</p>
+              <span class="service-arrow" aria-hidden="true">↗</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section class="about-band" id="nosotros" aria-labelledby="about-title">
+      <div class="site-width about-grid">
+        <figure class="about-portrait">
+          <img src="{{ url_for('static', filename='img/odaisa-karel.jpg') }}" width="640" height="910" alt="Karel Gonzalez" loading="lazy">
+        </figure>
+        <div class="about-copy">
+          <p class="eyebrow">Sobre Odaisa</p>
+          <h2 id="about-title">Atención en español desde Miami.</h2>
+          <p>Odaisa Consultancy Services LLC, fundada por Karel Gonzalez, ofrece apoyo administrativo en la preparación de formularios de inmigración.</p>
+          <p>Completamos los formularios con tus respuestas y organizamos los documentos que nos indiques. Las preguntas sobre elegibilidad o estrategia legal deben dirigirse a un abogado de inmigración o a un representante acreditado.</p>
+          <a class="text-link" href="{{ url_for('odaisa_contact') }}">Contáctanos <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-width site-footer">
+    <strong>Odaisa Consultancy Services LLC</strong>
+    <a href="mailto:immigration@odaisa.com">immigration@odaisa.com</a>
+    <a href="{{ url_for('odaisa_privacy') }}">Privacidad</a>
+    <a class="footer-top" href="#contenido">Volver arriba ↑</a>
+  </footer>
+</body>
+</html>

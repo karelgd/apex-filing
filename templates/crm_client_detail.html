@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_crm_lead_note_history.html" import lead_note_history %}
 {% block content %}
 {% set selected_tab = active_tab or 'cases' %}
 <div class="crm-page">
@@ -57,6 +58,9 @@
       </button>
       <button class="crm-folder-tab crm-tab-activity {{ 'active' if selected_tab == 'activity' else '' }}" type="button" data-crm-tab="activity">
         Activity Log <span>{{ activity_logs|length }}</span>
+      </button>
+      <button class="crm-folder-tab crm-tab-notes {{ 'active' if selected_tab == 'lead-notes' else '' }}" type="button" data-crm-tab="lead-notes">
+        Lead Notes <span>{{ lead_notes|length }}</span>
       </button>
     </div>
 
@@ -306,6 +310,11 @@
           <p class="text-secondary mb-0">No activity has been logged for this client yet.</p>
         {% endfor %}
       </div>
+    </section>
+
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'lead-notes' else '' }}" data-crm-panel="lead-notes" id="lead-notes">
+      <div class="crm-panel-head"><h2>Lead Notes</h2></div>
+      {{ lead_note_history(lead_notes, lead_note_types, 'No lead notes.') }}
     </section>
   </div>
 </div>

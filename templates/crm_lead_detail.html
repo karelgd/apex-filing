@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% from "_crm_lead_note_history.html" import lead_note_history %}
+{% block title %}{{ lead.name }} | Leads{% endblock %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% macro task_fields(task=none) %}
+  <label class="form-label d-block">
+    Title
+    <input class="form-control" name="title" required maxlength="120" value="{{ task.title if task else '' }}">
+  </label>
+  <label class="form-label d-block">
+    Description
+    <textarea class="form-control" name="description" required maxlength="4000" rows="3">{{ task.description if task else '' }}</textarea>
+  </label>
+  <label class="form-label d-block">
+    Reminder date
+    <input class="form-control" type="date" name="due_on" required value="{{ task.due_on.isoformat() if task else '' }}">
+  </label>
+{% endmacro %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-client-header">
+    <div class="crm-avatar big" aria-hidden="true">{{ lead.name.split()[:2]|map('first')|join|upper }}</div>
+    <div class="crm-client-identity">
+      <span class="crm-kicker">Lead profile</span>
+      <h1 class="text-break">{{ lead.name }}</h1>
+      <div class="crm-client-facts">
+        <span><strong>Case Manager:</strong> {{ lead.assigned_case_manager.full_name if assigned else 'Unassigned' }}</span>
+        <span><strong>Status:</strong> <span class="badge {{ 'text-bg-primary' if lead.tag == 'New' else 'text-bg-success' if lead.tag == 'Assigned' else 'text-bg-secondary' }}">{{ lead.tag }}</span></span>
+        <span><strong>Received:</strong> {{ lead.created_at|eastern_time }}</span>
+        {% if lead.phone %}<span><strong>Phone:</strong> <a href="{{ phone_tel_href(lead.phone) }}">{{ lead.phone }}</a></span>{% endif %}
+        {% if lead.email %}<span class="text-break"><strong>Email:</strong> <a href="mailto:{{ lead.email }}">{{ lead.email }}</a></span>{% endif %}
+        {% if details %}
+          <span><strong>A-number:</strong> {{ details.a_number }}</span>
+          <span class="text-break"><strong>Address:</strong> {{ details.street_address }}, {{ details.city }}, {{ details.state }} {{ details.zip_code }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="crm-actions crm-lead-actions">
+      {% if can_claim %}
+        <form method="post" action="{{ url_for('crm_lead_claim', lead_id=lead.id) }}">
+          {{ csrf() }}
+          <button class="btn btn-primary crm-action-btn" type="submit">Claim Lead</button>
+        </form>
+      {% elif can_work %}
+        <button class="btn btn-primary crm-action-btn" type="button" id="open-lead-conversion">Convert to Client</button>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('crm_leads') }}">Back to Leads</a>
+    </div>
+  </div>
+
+  {% if show_history %}
+    <div class="crm-folder-workspace">
+      <nav class="crm-folder-tabs crm-lead-tabs" aria-label="Lead sections">
+        <a class="crm-folder-tab crm-tab-notes text-decoration-none {{ 'active' if tab == 'notes' else '' }}"
+           {% if tab == 'notes' %}aria-current="page"{% endif %}
+           href="{{ url_for('crm_lead_detail', lead_id=lead.id) }}">Notes <span>{{ notes|length }}</span></a>
+        <a class="crm-folder-tab crm-tab-activity text-decoration-none {{ 'active' if tab == 'tasks' else '' }}"
+           {% if tab == 'tasks' %}aria-current="page"{% endif %}
+           href="{{ url_for('crm_lead_detail', lead_id=lead.id, tab='tasks') }}">Tasks <span>{{ tasks|rejectattr('completed_at')|list|length }}</span></a>
+      </nav>
+      <section class="crm-folder-panel active" id="{{ tab }}">
+        {% if tab == 'notes' %}
+          <div class="crm-panel-head"><h2>Note history</h2></div>
+          {% if can_work %}
+            <form class="mb-4" method="post" action="{{ url_for('crm_lead_note_create', lead_id=lead.id) }}">
+              {{ csrf() }}
+              <label class="form-label d-block">
+                Note type
+                <select class="form-select" name="kind" required>
+                  <option value="">Select a type</option>
+                  {% for value, label in note_types.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+              </label>
+              <label class="form-label d-block">
+                Note
+                <textarea class="form-control" name="body" maxlength="4000" rows="3" required></textarea>
+              </label>
+              <button class="btn btn-primary" type="submit">Save note</button>
+            </form>
+          {% endif %}
+          {{ lead_note_history(notes, note_types, 'No notes yet.') }}
+        {% else %}
+          <div class="crm-panel-head"><h2>Pending tasks</h2></div>
+          {% if can_work %}
+            <details class="mb-3">
+              <summary class="btn btn-outline-primary">Create task</summary>
+              <form class="mt-3" method="post" action="{{ url_for('crm_lead_task_create', lead_id=lead.id) }}">
+                {{ csrf() }}{{ task_fields() }}
+                <button class="btn btn-primary" type="submit">Save task</button>
+              </form>
+            </details>
+          {% endif %}
+          <div class="crm-stack">
+            {% for task in tasks if not task.completed_at %}
+              <article class="crm-record d-block" id="task-{{ task.id }}">
+                <strong class="text-break">{{ task.title }}</strong>
+                <small class="text-break">{{ task.due_on.strftime('%b %d, %Y') }} &middot; Created by: {{ task.creator_label }}</small>
+                <p class="crm-lead-text mt-2 mb-2">{{ task.description }}</p>
+                {% if can_work %}
+                  {% set task_url = url_for('crm_lead_task_update', lead_id=lead.id, task_id=task.id) %}
+                  <div class="d-flex flex-wrap gap-2 align-items-start">
+                    <form method="post" action="{{ task_url }}">
+                      {{ csrf() }}
+                      <button class="btn btn-sm btn-outline-success" name="action" value="complete">Mark complete</button>
+                    </form>
+                    <details class="crm-lead-task-edit">
+                      <summary class="btn btn-sm btn-outline-primary">Edit task</summary>
+                      <form class="mt-3" method="post" action="{{ task_url }}">
+                        {{ csrf() }}{{ task_fields(task) }}
+                        <button class="btn btn-primary" name="action" value="edit">Save changes</button>
+                      </form>
+                    </details>
+                  </div>
+                {% endif %}
+              </article>
+            {% else %}<p class="text-secondary mb-0">No pending tasks.</p>{% endfor %}
+          </div>
+          {% set completed = tasks|selectattr('completed_at')|list %}
+          {% if completed %}
+            <h2 class="h5 mt-4">Completed tasks</h2>
+            <ul class="list-group list-group-flush">
+              {% for task in completed %}
+                <li class="list-group-item text-break">
+                  {{ task.title }} <small class="text-secondary">&middot; {{ task.completed_at|eastern_time }} &middot; Created by: {{ task.creator_label }}</small>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        {% endif %}
+      </section>
+    </div>
+  {% endif %}
+</div>
+{% if can_work %}
+  <dialog class="crm-lead-dialog" id="lead-conversion" aria-labelledby="lead-conversion-title" {% if conversion_error %}data-reopen{% endif %}>
+    <form method="post" action="{{ url_for('crm_lead_convert', lead_id=lead.id) }}">
+      {{ csrf() }}
+      <h2 class="h5" id="lead-conversion-title">Convert to Client</h2>
+      <p>Before converting this lead to a client, you must have collected at least one payment. If you already have, click Convert to Client. Otherwise, click Cancel.</p>
+      {% if conversion_form %}
+        {% set field_labels = {
+          'first_name': 'First name', 'middle_name': 'Middle name', 'last_name': 'Last name',
+          'a_number': 'A-number (7 to 9 digits, without A)', 'phone': 'U.S. phone number',
+          'email': 'Email address', 'street_address': 'Street address', 'city': 'City',
+          'state': 'State', 'zip_code': 'ZIP code'
+        } %}
+        <fieldset class="row g-2 mb-3">
+          <legend class="h6">Complete the client account details</legend>
+          {% for field in conversion_form if field.name != 'csrf_token' %}
+            <div class="{{ 'col-12' if field.name == 'street_address' else 'col-sm-6' }}">
+              <label class="form-label" for="{{ field.id }}">{{ field_labels[field.name] }}</label>
+              {{ field(class='form-select' if field.type == 'SelectField' else 'form-control') }}
+              {% if field.errors %}<p class="small text-danger mb-0">Enter a valid {{ field_labels[field.name]|lower }}.</p>{% endif %}
+            </div>
+          {% endfor %}
+        </fieldset>
+      {% endif %}
+      <div class="d-flex justify-content-end gap-2 flex-wrap">
+        <button class="btn btn-outline-secondary" type="submit" formmethod="dialog" formnovalidate autofocus>Cancel</button>
+        <button class="btn btn-primary" type="submit" name="payment_confirmed" value="yes">Convert to Client</button>
+      </div>
+    </form>
+  </dialog>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+  {% if can_work %}<script src="{{ url_for('static', filename='crm_lead.js') }}" defer></script>{% endif %}
+{% endblock %}

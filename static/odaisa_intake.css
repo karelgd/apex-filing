@@ -1,0 +1,51 @@
+.intake-page { min-height: 100vh; background: #f6f8fb; }
+.intake-page [hidden] { display: none !important; }
+.intake-header { background: white; border-bottom: 1px solid var(--line); }
+.intake-header .header-row { min-height: 4.6rem; }
+.intake-header .text-link { margin: 0; font-size: .9rem; }
+.intake-main { width: min(100% - 3rem, 35rem); margin: 0 auto; padding-block: 3.2rem 4rem; }
+.intake-main h1, .intake-main h2 { font-size: 2.65rem; line-height: 1.08; font-weight: 760; }
+.intake-description { margin-block: .8rem 1.15rem; color: var(--muted); }
+.intake-progress { margin-bottom: 1.8rem; color: var(--muted); font-size: .85rem; font-weight: 700; }
+.intake-progress progress { display: block; width: 100%; height: .38rem; margin-top: .5rem; border: 0; border-radius: .35rem; overflow: hidden; background: #dae3eb; }
+.intake-progress progress::-webkit-progress-bar { background: #dae3eb; }
+.intake-progress progress::-webkit-progress-value { background: var(--navy); }
+.intake-progress progress::-moz-progress-bar { background: var(--navy); }
+.intake-fields { display: grid; gap: .9rem; margin-top: 1.15rem; }
+.intake-field { min-width: 0; }
+.intake-field label { display: block; font-size: .92rem; font-weight: 680; }
+.intake-field input, .intake-field select {
+  width: 100%;
+  min-height: 3.1rem;
+  margin-top: .27rem;
+  padding: .5rem .7rem;
+  border: 1px solid #8196a6;
+  border-radius: 4px;
+  background: white;
+  color: var(--ink);
+}
+.intake-pair { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+.intake-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.4rem; }
+.button-outline { background: transparent; border-color: #8196a6; }
+.button-outline:hover { background: var(--mist); }
+.intake-actions .button:disabled { cursor: wait; opacity: .65; }
+.terms-links { display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin-bottom: 1.35rem; color: var(--navy); font-weight: 700; }
+.intake-consent { display: flex; align-items: start; gap: .6rem; }
+.intake-consent input { flex: none; margin: .25rem 0 0; accent-color: var(--navy); width: 1.15rem; height: 1.15rem; }
+.field-error { margin-top: .4rem; color: #922e1b; font-size: .92rem; font-weight: 650; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.intake-step h2:focus { outline: none; }
+.language-switch { display: flex; gap: .85rem; font-weight: 650; }
+.language-switch [aria-current="page"] { text-decoration: none; }
+.privacy-main { width: min(100% - 3rem, 42rem); }
+.privacy-main h1 { margin-block: .45rem 1rem; }
+.privacy-main h2 { margin-block: 1.35rem .35rem; font-size: 1.22rem; }
+.privacy-main p { overflow-wrap: anywhere; }
+
+@media (max-width: 475px) {
+  .intake-main, .privacy-main { width: calc(100% - 2rem); padding-top: 2rem; }
+  .intake-header .header-row { min-height: 4.2rem; }
+  .intake-header .brand img { width: 34px; height: 34px; }
+  .intake-main h1, .intake-main h2 { font-size: 2rem; }
+  .privacy-main h2 { font-size: 1.18rem; }
+}

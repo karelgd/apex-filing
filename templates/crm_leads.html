@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Leads - Apex Document Filing{% endblock %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-hero">
+    <div><span class="crm-kicker">CRM</span><h1>Leads</h1></div>
+  </div>
+  <section class="crm-panel crm-panel-wide">
+    <form class="d-flex align-items-end flex-wrap gap-3" method="get">
+      <div class="flex-grow-1">
+        <label class="form-label" for="lead-search">Search</label>
+        <input class="form-control" id="lead-search" name="q" value="{{ search }}" maxlength="160" placeholder="Name, phone, or email">
+      </div>
+      <div>
+        <label class="form-label" for="lead-tag">Status</label>
+        <select class="form-select" id="lead-tag" name="tag">
+          <option value="">All statuses</option>
+          {% for value in tags %}<option {% if tag == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="crm-filter-actions">
+        <button class="btn btn-primary" type="submit">Search</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('crm_leads') }}">Clear</a>
+      </div>
+    </form>
+    <div class="crm-list mt-3">
+      {% if page.items %}
+        <div class="crm-client-result crm-client-result-head">
+          <span>Name</span><span>Status</span><span>Case Manager</span><span>Contact</span><span></span>
+        </div>
+      {% endif %}
+      {% for lead in page.items %}
+        {% set detail_url = url_for('crm_lead_detail', lead_id=lead.id) %}
+        <div class="crm-client-result">
+          <div class="text-break">
+            <strong><a href="{{ detail_url }}">{{ lead.name }}</a></strong>
+            <small>{{ lead.created_at|eastern_time }}</small>
+          </div>
+          <span class="badge {{ 'text-bg-primary' if lead.tag == 'New' else 'text-bg-success' if lead.tag == 'Assigned' else 'text-bg-secondary' }}">{{ lead.tag }}</span>
+          <span>{{ lead.assigned_case_manager.full_name if manager_available(lead) else 'Unassigned' }}</span>
+          <span>
+            {% if lead.phone %}<a class="d-block" href="{{ phone_tel_href(lead.phone) }}">{{ lead.phone }}</a>{% endif %}
+            {% if lead.email %}<a class="d-block" href="mailto:{{ lead.email }}">{{ lead.email }}</a>{% endif %}
+          </span>
+          <div class="crm-row-actions"><a class="btn btn-sm btn-primary" href="{{ detail_url }}">View</a></div>
+        </div>
+      {% else %}
+        <p class="text-secondary mb-0">No matching leads.</p>
+      {% endfor %}
+    </div>
+    {% if page.pages > 1 %}
+      <nav class="d-flex align-items-center gap-3 mt-3" aria-label="Lead pages">
+        {% if page.has_prev %}<a href="{{ url_for('crm_leads', page=page.prev_num, q=search, tag=tag) }}">Previous</a>{% endif %}
+        <span>Page {{ page.page }} of {{ page.pages }}</span>
+        {% if page.has_next %}<a href="{{ url_for('crm_leads', page=page.next_num, q=search, tag=tag) }}">Next</a>{% endif %}
+      </nav>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
