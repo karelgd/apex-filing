@@ -1,0 +1,35 @@
+name: Odaisa lead reminders
+
+on:
+  schedule:
+    - cron: "17 8 * * *"
+      timezone: America/New_York
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: odaisa-lead-reminders
+  cancel-in-progress: false
+
+jobs:
+  process-reminders:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Process reminders in Apex
+        env:
+          JOB_TOKEN: ${{ secrets.ODAISA_LEAD_JOB_TOKEN }}
+        run: |
+          test -n "$JOB_TOKEN" || { echo "Missing Odaisa lead job secret"; exit 1; }
+          status=$(printf 'header = "Authorization: Bearer %s"\n' "$JOB_TOKEN" |
+            curl --config - --request POST --silent --show-error --fail \
+              --connect-timeout 15 --max-time 60 --retry 2 --retry-max-time 150 \
+              --output /dev/null --write-out '%{http_code}' \
+              https://apexcomputenergy.pythonanywhere.com/internal/jobs/odaisa-lead-reminders)
+          if [ "$status" != 204 ]; then
+            echo "Unexpected reminder job response: $status"
+            exit 1
+          fi
+          echo "Apex completed the lead reminder job."

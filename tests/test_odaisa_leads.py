@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+from hashlib import sha256
 from threading import Barrier
 from unittest.mock import patch
 
@@ -315,6 +316,36 @@ class OdaisaLeadTest(unittest.TestCase):
             self.assertIsNotNone(task.alerted_at)
             self.assertIsNotNone(task.completed_at)
         self.assertEqual(self.app.test_cli_runner().invoke(args=["process-lead-reminders"]).exit_code, 0)
+
+    def test_scheduled_job_requires_token_and_does_not_duplicate_reminders(self):
+        profile = self.submit_intake()
+        manager, csrf = self.login("manager")
+        self.assertEqual(manager.post(profile + "/claim", data={"csrf_token": csrf}).status_code, 302)
+        endpoint = "/internal/jobs/odaisa-lead-reminders"
+        caller = self.app.test_client()
+        token = "a" * 64
+        token_hash = sha256(token.encode("ascii")).hexdigest()
+        headers = {"Authorization": f"Bearer {token}"}
+        self.assertEqual(caller.post(endpoint, headers=headers).status_code, 404)
+
+        self.app.config["ODAISA_LEAD_JOB_TOKEN_SHA256"] = token_hash
+        self.assertEqual(caller.get(endpoint, headers=headers).status_code, 405)
+        self.assertEqual(caller.post(endpoint).status_code, 401)
+        self.assertEqual(caller.post(endpoint, headers={"Authorization": f"Bearer {token_hash}"}).status_code, 401)
+        self.assertEqual(manager.post(endpoint, data={"csrf_token": csrf}).status_code, 401)
+        with self.app.app_context():
+            lead = CrmLead.query.one()
+            lead.follow_up_from = date(2026, 11, 7)
+            db.session.commit()
+            self.assertEqual(CrmLeadTask.query.count(), 0)
+        with patch("app.eastern_datetime", return_value=datetime(2026, 11, 9)):
+            for _ in range(2):
+                response = caller.post(endpoint, headers=headers)
+                self.assertEqual(response.status_code, 204)
+                self.assertEqual(response.data, b"")
+        with self.app.app_context():
+            self.assertEqual(CrmLeadTask.query.filter_by(is_automatic=True).count(), 1)
+            self.assertEqual(Notification.query.filter_by(notification_type="lead_task_due").count(), 1)
 
     def test_migration_preserves_legacy_leads_and_legacy_conversion_requires_details(self):
         with self.app.app_context():

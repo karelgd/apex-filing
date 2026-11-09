@@ -123,6 +123,8 @@ When `POSTMARK_SERVER_TOKEN` and `POSTMARK_FROM_EMAIL` are configured, CRM case 
 
 ### CRM Lead Reminders
 
+Production uses the **Odaisa lead reminders** GitHub Actions workflow at 8:17 a.m. Eastern, with a manual **Run workflow** option. Generate a random 32-byte token encoded as 64 lowercase hex characters, store it as the repository Actions secret `ODAISA_LEAD_JOB_TOKEN`, and set `ODAISA_LEAD_JOB_TOKEN_SHA256` on the web server to the lowercase SHA-256 digest of the token text. Never commit the token. The job route is disabled if the digest is not configured and returns no lead data. GitHub can delay scheduled runs and can disable schedules on inactive public repositories.
+
 Run `python -m flask --app app process-lead-reminders` daily from the project directory in a [PythonAnywhere scheduled task](https://help.pythonanywhere.com/pages/ScheduledTasks/). Use the web app's virtual environment, database URL, and `ODAISA_LEAD_AGENCY_ID`; WSGI-only environment variables are not inherited by scheduled tasks. Use an absolute database path so the task processes the production database. The command uses the America/New_York calendar and can run more frequently without sending duplicate alerts. When the web app runs with `AUTO_INIT_DB=0`, migrate once with `python -m flask --app app init-db` before starting the task.
 
 Assigned leads get a follow-up task after 2, 4, and 6 days without a note. The clock starts at assignment and resets when a new note is saved. The third reminder stays open for two days; on day 8, the lead is marked `Not interested` and any remaining automatic tasks are cancelled. Manual reminders remain active until completed or the lead is converted. Alerts appear in the assigned case manager's Apex notification inbox.

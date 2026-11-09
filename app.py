@@ -9,6 +9,7 @@ import secrets
 import string
 import uuid
 from functools import wraps
+from hashlib import sha256
 from io import BytesIO, StringIO
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -191,6 +192,7 @@ def create_app():
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
     odaisa_agency_id = os.environ.get("ODAISA_LEAD_AGENCY_ID", "").strip()
     app.config["ODAISA_LEAD_AGENCY_ID"] = int(odaisa_agency_id) if odaisa_agency_id.isascii() and odaisa_agency_id.isdecimal() else None
+    app.config["ODAISA_LEAD_JOB_TOKEN_SHA256"] = os.environ.get("ODAISA_LEAD_JOB_TOKEN_SHA256", "").strip()
     app.config["ODAISA_LEAD_CIPHER"] = None
     odaisa_key = os.environ.get("ODAISA_LEAD_ENCRYPTION_KEY", "").strip()
     if odaisa_key:
@@ -203,7 +205,7 @@ def create_app():
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
     db.init_app(app)
-    CSRFProtect(app)
+    csrf = CSRFProtect(app)
     app.jinja_env.filters["eastern_time"] = eastern_time
 
     login_manager = LoginManager(app)
@@ -288,7 +290,7 @@ def create_app():
             "unread_message_count": unread_message_count,
         }
 
-    register_routes(app)
+    register_routes(app, csrf)
     return app
 
 
@@ -3759,20 +3761,41 @@ def agency_can_create_case_type(agency, case_type):
     return True
 
 
-def register_routes(app):
+def register_routes(app, csrf):
     @app.cli.command("init-db")
     def init_db_command():
         init_database()
         print("Database initialized.")
 
-    @app.cli.command("process-lead-reminders")
-    def process_lead_reminders_command():
+    def run_configured_lead_reminders():
         agency_id = app.config["ODAISA_LEAD_AGENCY_ID"]
         if not agency_id or not can_use_crm(db.session.get(Agency, agency_id)):
-            raise click.ClickException("Configure ODAISA_LEAD_AGENCY_ID for an agency with CRM access.")
+            return None
         now = datetime.now(timezone.utc).replace(tzinfo=None)
-        generated, alerted, closed = process_lead_reminders(agency_id, eastern_datetime(now).date(), now)
+        return process_lead_reminders(agency_id, eastern_datetime(now).date(), now)
+
+    @app.cli.command("process-lead-reminders")
+    def process_lead_reminders_command():
+        result = run_configured_lead_reminders()
+        if result is None:
+            raise click.ClickException("Configure ODAISA_LEAD_AGENCY_ID for an agency with CRM access.")
+        generated, alerted, closed = result
         click.echo(f"Follow-ups created: {generated}; alerts sent: {alerted}; leads marked Not interested: {closed}.")
+
+    @app.post("/internal/jobs/odaisa-lead-reminders")
+    @csrf.exempt
+    def run_odaisa_lead_reminders_job():
+        expected_hash = app.config["ODAISA_LEAD_JOB_TOKEN_SHA256"]
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+            abort(404)
+        scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+        if scheme.lower() != "bearer" or not re.fullmatch(r"[0-9a-f]{64}", token):
+            abort(401)
+        if not secrets.compare_digest(sha256(token.encode("ascii")).hexdigest(), expected_hash):
+            abort(401)
+        if run_configured_lead_reminders() is None:
+            abort(503)
+        return "", 204, {"Cache-Control": "no-store"}
 
     @app.cli.command("import-motion-references")
     @click.argument("source_path", required=False)
