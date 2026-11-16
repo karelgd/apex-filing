@@ -55,7 +55,7 @@ class EmployeePaymentsTest(unittest.TestCase):
         self.assertEqual(self.client.post(self.path + "/1/edit", data=dict(payment, amount="150.00")).status_code, 303)
         self.login("staff")
         page = self.client.get(self.path)
-        self.assertIn(b"Total Paid: $150.00", page.data)
+        self.assertEqual(page.status_code, 403)
         self.assertNotIn(b"Add Payment", page.data)
         self.assertEqual(self.client.post(self.path, data=payment).status_code, 403)
         self.assertEqual(self.client.get(self.path + "/1/edit").status_code, 403)

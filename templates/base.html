@@ -118,6 +118,14 @@
             </details>
           {% endif %}
           <span class="sidebar-label mt-4">Subscriptions</span>
+          {% if show_zelle_inbox %}
+            <a class="tool-link {{ 'active' if request.endpoint == 'zelle_inbox' else '' }}" href="{{ url_for('zelle_inbox') }}">
+              <span>Zelle</span>
+              {% if unread_zelle_count %}
+                <span class="sidebar-notification-count" aria-label="{{ unread_zelle_count }} unread">{{ unread_zelle_count if unread_zelle_count < 100 else '99+' }}</span>
+              {% endif %}
+            </a>
+          {% endif %}
           {% if current_user.agency.has_tool('CRM') %}
             {% set crm_endpoints = ['agency_crm', 'crm_leads', 'crm_lead_detail', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail', 'crm_calendar', 'crm_reports', 'crm_reports_download', 'crm_survey_detail', 'crm_survey_resend', 'crm_statistics', 'crm_case_types', 'crm_case_type_delete'] %}
             {% set lead_page = request.endpoint == 'crm_leads' or (request.endpoint and request.endpoint.startswith('crm_lead_')) %}

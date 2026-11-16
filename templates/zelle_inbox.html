@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-hero">
+    <div><span class="crm-kicker">Subscriptions</span><h1>Zelle</h1></div>
+  </div>
+  {% if limited %}
+    <p class="alert alert-info">Only alerts received in the last 72 hours are available. Contact your supervisor for earlier records.</p>
+  {% endif %}
+  <section class="crm-panel crm-panel-wide">
+    <form class="crm-report-filters" method="get" action="{{ url_for('zelle_inbox') }}">
+      <div>
+        <label class="form-label" for="zelle-sender">Sender</label>
+        <input class="form-control" id="zelle-sender" type="search" name="sender" maxlength="200" value="{{ filters.get('sender', '') }}">
+      </div>
+      <div>
+        <label class="form-label" for="zelle-date-from">From (ET)</label>
+        <input class="form-control" id="zelle-date-from" type="date" name="date_from" value="{{ filters.get('date_from', '') }}">
+      </div>
+      <div>
+        <label class="form-label" for="zelle-date-to">To (ET)</label>
+        <input class="form-control" id="zelle-date-to" type="date" name="date_to" value="{{ filters.get('date_to', '') }}">
+      </div>
+      <div>
+        <label class="form-label" for="zelle-amount">Amount (USD)</label>
+        <input class="form-control" id="zelle-amount" type="number" name="amount" inputmode="decimal" min="0.01" step="0.01" value="{{ filters.get('amount', '') }}">
+      </div>
+      <div class="align-self-end">
+        <button class="btn btn-primary" type="submit">Search</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('zelle_inbox') }}">Clear</a>
+      </div>
+    </form>
+  </section>
+  <section class="crm-panel crm-panel-wide">
+    <h2>Incoming Payments</h2>
+    <div class="table-responsive">
+      <table class="table">
+        <thead><tr><th scope="col">Sender</th><th scope="col">Transaction (ET)</th><th scope="col">Received (ET)</th><th scope="col" class="text-end">Amount</th><th scope="col">Reference</th><th scope="col">Memo</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          {% for alert, is_read in rows %}
+            <tr>
+              <td class="text-break">{{ alert.sender_name }}</td>
+              <td>{{ eastern_datetime(alert.transaction_at).strftime('%b %d, %Y %I:%M %p') if alert.transaction_at else 'Not provided' }}</td>
+              <td>{{ eastern_datetime(alert.received_at).strftime('%b %d, %Y %I:%M %p') }}</td>
+              <td class="text-end">{{ '$%0.2f'|format(alert.amount) }}</td>
+              <td class="text-break">{{ alert.bank_reference or '' }}</td>
+              <td class="text-break">{{ alert.memo or '' }}</td>
+              <td>
+                {% if is_read %}Read{% else %}
+                  <form method="post" action="{{ url_for('zelle_mark_read', alert_id=alert.id, page=page, **filters) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">Mark as read</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7">No incoming alerts match your search.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page > 1 or has_next %}
+      <nav class="d-flex gap-2" aria-label="Zelle alert pages">
+        {% if page > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('zelle_inbox', page=page-1, **filters) }}">Previous</a>{% endif %}
+        {% if has_next %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('zelle_inbox', page=page+1, **filters) }}">Next</a>{% endif %}
+      </nav>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

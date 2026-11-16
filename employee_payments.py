@@ -108,10 +108,7 @@ def register_employee_payments(app, can_use_crm, is_agency_owner):
     @app.route("/agency/crm/reports/employee-payments/<int:payment_id>/edit", methods=["GET", "POST"])
     @login_required
     def crm_employee_payments(payment_id=None):
-        if current_user.role != "agency" or not can_use_crm(current_user.agency):
-            abort(403)
-        owner = is_agency_owner()
-        if (payment_id is not None or request.method == "POST") and not owner:
+        if current_user.role != "agency" or not is_agency_owner() or not can_use_crm(current_user.agency):
             abort(403)
         agency_id = current_user.agency_id
         query = EmployeePayment.query.filter_by(agency_id=agency_id)
@@ -165,7 +162,7 @@ def register_employee_payments(app, can_use_crm, is_agency_owner):
         if "date_to" in date_filters:
             query = query.filter(EmployeePayment.paid_on <= date_filters["date_to"])
         return render_template(
-            "crm_employee_payments.html", owner=owner, editing=editing, methods=METHODS,
+            "crm_employee_payments.html", owner=True, editing=editing, methods=METHODS,
             employees=PaymentEmployee.query.filter_by(agency_id=agency_id).order_by(PaymentEmployee.name_key).all(),
             rows=query.order_by(EmployeePayment.paid_on.desc(), EmployeePayment.id.desc()).all(),
             total=query.with_entities(func.sum(EmployeePayment.amount)).scalar() or Decimal(0),

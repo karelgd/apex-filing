@@ -3763,8 +3763,10 @@ def agency_can_create_case_type(agency, case_type):
 
 def register_routes(app, csrf):
     from employee_payments import register_employee_payments
+    from zelle_inbox import register_zelle_inbox
 
     register_employee_payments(app, can_use_crm, is_agency_owner)
+    register_zelle_inbox(app, eastern_datetime)
 
     @app.cli.command("init-db")
     def init_db_command():
@@ -5441,6 +5443,8 @@ def register_routes(app, csrf):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
         if request.args.get("report_type") == "employee_payments":
+            if not is_agency_owner():
+                abort(403)
             return redirect(url_for("crm_employee_payments", **{
                 key: request.args[key] for key in ("employee_id", "date_from", "date_to")
                 if key in request.args
@@ -5490,6 +5494,8 @@ def register_routes(app, csrf):
         if not can_use_crm(current_user.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
+        if request.args.get("report_type") == "employee_payments":
+            abort(404 if is_agency_owner() else 403)
         return generate_crm_report_pdf(build_crm_report_data(current_user.agency_id, request.args))
 
     @app.route("/agency/crm/statistics")
