@@ -63,9 +63,12 @@ class ZelleInboxTest(unittest.TestCase):
         self.assertIn(b"0 unread", self.client.get(response.location).data)
         self.sign_in("manager")
         self.assertIn(b'id="zelle-select-all"', self.client.get("/agency/zelle").data)
-        self.assertIn(b"1 unread", self.client.get("/agency/zelle").data)
+        page = self.client.get("/agency/zelle")
+        self.assertIn(b"1 unread", page.data)
+        self.assertEqual(page.data.count(b'<tr class="table-active">'), 1)
         self.assertEqual(self.client.post("/agency/zelle/read", data={"alert_id": ["1", "2", "3"]}).status_code, 303)
         self.assertIn(b"0 unread", self.client.get("/agency/zelle").data)
+        self.assertNotIn(b'<tr class="table-active">', self.client.get("/agency/zelle").data)
         with self.client.application.app_context():
             self.assertEqual(sorted(row.alert_id for row in ZelleDepositRead.query.all()), [1, 1, 2])
 
