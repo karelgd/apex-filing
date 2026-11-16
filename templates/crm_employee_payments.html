@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-hero">
+    <div><span class="crm-kicker">CRM Reports</span><h1>Employee Payments</h1></div>
+    <div class="crm-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('crm_reports') }}">All Reports</a>
+      {% if owner and not editing %}
+        <button type="button" class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#employee-payment-form" aria-controls="employee-payment-form" aria-expanded="{{ 'true' if values else 'false' }}">Add Payment</button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if owner %}
+  <section id="employee-payment-form" class="crm-panel {{ 'collapse' if not editing }} {{ 'show' if values and not editing }}">
+    <h2>{{ 'Edit Payment' if editing else 'Add Payment' }}</h2>
+    {% set paid_to = values.get('paid_to', editing.employee_id|string if editing else '') %}
+    {% set method = values.get('method', editing.method if editing else '') %}
+    <form method="post" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-6">
+        <label class="form-label" for="paid-to">Paid to</label>
+        <select class="form-select" id="paid-to" name="paid_to" required onchange="const field = document.getElementById('employee-name'); field.closest('div').hidden = this.value !== 'new'; field.required = this.value === 'new';">
+          <option value="">Select employee</option>
+          {% for employee in employees %}
+            <option value="{{ employee.id }}" {% if paid_to == employee.id|string %}selected{% endif %}>{{ employee.name }}</option>
+          {% endfor %}
+          <option value="new" {% if paid_to == 'new' %}selected{% endif %}>+ Employee</option>
+        </select>
+      </div>
+      <div class="col-md-6" {% if paid_to != 'new' %}hidden{% endif %}>
+        <label class="form-label" for="employee-name">Employee name</label>
+        <input class="form-control" id="employee-name" name="employee_name" maxlength="160" value="{{ values.get('employee_name', '') }}" {% if paid_to == 'new' %}required{% endif %}>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="paid-on">Transaction date</label>
+        <input class="form-control" id="paid-on" name="paid_on" type="date" required value="{{ values.get('paid_on', editing.paid_on if editing else '') }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="payment-amount">Amount (USD)</label>
+        <input class="form-control" id="payment-amount" name="amount" type="number" min="0.01" step="0.01" required value="{{ values.get('amount', editing.amount if editing else '') }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="payment-method">Method</label>
+        <select class="form-select" id="payment-method" name="method" required>
+          <option value="">Select method</option>
+          {% for option in methods %}
+            <option {% if method == option %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="payment-note">Note</label>
+        <textarea class="form-control" id="payment-note" name="note" rows="2" maxlength="2000">{{ values.get('note', editing.note if editing else '') }}</textarea>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit">Save Payment</button>
+        {% if editing %}<a class="btn btn-outline-secondary" href="{{ url_for('crm_employee_payments') }}">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  {% if not editing %}
+  <section class="crm-panel crm-panel-wide">
+    <form method="get" class="crm-report-filters">
+      <div>
+        <label class="form-label" for="filter-employee">Employee</label>
+        <select class="form-select" id="filter-employee" name="employee_id">
+          <option value="">All employees</option>
+          {% for employee in employees %}
+            <option value="{{ employee.id }}" {% if employee.id == employee_id %}selected{% endif %}>{{ employee.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="date-from">From</label>
+        <input class="form-control" id="date-from" type="date" name="date_from" value="{{ request.args.get('date_from', '') }}">
+      </div>
+      <div>
+        <label class="form-label" for="date-to">To</label>
+        <input class="form-control" id="date-to" type="date" name="date_to" value="{{ request.args.get('date_to', '') }}">
+      </div>
+      <div class="align-self-end">
+        <button class="btn btn-primary">Run Report</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('crm_employee_payments') }}">Clear Filters</a>
+      </div>
+    </form>
+  </section>
+  <section class="crm-panel crm-panel-wide">
+    <div class="crm-panel-head">
+      <div><h2>Total Paid: {{ '$%0.2f'|format(total) }}</h2><p>{{ rows|length }} payment{{ '' if rows|length == 1 else 's' }}</p></div>
+    </div>
+    <div class="table-responsive">
+      <table class="table">
+        <thead><tr><th scope="col">Employee</th><th scope="col">Date</th><th scope="col" class="text-end">Amount</th><th scope="col">Method</th><th scope="col">Note</th>{% if owner %}<th scope="col">Actions</th>{% endif %}</tr></thead>
+        <tbody>
+          {% for payment in rows %}
+            <tr><td>{{ payment.employee.name }}</td><td>{{ payment.paid_on.strftime('%b %d, %Y') }}</td><td class="text-end">{{ '$%0.2f'|format(payment.amount) }}</td><td>{{ payment.method }}</td><td class="text-break">{{ payment.note }}</td>
+            {% if owner %}<td><a href="{{ url_for('crm_employee_payments', payment_id=payment.id) }}">Edit</a></td>{% endif %}</tr>
+          {% else %}
+            <tr><td colspan="{{ 6 if owner else 5 }}">No payments match these filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

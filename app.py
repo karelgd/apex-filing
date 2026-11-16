@@ -3762,6 +3762,10 @@ def agency_can_create_case_type(agency, case_type):
 
 
 def register_routes(app, csrf):
+    from employee_payments import register_employee_payments
+
+    register_employee_payments(app, can_use_crm, is_agency_owner)
+
     @app.cli.command("init-db")
     def init_db_command():
         init_database()
@@ -5436,6 +5440,11 @@ def register_routes(app, csrf):
         if not can_use_crm(current_user.agency):
             flash("This feature is not included in your current membership.", "warning")
             return redirect(url_for("agency_dashboard"))
+        if request.args.get("report_type") == "employee_payments":
+            return redirect(url_for("crm_employee_payments", **{
+                key: request.args[key] for key in ("employee_id", "date_from", "date_to")
+                if key in request.args
+            }))
         report_data = build_crm_report_data(current_user.agency_id, request.args)
         if report_data["date_warning"]:
             flash("One of the report dates was invalid and was ignored.", "warning")
