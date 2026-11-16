@@ -62,6 +62,7 @@ class ZelleInboxTest(unittest.TestCase):
         self.assertEqual(response.location, "/agency/zelle?sender=Sender&page=1")
         self.assertIn(b"0 unread", self.client.get(response.location).data)
         self.sign_in("manager")
+        self.assertIn(b'id="zelle-select-all"', self.client.get("/agency/zelle").data)
         self.assertIn(b"1 unread", self.client.get("/agency/zelle").data)
         self.assertEqual(self.client.post("/agency/zelle/read", data={"alert_id": ["1", "2", "3"]}).status_code, 303)
         self.assertIn(b"0 unread", self.client.get("/agency/zelle").data)
