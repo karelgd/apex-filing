@@ -8,6 +8,9 @@
   const status = document.getElementById("zelle-link-status");
   const submit = form.querySelector('button[type="submit"]');
   const clientId = form.elements.namedItem("client_id");
+  const full = document.getElementById("zelle-full-amount");
+  const partial = document.getElementById("zelle-partial-amount");
+  const amount = document.getElementById("zelle-link-amount");
   let timer;
   let pending;
 
@@ -84,16 +87,36 @@
     }, 250);
   });
 
-  invoices.addEventListener("change", () => { submit.disabled = !invoices.value; });
+  function updateSubmit() {
+    submit.disabled = !invoices.value || (partial.checked && !amount.validity.valid);
+  }
+
+  function updateAmountMode() {
+    document.getElementById("zelle-partial-field").hidden = !partial.checked;
+    amount.disabled = !partial.checked;
+    amount.required = partial.checked;
+    updateSubmit();
+  }
+
+  invoices.addEventListener("change", updateSubmit);
+  full.addEventListener("change", updateAmountMode);
+  partial.addEventListener("change", updateAmountMode);
+  amount.addEventListener("input", updateSubmit);
   modal.addEventListener("show.bs.modal", (event) => {
     const trigger = event.relatedTarget;
     form.action = trigger.dataset.linkAction;
     document.getElementById("zelle-link-summary").textContent = trigger.dataset.paymentLabel;
+    form.elements.namedItem("expected_remaining").value = trigger.dataset.remaining;
+    document.getElementById("zelle-full-label").textContent = `Full remaining amount ($${trigger.dataset.remaining})`;
+    amount.max = trigger.dataset.remaining;
+    amount.value = "";
+    full.checked = true;
     search.value = "";
     results.replaceChildren();
     results.hidden = true;
     status.textContent = "";
     resetInvoices();
+    updateAmountMode();
   });
   modal.addEventListener("shown.bs.modal", () => search.focus());
   modal.addEventListener("hide.bs.modal", cancelPending);

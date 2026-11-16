@@ -10,7 +10,7 @@ from jinja2 import ChoiceLoader, DictLoader
 
 from app import recalc_crm_invoice
 from models import AgencyCaseManager, AgencyUser, Client, CrmCase, CrmClientActivityLog, CrmInvoice, CrmInvoiceActivity, db
-from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, ZellePaymentLink, register_zelle_inbox
+from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, ZellePaymentAllocation, ZellePaymentLink, register_zelle_inbox
 
 
 class ZelleInboxTest(unittest.TestCase):
@@ -106,8 +106,43 @@ class ZelleInboxTest(unittest.TestCase):
             self.assertEqual(activity.description, "Zelle sender: Recent Sender")
             self.assertEqual(activity.recorded_by_id, "agency_case_manager:1")
             self.assertEqual(activity.invoice.balance_due, 58)
-            self.assertEqual(ZellePaymentLink.query.one().activity_id, activity.id)
+            self.assertEqual(ZellePaymentAllocation.query.one().activity_id, activity.id)
             self.assertEqual(CrmClientActivityLog.query.one().action, "Invoice payment linked from Zelle")
+
+    def test_partial_allocation_across_clients_and_overallocation_protection(self):
+        self.seed_link_targets()
+        self.sign_in("manager")
+        url = "/agency/zelle/1/link"
+        first = {"client_id": 10, "invoice_id": 10, "amount_mode": "partial",
+                 "amount": "12.25", "expected_remaining": "42.00"}
+        self.client.post(url, data=first)
+        self.client.post(url, data=first)
+        self.assertIn(b"$29.75 remaining", self.client.get("/agency/zelle").data)
+        second = {"client_id": 11, "invoice_id": 11, "amount_mode": "partial", "expected_remaining": "29.75"}
+        for invalid in ("29.76", "12.001", "0", "-1"):
+            self.client.post(url, data=dict(second, amount=invalid))
+        with self.client.application.app_context():
+            self.assertEqual(CrmInvoiceActivity.query.count(), 1)
+        self.client.post(url, data=dict(second, amount_mode="full"))
+        self.client.post(url, data=second)
+        with self.client.application.app_context():
+            activities = CrmInvoiceActivity.query.order_by(CrmInvoiceActivity.invoice_id).all()
+            self.assertEqual([(activity.invoice_id, str(activity.amount)) for activity in activities],
+                             [(10, "12.25"), (11, "29.75")])
+            self.assertEqual(CrmClientActivityLog.query.count(), 2)
+
+    def test_existing_full_link_cannot_be_allocated_again(self):
+        self.seed_link_targets()
+        with self.client.application.app_context():
+            db.session.add(ZellePaymentLink(alert_id=1, invoice_number="LEGACY"))
+            db.session.commit()
+        self.sign_in("owner")
+        self.client.post("/agency/zelle/1/link", data={
+            "client_id": 10, "invoice_id": 10, "amount_mode": "partial", "amount": "1",
+        })
+        self.assertIn(b"LEGACY", self.client.get("/agency/zelle").data)
+        with self.client.application.app_context():
+            self.assertEqual(CrmInvoiceActivity.query.count(), 0)
 
     def test_cannot_link_hidden_alert_or_invalid_invoice(self):
         self.seed_link_targets()

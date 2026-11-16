@@ -59,11 +59,12 @@ def main():
 
 
 def initialize_tables(app):
-    from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, ZellePaymentLink, db
+    from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, ZellePaymentAllocation, ZellePaymentLink, db
 
     with app.app_context():
         db.metadata.create_all(db.engine, tables=[
             ZelleDepositAlert.__table__, ZelleDepositRead.__table__, ZellePaymentLink.__table__,
+            ZellePaymentAllocation.__table__,
         ])
 
 

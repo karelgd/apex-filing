@@ -7,7 +7,7 @@ from pathlib import Path
 
 from flask import abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import exists, func, or_
+from sqlalchemy import exists, func, or_, update
 from sqlalchemy.exc import IntegrityError
 
 from employee_payments import payment_amount
@@ -41,6 +41,15 @@ class ZellePaymentLink(db.Model):
     alert_id = db.Column(db.Integer, db.ForeignKey("zelle_deposit_alert.id", ondelete="CASCADE"), primary_key=True)
     activity_id = db.Column(db.Integer, db.ForeignKey("crm_invoice_activity.id", ondelete="SET NULL"))
     invoice_number = db.Column(db.String(32), nullable=False)
+
+
+class ZellePaymentAllocation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    alert_id = db.Column(db.Integer, db.ForeignKey("zelle_deposit_alert.id", ondelete="CASCADE"), nullable=False, index=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey("crm_invoice_activity.id", ondelete="SET NULL"))
+    invoice_number = db.Column(db.String(32), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    __table_args__ = (db.CheckConstraint("amount > 0"),)
 
 
 def can_read_zelle_inbox():
@@ -157,8 +166,34 @@ def register_zelle_inbox(app, eastern_datetime, *, can_use_crm, current_user_lab
     def zelle_link_payment(alert_id):
         alert = require_linkable_alert(alert_id)
         back = url_for("zelle_inbox", **filter_values())
+        # Take a write lock before totaling allocations, including on SQLite.
+        db.session.execute(update(ZelleDepositAlert).where(ZelleDepositAlert.id == alert_id)
+                           .values(id=ZelleDepositAlert.id))
         if db.session.get(ZellePaymentLink, alert.id):
             flash("This Zelle alert has already been linked.", "warning")
+            return redirect(back, code=303)
+        allocated = db.session.query(func.sum(ZellePaymentAllocation.amount)).filter_by(alert_id=alert_id).scalar() or 0
+        remaining = alert.amount - allocated
+        if remaining <= 0:
+            flash("This Zelle alert is already fully linked.", "warning")
+            return redirect(back, code=303)
+        mode = request.form.get("amount_mode", "full")
+        try:
+            expected = request.form.get("expected_remaining")
+            if expected is not None and payment_amount(expected) != remaining:
+                flash("The available amount changed. Review the alert and try again.", "warning")
+                return redirect(back, code=303)
+            if mode == "partial":
+                amount = payment_amount(request.form.get("amount", ""))
+            elif mode == "full":
+                amount = remaining
+            else:
+                abort(400)
+        except (ValueError, InvalidOperation):
+            flash("Enter a positive amount with up to two decimal places.", "warning")
+            return redirect(back, code=303)
+        if amount > remaining:
+            flash(f"Only ${remaining:.2f} remains available on this Zelle alert.", "warning")
             return redirect(back, code=303)
         client_id = request.form.get("client_id", type=int)
         invoice_id = request.form.get("invoice_id", type=int)
@@ -168,28 +203,19 @@ def register_zelle_inbox(app, eastern_datetime, *, can_use_crm, current_user_lab
         now = utc_now()
         activity = CrmInvoiceActivity(
             agency_id=alert.agency_id, invoice_id=invoice.id, activity_type="Payment",
-            payment_method="Zelle", amount=alert.amount, activity_date=eastern_datetime(now).date(),
+            payment_method="Zelle", amount=amount, activity_date=eastern_datetime(now).date(),
             created_at=now, recorded_by_id=current_user.get_id(), recorded_by_label=current_user_label(),
             description=f"Zelle sender: {alert.sender_name}",
         )
-        link = ZellePaymentLink(alert_id=alert.id, invoice_number=invoice.invoice_number)
-        try:
-            db.session.add(link)
-            db.session.flush()
-            db.session.add(activity)
-            db.session.flush()
-            link.activity_id = activity.id
-            recalc_invoice(invoice)
-            log_client(invoice.client, "Invoice payment linked from Zelle",
-                       f"{invoice.invoice_number}: ${alert.amount:.2f} from {alert.sender_name} (Zelle alert #{alert.id})")
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            if not db.session.get(ZellePaymentLink, alert_id):
-                raise
-            flash("This Zelle alert has already been linked.", "warning")
-        else:
-            flash(f"Zelle payment linked to invoice {link.invoice_number}.", "success")
+        db.session.add(activity)
+        db.session.flush()
+        db.session.add(ZellePaymentAllocation(alert_id=alert.id, activity_id=activity.id,
+                                               invoice_number=invoice.invoice_number, amount=amount))
+        recalc_invoice(invoice)
+        log_client(invoice.client, "Invoice payment linked from Zelle",
+                   f"{invoice.invoice_number}: ${amount:.2f} from {alert.sender_name} (Zelle alert #{alert.id})")
+        db.session.commit()
+        flash(f"Zelle payment of ${amount:.2f} linked to invoice {invoice.invoice_number}.", "success")
         return redirect(back, code=303)
 
     @app.context_processor
@@ -233,9 +259,15 @@ def register_zelle_inbox(app, eastern_datetime, *, can_use_crm, current_user_lab
         rows, has_next = rows[:50], len(rows) > 50
         linked = dict(db.session.query(ZellePaymentLink.alert_id, ZellePaymentLink.invoice_number)
                       .filter(ZellePaymentLink.alert_id.in_([alert.id for alert, _ in rows])).all()) if rows else {}
+        allocations = {}
+        if rows:
+            for allocation in ZellePaymentAllocation.query.filter(
+                ZellePaymentAllocation.alert_id.in_([alert.id for alert, _ in rows])
+            ).order_by(ZellePaymentAllocation.id):
+                allocations.setdefault(allocation.alert_id, []).append(allocation)
         return render_template(
             "zelle_inbox.html", rows=rows, has_next=has_next, page=page, filters=filters,
-            linked=linked, can_link_payment=can_link(),
+            linked=linked, allocations=allocations, can_link_payment=can_link(),
             limited=isinstance(current_user, AgencyCaseManager), eastern_datetime=eastern_datetime,
         )
 

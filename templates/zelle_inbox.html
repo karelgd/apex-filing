@@ -72,12 +72,23 @@
               </td>
               {% if can_link_payment %}
                 <td>
+                  {% set parts = allocations.get(alert.id, []) %}
+                  {% set remaining = alert.amount - (parts | sum(attribute='amount')) %}
                   {% if alert.id in linked %}
                     <span class="text-nowrap">Linked · {{ linked[alert.id] }}</span>
-                  {% else %}
+                  {% elif parts %}
+                    {% for part in parts %}
+                      <div class="small">Linked · {{ part.invoice_number }} · {{ '$%0.2f'|format(part.amount) }}</div>
+                    {% endfor %}
+                    {% if remaining > 0 %}
+                      <div class="small mb-1">{{ '$%0.2f'|format(remaining) }} remaining</div>
+                    {% endif %}
+                  {% endif %}
+                  {% if alert.id not in linked and remaining > 0 %}
                     <button class="btn btn-sm btn-outline-primary text-nowrap" type="button"
                             data-bs-toggle="modal" data-bs-target="#zelle-link-modal"
                             data-link-action="{{ url_for('zelle_link_payment', alert_id=alert.id, page=page, **filters) }}"
+                            data-remaining="{{ '%0.2f'|format(remaining) }}"
                             data-payment-label="{{ '$%0.2f'|format(alert.amount) }} from {{ alert.sender_name }}">Link payment</button>
                   {% endif %}
                 </td>
@@ -109,12 +120,29 @@
       <form class="modal-content" id="zelle-link-form" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="client_id">
+        <input type="hidden" name="expected_remaining">
         <div class="modal-header">
           <h2 class="modal-title fs-5" id="zelle-link-title">Link Zelle payment</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <p id="zelle-link-summary" class="fw-semibold text-break"></p>
+          <fieldset class="mb-3">
+            <legend class="form-label fs-6">Amount to apply</legend>
+            <div class="form-check">
+              <input class="form-check-input" id="zelle-full-amount" name="amount_mode" type="radio" value="full" checked>
+              <label class="form-check-label" id="zelle-full-label" for="zelle-full-amount">Full remaining amount</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" id="zelle-partial-amount" name="amount_mode" type="radio" value="partial">
+              <label class="form-check-label" for="zelle-partial-amount">Partial amount</label>
+            </div>
+            <div class="mt-2" id="zelle-partial-field" hidden>
+              <label class="form-label" for="zelle-link-amount">Amount (USD)</label>
+              <input class="form-control" id="zelle-link-amount" name="amount" type="number"
+                     inputmode="decimal" min="0.01" step="0.01" disabled>
+            </div>
+          </fieldset>
           <label class="form-label" for="zelle-client-search">Client</label>
           <input id="zelle-client-search" class="form-control" type="search" autocomplete="off"
                  placeholder="Name, A-number, phone, or email" maxlength="100">
@@ -140,6 +168,6 @@
   {{ super() }}
   <script src="{{ url_for('static', filename='zelle_inbox.js') }}"></script>
   {% if can_link_payment %}
-    <script src="{{ url_for('static', filename='zelle_link_payment.js') }}"></script>
+    <script src="{{ url_for('static', filename='zelle_link_payment.js', v='partial') }}"></script>
   {% endif %}
 {% endblock %}
