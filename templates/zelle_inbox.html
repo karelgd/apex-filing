@@ -36,10 +36,17 @@
     </form>
   </section>
   <section class="crm-panel crm-panel-wide">
-    <h2>Incoming Payments</h2>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+      <h2 class="mb-0">Incoming Payments</h2>
+      <form id="zelle-mark-selected" method="post" action="{{ url_for('zelle_mark_selected_read', page=page, **filters) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-primary" type="submit"
+                {% if not (rows | rejectattr('is_read') | list) %}disabled{% endif %}>Mark selected as read</button>
+      </form>
+    </div>
     <div class="table-responsive">
       <table class="table">
-        <thead><tr><th scope="col">Sender</th><th scope="col">Transaction (ET)</th><th scope="col">Received (ET)</th><th scope="col" class="text-end">Amount</th><th scope="col">Reference</th><th scope="col">Memo</th><th scope="col">Status</th></tr></thead>
+        <thead><tr><th scope="col">Sender</th><th scope="col">Transaction (ET)</th><th scope="col">Received (ET)</th><th scope="col" class="text-end">Amount</th><th scope="col">Reference</th><th scope="col">Memo</th><th scope="col">Status</th><th scope="col" class="text-center">Select</th></tr></thead>
         <tbody>
           {% for alert, is_read in rows %}
             <tr>
@@ -57,9 +64,14 @@
                   </form>
                 {% endif %}
               </td>
+              <td class="text-center">
+                <input class="form-check-input" type="checkbox" name="alert_id" value="{{ alert.id }}"
+                       form="zelle-mark-selected" aria-label="Select alert from {{ alert.sender_name }}"
+                       {% if is_read %}disabled{% endif %}>
+              </td>
             </tr>
           {% else %}
-            <tr><td colspan="7">No incoming alerts match your search.</td></tr>
+            <tr><td colspan="8">No incoming alerts match your search.</td></tr>
           {% endfor %}
         </tbody>
       </table>

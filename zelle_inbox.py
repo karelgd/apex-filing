@@ -156,18 +156,42 @@ def register_zelle_inbox(app, eastern_datetime):
         filters.pop("page", None)
         return redirect(url_for("zelle_inbox", **filters), code=303)
 
+    def mark_alerts_read(alert_ids):
+        for attempt in range(2):
+            unread = visible_alerts(utc_now()).filter(
+                ZelleDepositAlert.id.in_(alert_ids), ~read_marker()
+            ).with_entities(ZelleDepositAlert.id)
+            db.session.add_all([
+                ZelleDepositRead(alert_id=alert_id, reader=current_user.get_id())
+                for (alert_id,) in unread
+            ])
+            try:
+                db.session.commit()
+                return
+            except IntegrityError:
+                db.session.rollback()
+                if attempt:
+                    raise
+
     @app.post("/agency/zelle/<int:alert_id>/read")
     @login_required
     def zelle_mark_read(alert_id):
         if not can_read_zelle_inbox():
             abort(403)
         visible_alerts(utc_now()).filter_by(id=alert_id).first_or_404()
-        if not db.session.get(ZelleDepositRead, (alert_id, current_user.get_id())):
-            db.session.add(ZelleDepositRead(alert_id=alert_id, reader=current_user.get_id()))
-            try:
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-                if not db.session.get(ZelleDepositRead, (alert_id, current_user.get_id())):
-                    raise
+        mark_alerts_read([alert_id])
+        return redirect(url_for("zelle_inbox", **filter_values()), code=303)
+
+    @app.post("/agency/zelle/read")
+    @login_required
+    def zelle_mark_selected_read():
+        if not can_read_zelle_inbox():
+            abort(403)
+        selected = request.form.getlist("alert_id")
+        if len(selected) > 50 or any(not re.fullmatch(r"[1-9][0-9]{0,9}", value) for value in selected):
+            abort(400)
+        if selected:
+            mark_alerts_read({int(value) for value in selected})
+        else:
+            flash("Select at least one unread Zelle alert.", "info")
         return redirect(url_for("zelle_inbox", **filter_values()), code=303)

@@ -9,7 +9,7 @@ from flask_wtf import CSRFProtect
 from jinja2 import ChoiceLoader, DictLoader
 
 from models import AgencyCaseManager, AgencyUser, db
-from zelle_inbox import ZelleDepositAlert, register_zelle_inbox
+from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, register_zelle_inbox
 
 
 class ZelleInboxTest(unittest.TestCase):
@@ -51,6 +51,31 @@ class ZelleInboxTest(unittest.TestCase):
     def sign_in(self, identity):
         with self.client.session_transaction() as session:
             session["_user_id"] = identity
+
+    def test_mark_selected_read_preserves_filters_and_is_per_user(self):
+        self.sign_in("owner")
+        self.assertEqual(self.client.get("/agency/zelle").data.count(b'form="zelle-mark-selected"'), 2)
+        response = self.client.post(
+            "/agency/zelle/read?sender=Sender&page=1", data={"alert_id": ["1", "2", "2", "3"]}
+        )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.location, "/agency/zelle?sender=Sender&page=1")
+        self.assertIn(b"0 unread", self.client.get(response.location).data)
+        self.sign_in("manager")
+        self.assertIn(b"1 unread", self.client.get("/agency/zelle").data)
+        self.assertEqual(self.client.post("/agency/zelle/read", data={"alert_id": ["1", "2", "3"]}).status_code, 303)
+        self.assertIn(b"0 unread", self.client.get("/agency/zelle").data)
+        with self.client.application.app_context():
+            self.assertEqual(sorted(row.alert_id for row in ZelleDepositRead.query.all()), [1, 1, 2])
+
+    def test_mark_selected_read_rejects_unauthorized_and_invalid_requests(self):
+        self.sign_in("other")
+        self.assertEqual(self.client.post("/agency/zelle/read", data={"alert_id": "1"}).status_code, 403)
+        self.sign_in("manager")
+        self.assertEqual(self.client.post("/agency/zelle/read", data={"alert_id": "invalid"}).status_code, 400)
+        with patch.dict(self.client.application.config, WTF_CSRF_ENABLED=True):
+            self.assertEqual(self.client.post("/agency/zelle/read", data={"alert_id": "1"}).status_code, 400)
+        self.assertIn(b"1 unread", self.client.get("/agency/zelle").data)
 
     def test_manager_cutoff_filters_and_direct_read(self):
         self.sign_in("manager")
