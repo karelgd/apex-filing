@@ -168,6 +168,6 @@
   {{ super() }}
   <script src="{{ url_for('static', filename='zelle_inbox.js') }}"></script>
   {% if can_link_payment %}
-    <script src="{{ url_for('static', filename='zelle_link_payment.js', v='partial') }}"></script>
+    <script src="{{ url_for('static', filename='zelle_link_payment.js', v='client-identifiers') }}"></script>
   {% endif %}
 {% endblock %}

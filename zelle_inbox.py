@@ -137,12 +137,15 @@ def register_zelle_inbox(app, eastern_datetime, *, can_use_crm, current_user_lab
                 Client.agency_id == current_user.agency_id,
                 or_(normalized_digits(Client.a_number).contains(digits), normalized_digits(Client.phone).contains(digits)),
             )
-        response = jsonify([
-            {"id": client.id, "name": client.full_name,
-             "phone_suffix": re.sub(r"\D", "", client.phone or "")[-4:],
-             "alien_suffix": re.sub(r"\D", "", client.a_number or "")[-4:]}
-            for client in clients.order_by(Client.last_name, Client.first_name, Client.id).limit(15)
-        ])
+        results = []
+        for client in clients.order_by(Client.last_name, Client.first_name, Client.id).limit(15):
+            phone = re.sub(r"\D", "", client.phone or "")
+            results.append({
+                "id": client.id, "name": client.full_name,
+                "phone": phone[1:] if len(phone) == 11 and phone.startswith("1") else phone,
+                "a_number": re.sub(r"\D", "", client.a_number or ""),
+            })
+        response = jsonify(results)
         response.headers["Cache-Control"] = "no-store"
         return response
 

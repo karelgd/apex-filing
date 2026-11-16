@@ -74,11 +74,7 @@
           const item = document.createElement("button");
           item.type = "button";
           item.className = "list-group-item list-group-item-action text-break";
-          const identifiers = [
-            client.alien_suffix && `A-number ending ${client.alien_suffix}`,
-            client.phone_suffix && `Phone ending ${client.phone_suffix}`,
-          ].filter(Boolean);
-          item.textContent = [client.name, ...identifiers].join(" | ");
+          item.textContent = [client.name, client.a_number, client.phone].filter(Boolean).join(" | ");
           item.addEventListener("click", () => selectClient(client));
           results.append(item);
         }

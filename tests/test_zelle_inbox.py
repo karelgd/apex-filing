@@ -84,6 +84,8 @@ class ZelleInboxTest(unittest.TestCase):
             self.assertEqual(response.headers["Cache-Control"], "no-store")
             self.assertIn(10, [row["id"] for row in response.json])
             self.assertNotIn(12, [row["id"] for row in response.json])
+            self.assertIn({"id": 10, "name": "Alicia Rivera", "a_number": "123456789",
+                           "phone": "3055550199"}, response.json)
         response = self.client.get("/agency/zelle/clients/10/invoices")
         self.assertEqual(response.json, [{"id": 10, "number": "INV-10", "case": "I-765 Work Permit", "balance": "100.00"}])
         self.assertEqual(self.client.get("/agency/zelle/clients/12/invoices").status_code, 404)
