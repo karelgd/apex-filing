@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
+from subprocess import CompletedProcess, TimeoutExpired
 from unittest.mock import patch
 
 from flask import Flask
@@ -17,7 +18,9 @@ class ZelleInboxTest(unittest.TestCase):
         app.config.update(TESTING=True, SECRET_KEY="test", SQLALCHEMY_DATABASE_URI="sqlite://",
                           WTF_CSRF_ENABLED=False, ODAISA_ZELLE_INBOX_ENABLED=True, ODAISA_LEAD_AGENCY_ID=1)
         app.jinja_loader = ChoiceLoader([
-            DictLoader({"base.html": "{{ unread_zelle_count }} unread{% block content %}{% endblock %}"}),
+            DictLoader({"base.html": "{{ unread_zelle_count }} unread"
+                        "{% for message in get_flashed_messages() %}{{ message }}{% endfor %}"
+                        "{% block content %}{% endblock %}"}),
             app.jinja_loader,
         ])
         CSRFProtect(app)
@@ -69,3 +72,33 @@ class ZelleInboxTest(unittest.TestCase):
         self.assertIn(b"2 unread", page.data)
         self.sign_in("other")
         self.assertEqual(self.client.get("/agency/zelle").status_code, 403)
+
+    @patch("zelle_inbox.subprocess.run")
+    def test_manual_sync_is_owner_only_and_reports_result(self, run):
+        for identity in ("manager", "other"):
+            self.sign_in(identity)
+            self.assertNotIn(b"Sync now", self.client.get("/agency/zelle").data)
+            self.assertEqual(self.client.post("/agency/zelle/sync").status_code, 403)
+        run.assert_not_called()
+        self.sign_in("owner")
+        self.assertIn(b"Sync now", self.client.get("/agency/zelle").data)
+        self.assertEqual(self.client.get("/agency/zelle/sync").status_code, 405)
+        run.return_value = CompletedProcess([], 0, "Saved 1 new incoming Zelle alerts;", "")
+        response = self.client.post("/agency/zelle/sync?sender=Recent&page=2")
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.location, "/agency/zelle?sender=Recent")
+        self.assertEqual(run.call_args.args[0][-2:], ["--apply", "--manual"])
+        self.assertIn(b"Imported 1 new Zelle alert.", self.client.get(response.location).data)
+
+    @patch("zelle_inbox.subprocess.run")
+    def test_manual_sync_requires_csrf_and_handles_busy_or_timeout(self, run):
+        self.sign_in("owner")
+        with patch.dict(self.client.application.config, WTF_CSRF_ENABLED=True):
+            self.assertEqual(self.client.post("/agency/zelle/sync").status_code, 400)
+        run.assert_not_called()
+        run.return_value = CompletedProcess([], 75, "", "")
+        response = self.client.post("/agency/zelle/sync", follow_redirects=True)
+        self.assertIn(b"A Zelle sync is running or just ran.", response.data)
+        run.side_effect = TimeoutExpired("runner", 25)
+        response = self.client.post("/agency/zelle/sync", follow_redirects=True)
+        self.assertIn(b"Zelle sync did not finish.", response.data)

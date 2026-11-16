@@ -6,6 +6,7 @@ import json
 import os
 import runpy
 import stat
+import time
 from pathlib import Path
 
 
@@ -13,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--initialize", action="store_true")
+    parser.add_argument("--manual", action="store_true")
     parser.add_argument("--days", default="7")
     args = parser.parse_args()
     private = Path.home() / ".odaisa-zelle"
@@ -30,7 +32,13 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             print("Another Zelle sync is running; skipped.")
-            return 0
+            return 75 if args.manual else 0
+        if args.manual:
+            last_manual = private / "last-manual-sync"
+            if last_manual.exists() and time.time() - last_manual.stat().st_mtime < 60:
+                print("A manual Zelle sync was requested less than a minute ago; skipped.")
+                return 75
+            last_manual.touch()
         app = runpy.run_path(str(wsgi))["application"]
         if args.initialize:
             from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, db

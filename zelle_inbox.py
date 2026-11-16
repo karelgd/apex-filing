@@ -1,6 +1,9 @@
 import os
+import re
+import subprocess
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import InvalidOperation
+from pathlib import Path
 
 from flask import abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -118,6 +121,37 @@ def register_zelle_inbox(app, eastern_datetime):
             "zelle_inbox.html", rows=rows[:50], has_next=len(rows) > 50, page=page, filters=filters,
             limited=isinstance(current_user, AgencyCaseManager), eastern_datetime=eastern_datetime,
         )
+
+    @app.post("/agency/zelle/sync")
+    @login_required
+    def zelle_sync_now():
+        if not can_read_zelle_inbox() or not isinstance(current_user, AgencyUser):
+            abort(403)
+        runner = Path(__file__).resolve().parent / "tools" / "run_odaisa_zelle_sync.py"
+        python = Path.home() / ".virtualenvs" / "apex-filing" / "bin" / "python"
+        try:
+            result = subprocess.run(
+                [str(python), str(runner), "--apply", "--manual"],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=25,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            current_app.logger.warning("Manual Zelle sync could not finish: %s", type(exc).__name__)
+            flash("Zelle sync did not finish. Try again in a minute.", "warning")
+        else:
+            saved = re.search(r"^Saved (\d+) new incoming Zelle alerts;", result.stdout, re.MULTILINE)
+            if result.returncode == 0 and saved:
+                count = int(saved.group(1))
+                message = ("No new Zelle alerts." if count == 0 else
+                           f"Imported {count} new Zelle {'alert' if count == 1 else 'alerts'}.")
+                flash(message, "success")
+            elif result.returncode == 75:
+                flash("A Zelle sync is running or just ran. Try again in a minute.", "info")
+            else:
+                current_app.logger.warning("Manual Zelle sync returned code %s without a result", result.returncode)
+                flash("Zelle sync could not be completed. Try again later.", "warning")
+        filters = filter_values()
+        filters.pop("page", None)
+        return redirect(url_for("zelle_inbox", **filters), code=303)
 
     @app.post("/agency/zelle/<int:alert_id>/read")
     @login_required
