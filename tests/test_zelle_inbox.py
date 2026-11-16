@@ -74,11 +74,10 @@ class ZelleInboxTest(unittest.TestCase):
         self.assertEqual(self.client.get("/agency/zelle").status_code, 403)
 
     @patch("zelle_inbox.subprocess.run")
-    def test_manual_sync_is_owner_only_and_reports_result(self, run):
-        for identity in ("manager", "other"):
-            self.sign_in(identity)
-            self.assertNotIn(b"Sync now", self.client.get("/agency/zelle").data)
-            self.assertEqual(self.client.post("/agency/zelle/sync").status_code, 403)
+    def test_manual_sync_is_agency_only_and_reports_result(self, run):
+        self.sign_in("other")
+        self.assertNotIn(b"Sync now", self.client.get("/agency/zelle").data)
+        self.assertEqual(self.client.post("/agency/zelle/sync").status_code, 403)
         run.assert_not_called()
         self.sign_in("owner")
         self.assertIn(b"Sync now", self.client.get("/agency/zelle").data)
@@ -89,6 +88,18 @@ class ZelleInboxTest(unittest.TestCase):
         self.assertEqual(response.location, "/agency/zelle?sender=Recent")
         self.assertEqual(run.call_args.args[0][-2:], ["--apply", "--manual"])
         self.assertIn(b"Imported 1 new Zelle alert.", self.client.get(response.location).data)
+
+    @patch("zelle_inbox.subprocess.run")
+    def test_manager_can_sync_without_access_to_older_alerts(self, run):
+        self.sign_in("manager")
+        self.assertIn(b"Sync now", self.client.get("/agency/zelle").data)
+        run.return_value = CompletedProcess([], 0, "Saved 1 new incoming Zelle alerts;", "")
+        response = self.client.post("/agency/zelle/sync", follow_redirects=True)
+        self.assertIn(b"Zelle sync completed.", response.data)
+        self.assertIn(b"Recent Sender", response.data)
+        self.assertNotIn(b"Expired Sender", response.data)
+        self.assertNotIn(b"Imported 1 new Zelle alert.", response.data)
+        run.assert_called_once()
 
     @patch("zelle_inbox.subprocess.run")
     def test_manual_sync_requires_csrf_and_handles_busy_or_timeout(self, run):

@@ -125,7 +125,7 @@ def register_zelle_inbox(app, eastern_datetime):
     @app.post("/agency/zelle/sync")
     @login_required
     def zelle_sync_now():
-        if not can_read_zelle_inbox() or not isinstance(current_user, AgencyUser):
+        if not can_read_zelle_inbox():
             abort(403)
         runner = Path(__file__).resolve().parent / "tools" / "run_odaisa_zelle_sync.py"
         python = Path.home() / ".virtualenvs" / "apex-filing" / "bin" / "python"
@@ -141,8 +141,11 @@ def register_zelle_inbox(app, eastern_datetime):
             saved = re.search(r"^Saved (\d+) new incoming Zelle alerts;", result.stdout, re.MULTILINE)
             if result.returncode == 0 and saved:
                 count = int(saved.group(1))
-                message = ("No new Zelle alerts." if count == 0 else
-                           f"Imported {count} new Zelle {'alert' if count == 1 else 'alerts'}.")
+                if isinstance(current_user, AgencyCaseManager):
+                    message = "Zelle sync completed."
+                else:
+                    message = ("No new Zelle alerts." if count == 0 else
+                               f"Imported {count} new Zelle {'alert' if count == 1 else 'alerts'}.")
                 flash(message, "success")
             elif result.returncode == 75:
                 flash("A Zelle sync is running or just ran. Try again in a minute.", "info")
