@@ -3766,7 +3766,10 @@ def register_routes(app, csrf):
     from zelle_inbox import register_zelle_inbox
 
     register_employee_payments(app, can_use_crm, is_agency_owner)
-    register_zelle_inbox(app, eastern_datetime)
+    register_zelle_inbox(
+        app, eastern_datetime, can_use_crm=can_use_crm, current_user_label=current_user_label,
+        recalc_invoice=recalc_crm_invoice, log_client=crm_client_log,
+    )
 
     @app.cli.command("init-db")
     def init_db_command():

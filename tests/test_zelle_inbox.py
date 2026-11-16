@@ -4,12 +4,13 @@ from subprocess import CompletedProcess, TimeoutExpired
 from unittest.mock import patch
 
 from flask import Flask
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_wtf import CSRFProtect
 from jinja2 import ChoiceLoader, DictLoader
 
-from models import AgencyCaseManager, AgencyUser, db
-from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, register_zelle_inbox
+from app import recalc_crm_invoice
+from models import AgencyCaseManager, AgencyUser, Client, CrmCase, CrmClientActivityLog, CrmInvoice, CrmInvoiceActivity, db
+from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, ZellePaymentLink, register_zelle_inbox
 
 
 class ZelleInboxTest(unittest.TestCase):
@@ -31,8 +32,17 @@ class ZelleInboxTest(unittest.TestCase):
             "other": AgencyUser(id=2, agency_id=2, is_active=True),
         }
         LoginManager(app).user_loader(users.get)
-        register_zelle_inbox(app, lambda value: value - timedelta(hours=5))
-        now = datetime(2026, 11, 16, 15)
+        def log_client(client, action, details):
+            db.session.add(CrmClientActivityLog(client_id=client.id, agency_id=client.agency_id,
+                                                 user_label=current_user.get_id(), action=action, details=details))
+
+        register_zelle_inbox(
+            app, lambda value: value - timedelta(hours=5),
+            can_use_crm=lambda agency: app.config.get("TEST_CRM_ENABLED", True),
+            current_user_label=lambda: current_user.get_id(), recalc_invoice=recalc_crm_invoice, log_client=log_client,
+        )
+        now = datetime(2026, 11, 17, 4)
+        self.now = now
         clock = patch("zelle_inbox.utc_now", return_value=now)
         clock.start()
         self.addCleanup(clock.stop)
@@ -47,6 +57,71 @@ class ZelleInboxTest(unittest.TestCase):
                                               source_message_id=str(identifier), received_at=now-age, amount=amount))
             db.session.commit()
         self.client = app.test_client()
+
+    def seed_link_targets(self):
+        with self.client.application.app_context():
+            for ident, agency_id, first_name, last_name in (
+                (10, 1, "Alicia", "Rivera"), (11, 1, "Alex", "Reed"), (12, 2, "Alicia", "Rivera"),
+            ):
+                db.session.add(Client(
+                    id=ident, agency_id=agency_id, first_name=first_name, last_name=last_name,
+                    a_number="A-123-456-789", phone="+1 (305) 555-0199", email=f"client{ident}@example.com",
+                    street_address="1 Example St", city="Miami", state="FL", zip_code="33101", username=f"client{ident}",
+                ))
+                db.session.add(CrmCase(id=ident, agency_id=agency_id, client_id=ident, title="I-765 Work Permit", price=100))
+                db.session.add(CrmInvoice(
+                    id=ident, agency_id=agency_id, client_id=ident, case_id=ident,
+                    invoice_number=f"INV-{ident}", total=100, subtotal=100,
+                ))
+            db.session.add(CrmInvoice(id=13, agency_id=1, client_id=10, case_id=10, invoice_number="VOID", status="Void"))
+            db.session.commit()
+
+    def test_link_search_and_invoices_are_agency_scoped(self):
+        self.seed_link_targets()
+        self.sign_in("manager")
+        for query in ("Ali Riv", "A123-456", "(305) 555"):
+            response = self.client.get("/agency/zelle/clients", query_string={"q": query})
+            self.assertEqual(response.headers["Cache-Control"], "no-store")
+            self.assertIn(10, [row["id"] for row in response.json])
+            self.assertNotIn(12, [row["id"] for row in response.json])
+        response = self.client.get("/agency/zelle/clients/10/invoices")
+        self.assertEqual(response.json, [{"id": 10, "number": "INV-10", "case": "I-765 Work Permit", "balance": "100.00"}])
+        self.assertEqual(self.client.get("/agency/zelle/clients/12/invoices").status_code, 404)
+
+    def test_manager_links_once_using_alert_data_and_current_time(self):
+        self.seed_link_targets()
+        self.sign_in("manager")
+        data = {"client_id": 10, "invoice_id": 10, "amount": "1", "payment_method": "Cash"}
+        response = self.client.post("/agency/zelle/1/link?sender=Recent", data=data)
+        self.assertEqual(response.location, "/agency/zelle?sender=Recent")
+        self.assertIn(b"Linked", self.client.get(response.location).data)
+        self.sign_in("owner")
+        self.assertEqual(self.client.post("/agency/zelle/1/link", data={"client_id": 11, "invoice_id": 11}).status_code, 303)
+        with self.client.application.app_context():
+            activity = CrmInvoiceActivity.query.one()
+            self.assertEqual((activity.invoice_id, activity.activity_type, activity.payment_method, activity.amount),
+                             (10, "Payment", "Zelle", 42))
+            self.assertEqual(activity.created_at, self.now)
+            self.assertEqual(activity.activity_date, (self.now - timedelta(hours=5)).date())
+            self.assertEqual(activity.description, "Zelle sender: Recent Sender")
+            self.assertEqual(activity.recorded_by_id, "agency_case_manager:1")
+            self.assertEqual(activity.invoice.balance_due, 58)
+            self.assertEqual(ZellePaymentLink.query.one().activity_id, activity.id)
+            self.assertEqual(CrmClientActivityLog.query.one().action, "Invoice payment linked from Zelle")
+
+    def test_cannot_link_hidden_alert_or_invalid_invoice(self):
+        self.seed_link_targets()
+        self.sign_in("manager")
+        for alert_id, client_id, invoice_id in ((2, 10, 10), (3, 10, 10), (1, 12, 12), (1, 10, 11), (1, 10, 13)):
+            response = self.client.post(f"/agency/zelle/{alert_id}/link", data={"client_id": client_id, "invoice_id": invoice_id})
+            self.assertEqual(response.status_code, 404)
+        with patch.dict(self.client.application.config, WTF_CSRF_ENABLED=True):
+            self.assertEqual(self.client.post("/agency/zelle/1/link", data={"client_id": 10, "invoice_id": 10}).status_code, 400)
+        with patch.dict(self.client.application.config, TEST_CRM_ENABLED=False):
+            self.assertEqual(self.client.get("/agency/zelle/clients?q=Ali").status_code, 403)
+            self.assertEqual(self.client.post("/agency/zelle/1/link", data={"client_id": 10, "invoice_id": 10}).status_code, 403)
+        with self.client.application.app_context():
+            self.assertEqual(CrmInvoiceActivity.query.count(), 0)
 
     def sign_in(self, identity):
         with self.client.session_transaction() as session:

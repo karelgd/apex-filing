@@ -47,7 +47,8 @@
     </div>
     <div class="table-responsive">
       <table class="table">
-        <thead><tr><th scope="col">Sender</th><th scope="col">Transaction (ET)</th><th scope="col">Received (ET)</th><th scope="col" class="text-end">Amount</th><th scope="col">Reference</th><th scope="col">Memo</th><th scope="col">Status</th>
+        <thead><tr><th scope="col">Sender</th><th scope="col">Received (ET)</th><th scope="col" class="text-end">Amount</th><th scope="col">Memo</th><th scope="col">Status</th>
+          {% if can_link_payment %}<th scope="col">Payment</th>{% endif %}
           <th scope="col" class="text-center text-nowrap">
             <input class="form-check-input" type="checkbox" id="zelle-select-all"
                    title="Select all unread alerts on this page" {% if not has_unread %}disabled{% endif %}>
@@ -58,10 +59,8 @@
           {% for alert, is_read in rows %}
             <tr{% if not is_read %} class="table-active"{% endif %}>
               <td class="text-break">{{ alert.sender_name }}</td>
-              <td>{{ eastern_datetime(alert.transaction_at).strftime('%b %d, %Y %I:%M %p') if alert.transaction_at else 'Not provided' }}</td>
               <td>{{ eastern_datetime(alert.received_at).strftime('%b %d, %Y %I:%M %p') }}</td>
               <td class="text-end">{{ '$%0.2f'|format(alert.amount) }}</td>
-              <td class="text-break">{{ alert.bank_reference or '' }}</td>
               <td class="text-break">{{ alert.memo or '' }}</td>
               <td>
                 {% if is_read %}Read{% else %}
@@ -71,6 +70,18 @@
                   </form>
                 {% endif %}
               </td>
+              {% if can_link_payment %}
+                <td>
+                  {% if alert.id in linked %}
+                    <span class="text-nowrap">Linked · {{ linked[alert.id] }}</span>
+                  {% else %}
+                    <button class="btn btn-sm btn-outline-primary text-nowrap" type="button"
+                            data-bs-toggle="modal" data-bs-target="#zelle-link-modal"
+                            data-link-action="{{ url_for('zelle_link_payment', alert_id=alert.id, page=page, **filters) }}"
+                            data-payment-label="{{ '$%0.2f'|format(alert.amount) }} from {{ alert.sender_name }}">Link payment</button>
+                  {% endif %}
+                </td>
+              {% endif %}
               <td class="text-center">
                 <input class="form-check-input" type="checkbox" name="alert_id" value="{{ alert.id }}"
                        form="zelle-mark-selected" aria-label="Select alert from {{ alert.sender_name }}"
@@ -78,7 +89,7 @@
               </td>
             </tr>
           {% else %}
-            <tr><td colspan="8">No incoming alerts match your search.</td></tr>
+            <tr><td colspan="{{ 7 if can_link_payment else 6 }}">No incoming alerts match your search.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -91,8 +102,44 @@
     {% endif %}
   </section>
 </div>
+{% if can_link_payment %}
+  <div class="modal fade" id="zelle-link-modal" tabindex="-1" aria-labelledby="zelle-link-title"
+       data-client-url="{{ url_for('zelle_search_clients') }}">
+    <div class="modal-dialog">
+      <form class="modal-content" id="zelle-link-form" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="client_id">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="zelle-link-title">Link Zelle payment</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="zelle-link-summary" class="fw-semibold text-break"></p>
+          <label class="form-label" for="zelle-client-search">Client</label>
+          <input id="zelle-client-search" class="form-control" type="search" autocomplete="off"
+                 placeholder="Name, A-number, phone, or email" maxlength="100">
+          <div id="zelle-client-results" class="list-group mt-1 overflow-auto" style="max-height: 12rem" hidden></div>
+          <div class="mt-3" id="zelle-invoice-field" hidden>
+            <label class="form-label" for="zelle-invoice-select">Invoice</label>
+            <select class="form-select" id="zelle-invoice-select" name="invoice_id" required disabled>
+              <option value="">Select an invoice</option>
+            </select>
+          </div>
+          <p class="form-text mb-0" id="zelle-link-status" role="status"></p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" type="submit" disabled>Link payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='zelle_inbox.js') }}"></script>
+  {% if can_link_payment %}
+    <script src="{{ url_for('static', filename='zelle_link_payment.js') }}"></script>
+  {% endif %}
 {% endblock %}

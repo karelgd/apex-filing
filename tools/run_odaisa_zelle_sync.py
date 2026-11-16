@@ -13,10 +13,17 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
-    parser.add_argument("--initialize", action="store_true")
+    initialize = parser.add_mutually_exclusive_group()
+    initialize.add_argument("--initialize", action="store_true")
+    initialize.add_argument("--initialize-only", action="store_true")
     parser.add_argument("--manual", action="store_true")
     parser.add_argument("--days", default="7")
     args = parser.parse_args()
+    wsgi = Path("/var/www/apexcomputenergy_pythonanywhere_com_wsgi.py")
+    if args.initialize_only:
+        initialize_tables(runpy.run_path(str(wsgi))["application"])
+        print("Zelle tables initialized.")
+        return 0
     private = Path.home() / ".odaisa-zelle"
     credentials_path = private / "credentials.json"
     if any(p.is_symlink() or not p.exists() or stat.S_IMODE(p.stat().st_mode) & 0o077
@@ -26,7 +33,6 @@ def main():
     for key in ("client_id", "client_secret", "refresh_token"):
         os.environ[f"ODAISA_GMAIL_{key.upper()}"] = credentials[key]
 
-    wsgi = Path("/var/www/apexcomputenergy_pythonanywhere_com_wsgi.py")
     with (private / "sync.lock").open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -41,10 +47,7 @@ def main():
             last_manual.touch()
         app = runpy.run_path(str(wsgi))["application"]
         if args.initialize:
-            from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, db
-
-            with app.app_context():
-                db.metadata.create_all(db.engine, tables=[ZelleDepositAlert.__table__, ZelleDepositRead.__table__])
+            initialize_tables(app)
         command = ["sync-odaisa-zelle", "--days", args.days]
         if args.apply:
             command.append("--apply")
@@ -53,6 +56,15 @@ def main():
         if result.exit_code and not result.output:
             print("Zelle sync failed before a result was returned.")
         return result.exit_code
+
+
+def initialize_tables(app):
+    from zelle_inbox import ZelleDepositAlert, ZelleDepositRead, ZellePaymentLink, db
+
+    with app.app_context():
+        db.metadata.create_all(db.engine, tables=[
+            ZelleDepositAlert.__table__, ZelleDepositRead.__table__, ZellePaymentLink.__table__,
+        ])
 
 
 if __name__ == "__main__":
