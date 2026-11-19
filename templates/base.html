@@ -105,9 +105,6 @@
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           {% endif %}
           {% if is_agency_owner() %}
-            {% if current_user.agency.has_tool('CRM') %}
-              <a class="tool-link {{ 'active' if request.endpoint == 'agreements' else '' }}" href="{{ url_for('agreements') }}">Agreements</a>
-            {% endif %}
             {% set staff_endpoints = ['translator_list', 'translator_edit', 'preparer_list', 'preparer_edit', 'crm_preparer_list', 'crm_preparer_edit', 'case_manager_list', 'case_manager_edit', 'lawyer_list', 'lawyer_edit', 'law_firm_list', 'law_firm_edit'] %}
             <details class="sidebar-group" {% if request.endpoint in staff_endpoints %}open{% endif %}>
               <summary class="tool-link sidebar-group-toggle {{ 'active' if request.endpoint in staff_endpoints else '' }}">Staff</summary>
@@ -128,6 +125,9 @@
                 <span class="sidebar-notification-count" aria-label="{{ unread_zelle_count }} unread">{{ unread_zelle_count if unread_zelle_count < 100 else '99+' }}</span>
               {% endif %}
             </a>
+          {% endif %}
+          {% if is_agency_owner() and current_user.agency.has_tool('CRM') %}
+            <a class="tool-link {{ 'active' if request.endpoint in ['agreements', 'agreement_template_new', 'agreement_detail', 'agreement_new'] else '' }}" href="{{ url_for('agreements') }}">Agreements</a>
           {% endif %}
           {% if current_user.agency.has_tool('CRM') %}
             {% set crm_endpoints = ['agency_crm', 'crm_leads', 'crm_lead_detail', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail', 'crm_calendar', 'crm_reports', 'crm_reports_download', 'crm_survey_detail', 'crm_survey_resend', 'crm_statistics', 'crm_case_types', 'crm_case_type_delete'] %}
