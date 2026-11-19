@@ -10,10 +10,21 @@
       <option value="">Select a template</option>
       {% for template in templates %}<option value="{{ template.id }}">{{ template.name }}</option>{% endfor %}
     </select>
-    <label class="form-label" for="services">Services</label>
-    <select class="form-select mb-3" id="services" name="case_id" multiple size="{{ [cases|length, 8]|min if cases else 2 }}" required>
-      {% for case in cases %}<option value="{{ case.id }}">{{ case.title }} · {{ '$%.2f'|format(case.price) }}</option>{% endfor %}
-    </select>
+    <fieldset class="border-0 p-0 mb-3">
+      <legend class="form-label fs-6 mb-2">Services</legend>
+      <details class="agreement-services" id="agreement-services">
+        <summary class="form-select" id="agreement-services-toggle"><span data-services-summary>Select services</span></summary>
+        <div class="agreement-services-options">
+          {% for case in cases %}
+            <label class="agreement-service-option" for="agreement-service-{{ case.id }}">
+              <input class="form-check-input mt-0 flex-shrink-0" id="agreement-service-{{ case.id }}" type="checkbox"
+                     name="case_id" value="{{ case.id }}" {% if loop.first %}required{% endif %}>
+              <span>{{ case.title }} · {{ '$%.2f'|format(case.price) }}</span>
+            </label>
+          {% else %}<p class="p-3 mb-0">No services available.</p>{% endfor %}
+        </div>
+      </details>
+    </fieldset>
     <div class="form-check mb-3">
       <input class="form-check-input" type="checkbox" id="authorize" name="authorize" value="yes" required>
       <label class="form-check-label" for="authorize">I am authorized to send this agreement and apply Karel Gonzalez's automatic electronic signature as company CEO.</label>
@@ -22,4 +33,9 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=client.id, tab='agreements') }}">Cancel</a>
   </form>
 </div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='agreement_services.css') }}">
+  <script src="{{ url_for('static', filename='agreement_services.js') }}"></script>
 {% endblock %}

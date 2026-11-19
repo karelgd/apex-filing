@@ -1,0 +1,8 @@
+.agreement-services { position: relative; }
+.agreement-services > summary { cursor: pointer; list-style: none; min-height: 42px; }
+.agreement-services > summary::-webkit-details-marker { display: none; }
+.agreement-services-options { position: absolute; inset-inline: 0; top: calc(100% + 4px); z-index: 20; max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ced4da; border-radius: 4px; box-shadow: 0 4px 12px #00000012; }
+.agreement-service-option { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0; cursor: pointer; }
+.agreement-service-option span { min-width: 0; overflow-wrap: anywhere; }
+.agreement-service-option:hover, .agreement-service-option:focus-within { background: #f0f3f5; }
+.agreement-services > summary:focus-visible { outline: 2px solid #126b68; outline-offset: 2px; }

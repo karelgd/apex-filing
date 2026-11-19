@@ -179,7 +179,11 @@ class AgreementTest(unittest.TestCase):
         self.assertEqual(self.client.get("/agency/agreements/templates/new").status_code, 200)
         self.assertEqual(self.client.post("/agency/agreements/templates/new",
                                          data={"name": "Bilingual v2", "content": "English / Espanol"}).status_code, 302)
-        self.assertEqual(self.client.get("/agency/crm/clients/1/agreements/new").status_code, 200)
+        page = self.client.get("/agency/crm/clients/1/agreements/new")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'id="agreement-services"', page.data)
+        self.assertIn(b'type="checkbox"', page.data)
+        self.assertNotIn(b'name="case_id" multiple', page.data)
         self.assertEqual(self.client.post("/agency/crm/clients/1/agreements/new",
                                          data={"template_id": 1, "case_id": [2], "authorize": "yes"}).status_code, 400)
         self.assertEqual(self.client.post("/agency/crm/clients/1/agreements/new",
