@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#edf1f3;color:#24343b;font-family:Arial,Helvetica,sans-serif;">
+  <div style="display:none;font-size:1px;line-height:1px;color:#edf1f3;max-height:0;overflow:hidden;" aria-hidden="true">
+    {{ 'Your agreement is ready to review and sign.' if notice == 'invitation' else 'Your agreement status has been updated.' }}
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#edf1f3;">
+    <tr><td align="center" style="padding:28px 12px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dfe5e8;border-radius:6px;">
+        <tr><td style="padding:28px 24px;background-color:#126b68;border-radius:6px 6px 0 0;">
+          <p style="margin:0 0 8px;font-size:12px;line-height:18px;color:#d9eeeb;">AGREEMENTS / ACUERDOS</p>
+          <p style="margin:0;font-size:24px;font-weight:bold;line-height:32px;color:#ffffff;overflow-wrap:anywhere;">{{ agency.name }}</p>
+        </td></tr>
+        <tr><td style="padding:28px 24px;">
+          <h1 style="margin:0 0 20px;font-size:24px;line-height:32px;color:#24343b;">
+            {% if notice == 'invitation' %}Your agreement is ready{% elif notice == 'Signed' %}Agreement signed{% else %}Electronic signing declined{% endif %}
+          </h1>
+          <p style="margin:0 0 12px;font-size:16px;line-height:25px;">Hello {{ client.name }},</p>
+          <p style="margin:0 0 20px;font-size:16px;line-height:25px;">
+            {% if notice == 'invitation' %}
+              Please review your agreement and complete your electronic signature. You can choose English or Spanish on the signing page.
+            {% elif notice == 'Signed' %}
+              The agreement has been signed. You can view and download the completed document for your records.
+            {% else %}
+              Electronic signing was declined. Please contact the office to arrange a paper alternative.
+            {% endif %}
+          </p>
+          <p style="margin:0 0 5px;font-size:12px;line-height:18px;color:#61727b;">AGREEMENT / ACUERDO</p>
+          <p style="margin:0 0 22px;font-size:17px;line-height:25px;font-weight:bold;overflow-wrap:anywhere;">{{ agreement.name }}</p>
+          <div lang="es" style="border-top:1px solid #dfe5e8;padding-top:20px;">
+            <p style="margin:0 0 12px;font-size:16px;line-height:25px;">Hola {{ client.name }},</p>
+            <p style="margin:0 0 22px;font-size:16px;line-height:25px;">
+              {% if notice == 'invitation' %}
+                Su acuerdo está listo. Revise el documento y complete su firma electrónica. Puede elegir inglés o español en la página de firma.
+              {% elif notice == 'Signed' %}
+                El acuerdo ha sido firmado. Puede consultar y descargar el documento completado para sus archivos.
+              {% else %}
+                Se rechazó la firma electrónica. Contacte a la oficina para coordinar una alternativa en papel.
+              {% endif %}
+            </p>
+          </div>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:4px auto 24px;">
+            <tr><td align="center" bgcolor="#126b68" style="border-radius:4px;">
+              <a href="{{ link }}" style="display:inline-block;max-width:280px;padding:15px 22px;border:1px solid #126b68;border-radius:4px;color:#ffffff;font-size:16px;font-weight:bold;line-height:24px;text-align:center;text-decoration:none;mso-padding-alt:0;">
+                {% if notice == 'invitation' %}Review &amp; sign<br><span lang="es">Revisar y firmar</span>
+                {% elif notice == 'Signed' %}View signed agreement<br><span lang="es">Ver acuerdo firmado</span>
+                {% else %}View agreement<br><span lang="es">Ver acuerdo</span>{% endif %}
+              </a>
+            </td></tr>
+          </table>
+          {% if notice == 'invitation' %}
+            <p style="margin:0 0 16px;font-size:13px;line-height:21px;color:#61727b;">Sign by / Firme antes del: {{ agreement.expires_at.strftime('%Y-%m-%d') }} (UTC).</p>
+          {% endif %}
+          <p style="margin:0;font-size:13px;line-height:21px;color:#61727b;">This link is personal. Please do not forward it.<br><span lang="es">Este enlace es personal. Por favor, no lo reenvíe.</span></p>
+        </td></tr>
+        <tr><td style="padding:20px 24px;border-top:1px solid #dfe5e8;background-color:#f7f9fa;">
+          <p style="margin:0 0 5px;font-size:13px;font-weight:bold;line-height:21px;overflow-wrap:anywhere;">{{ agency.name }}</p>
+          <p style="margin:0;font-size:13px;line-height:21px;color:#61727b;overflow-wrap:anywhere;">{{ agency.email }}<br>{{ agency.phone }}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>

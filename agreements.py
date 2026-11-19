@@ -363,10 +363,15 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
                 flash("Configure the HTTPS signing URL, a strong secret key, and secure session cookies before sending.", "warning")
                 return redirect(request.url)
             link = base + url_for("agreement_sign", token=token)
+            email_snapshot = json.loads(agreement.snapshot)
             ok, _ = send_email(client.email, "Agreement signature requested / Solicitud de firma",
-                               f"{agency.agency_name}\nReview and sign / Revise y firme: {link}\n"
+                               f"{agency.agency_name}\nHello / Hola {client.full_name},\n"
+                               f"Agreement / Acuerdo: {agreement.name}\nReview and sign / Revise y firme: {link}\n"
                                "Choose English or Spanish on the signing page. Elija ingles o espanol en la pagina.\n"
-                               "This invitation expires in 30 days. / Esta invitacion vence en 30 dias.")
+                               "This invitation expires in 30 days. / Esta invitacion vence en 30 dias.",
+                               html_body=render_template("agreement_email.html", agreement=agreement,
+                                                         agency=email_snapshot["agency"], client=email_snapshot["client"],
+                                                         link=link, notice="invitation"))
             agreement.status = "Pending" if ok else "Delivery failed"
             agreement.sent_at = now if ok else None
             event(agreement, "Invitation sent" if ok else "Delivery failed", user_label())
@@ -455,7 +460,10 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
                 link = os.environ.get("AGREEMENT_PUBLIC_BASE_URL", "").rstrip("/") + url_for("agreement_sign", token=token, lang=lang)
                 for email in {snapshot["client"]["email"], snapshot["agency"]["email"]}:
                     ok, _ = send_email(email, f"Agreement {agreement.status} / Acuerdo #{agreement.id}",
-                                       f"{agreement.name}\nStatus / Estado: {agreement.status}\n{link}")
+                                       f"{snapshot['agency']['name']}\n{agreement.name}\nStatus / Estado: {agreement.status}\n{link}",
+                                       html_body=render_template("agreement_email.html", agreement=agreement,
+                                                                 agency=snapshot["agency"], client=snapshot["client"],
+                                                                 link=link, notice=agreement.status))
                     event(agreement, "Completion email sent" if ok else "Completion email failed", "System")
                 db.session.commit()
             return redirect(url_for("agreement_sign", token=token, lang=lang), code=303)

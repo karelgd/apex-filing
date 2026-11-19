@@ -7,6 +7,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from bs4 import BeautifulSoup
 from flask import Flask
 from flask_login import LoginManager, current_user
 from flask_wtf import CSRFProtect
@@ -33,8 +34,8 @@ class AgreementTest(unittest.TestCase):
         app.jinja_env.globals["is_agency_owner"] = lambda: isinstance(current_user._get_current_object(), AgencyUser)
         self.mail = []
 
-        def send(to, subject, body):
-            self.mail.append((to, subject, body))
+        def send(to, subject, body, html_body=None):
+            self.mail.append((to, subject, body, html_body))
             return not app.config.get("TEST_EMAIL_FAILURE"), "sent"
 
         register_agreements(app, can_use_crm=lambda agency: True,
@@ -246,6 +247,28 @@ class AgreementTest(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Agreement.query.one().status, "Delivery failed")
             self.assertIsNone(Agreement.query.one().sent_at)
+
+    def test_formatted_emails_include_action_buttons_and_plain_text_fallback(self):
+        with self.app.app_context():
+            db.session.get(AgreementTemplate, 1).name = 'Agreement <img src=x onerror=alert(1)>'
+            db.session.commit()
+        url = self.send_agreement()
+        _, _, text, html = self.mail[-1]
+        self.assertIn("https://sign.example.com" + url, text)
+        parsed = BeautifulSoup(html, "html.parser")
+        button = parsed.find("a", href="https://sign.example.com" + url)
+        self.assertIsNotNone(button)
+        self.assertIn("Review & sign", button.get_text())
+        self.assertIn("Revisar y firmar", button.get_text())
+        self.assertIn("Agency 1", parsed.get_text())
+        self.assertIsNone(parsed.find("img"))
+        self.assertIn("&lt;img", html)
+        self.client.get(url)
+        self.client.post(url, data=self.signing_data())
+        for _, _, body, completion in self.mail[-2:]:
+            self.assertIn(url, body)
+            self.assertIn("View signed agreement", completion)
+            self.assertIn("Ver acuerdo firmado", completion)
 
     def test_https_forms_preserve_referrer_and_enforce_csrf(self):
         self.login("owner")
