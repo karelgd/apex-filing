@@ -530,13 +530,13 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
             if action in ("sign", "decline") and agreement.status in ("Signed", "Declined"):
                 snapshot = json.loads(agreement.snapshot)
                 link = os.environ.get("AGREEMENT_PUBLIC_BASE_URL", "").rstrip("/") + url_for("agreement_sign", token=token, lang=lang)
-                for email in {snapshot["client"]["email"], snapshot["agency"]["email"]}:
-                    ok, _ = send_email(email, f"Agreement {agreement.status} / Acuerdo #{agreement.id}",
-                                       f"{snapshot['agency']['name']}\n{agreement.name}\nStatus / Estado: {agreement.status}\n{link}",
-                                       html_body=render_template("agreement_email.html", agreement=agreement,
-                                                                 agency=snapshot["agency"], client=snapshot["client"],
-                                                                 link=link, notice=agreement.status))
-                    event(agreement, "Completion email sent" if ok else "Completion email failed", "System")
+                ok, _ = send_email(snapshot["client"]["email"], f"Agreement {agreement.status} / Acuerdo #{agreement.id}",
+                                   f"{snapshot['agency']['name']}\n{agreement.name}\nStatus / Estado: {agreement.status}\n{link}",
+                                   html_body=render_template("agreement_email.html", agreement=agreement,
+                                                             agency=snapshot["agency"], client=snapshot["client"],
+                                                             link=link, notice=agreement.status))
+                event(agreement, "Completion email sent" if ok else "Completion email failed", "System",
+                      "Client confirmation only; agency notification is an internal CRM Alert.")
                 db.session.commit()
             return redirect(url_for("agreement_sign", token=token, lang=lang), code=303)
         if agreement.status not in ("Pending", "Signed", "Declined"):

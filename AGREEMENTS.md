@@ -19,6 +19,8 @@ On signing, an unread Alert is created for the client's active assigned case
 manager. If there is no active assigned client manager, active managers of the
 selected service cases receive the Alert instead. A repeated signing submission
 cannot create duplicate execution or alerts.
+The client receives a completion confirmation email. The agency and case
+managers are not emailed signing notifications; staff notifications use CRM Alerts.
 
 Owners and case managers can resend a Pending agreement from either list. Resend
 uses the snapshotted client email, not another manually entered recipient, and

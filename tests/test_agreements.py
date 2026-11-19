@@ -128,7 +128,7 @@ class AgreementTest(unittest.TestCase):
             self.assertNotIn("Edited later", agreement.snapshot)
         self.assertEqual(first_pdf, self.client.get(url + "/pdf").data)
         self.open_agreement(url)
-        self.assertEqual(len(self.mail), 3)  # Invitation plus two completion notices; no verification email.
+        self.assertEqual(len(self.mail), 2)  # Invitation and client confirmation only.
 
     def test_tenant_permissions_templates_and_archive(self):
         self.login("manager")
@@ -180,6 +180,8 @@ class AgreementTest(unittest.TestCase):
         self.open_agreement(url)
         self.client.post(url, data=self.signing_data())
         self.assertEqual(self.client.post(url, data=self.signing_data()).status_code, 409)
+        self.assertEqual([message[0] for message in self.mail], ["client@example.com", "client@example.com"])
+        self.assertNotIn("office@example.com", [message[0] for message in self.mail])
         with self.app.app_context():
             notification = Notification.query.one()
             self.assertEqual((notification.agency_id, notification.recipient_role, notification.recipient_id),
@@ -362,7 +364,8 @@ class AgreementTest(unittest.TestCase):
         self.assertIn("&lt;img", html)
         self.client.get(url)
         self.client.post(url, data=self.signing_data())
-        for _, _, body, completion in self.mail[-2:]:
+        self.assertEqual(len(self.mail), 2)
+        for _, _, body, completion in self.mail[-1:]:
             self.assertIn(url, body)
             self.assertIn("View signed agreement", completion)
             self.assertIn("Ver acuerdo firmado", completion)
