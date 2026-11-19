@@ -228,7 +228,8 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
     def protect_agreement_responses(response):
         if request.endpoint and request.endpoint.startswith("agreement"):
             response.headers["Cache-Control"] = "no-store"
-            response.headers["Referrer-Policy"] = "no-referrer"
+            # HTTPS CSRF validation requires a referrer on same-origin form posts.
+            response.headers["Referrer-Policy"] = "same-origin"
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
             response.headers["X-Frame-Options"] = "DENY"
         return response

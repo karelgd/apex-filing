@@ -199,6 +199,30 @@ class AgreementTest(unittest.TestCase):
             self.assertEqual(Agreement.query.one().status, "Delivery failed")
             self.assertIsNone(Agreement.query.one().sent_at)
 
+    def test_https_forms_preserve_referrer_and_enforce_csrf(self):
+        self.login("owner")
+        path = "/agency/agreements/templates/new"
+        origin = "https://localhost"
+        with patch.dict(self.app.config, WTF_CSRF_ENABLED=True):
+            page = self.client.get(path, base_url=origin)
+            self.assertEqual(page.headers["Referrer-Policy"], "same-origin")
+            token = re.search(rb'name="csrf_token" value="([^"]+)"', page.data)[1].decode()
+            data = {"csrf_token": token, "name": "HTTPS test", "content": "Test agreement"}
+            self.assertEqual(self.client.post(path, base_url=origin, data=data).status_code, 400)
+            self.assertEqual(self.client.post(path, base_url=origin, data=data,
+                                             headers={"Referer": "https://other.example/"}).status_code, 400)
+            self.assertEqual(self.client.post(path, base_url=origin, data=data,
+                                             headers={"Referer": origin + path}).status_code, 302)
+        url = self.send_agreement()
+        with patch.dict(self.app.config, WTF_CSRF_ENABLED=True):
+            page = self.client.get(url, base_url=origin)
+            self.assertEqual(page.headers["Referrer-Policy"], "same-origin")
+            token = re.search(rb'name="csrf_token" value="([^"]+)"', page.data)[1].decode()
+            data = {"csrf_token": token, "action": "code"}
+            self.assertEqual(self.client.post(url, base_url=origin, data=data,
+                                             headers={"Referer": origin + url}).status_code, 303)
+            self.assertIn("Code / Codigo", self.mail[-1][2])
+
 
 if __name__ == "__main__":
     unittest.main()
