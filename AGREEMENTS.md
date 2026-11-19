@@ -13,13 +13,15 @@ Karel Gonzalez is currently the fixed company signatory. Sending requires an
 affirmative confirmation of authority to apply that automatic signature. Do not
 enable this feature for an agency whose CEO or authorization differs.
 
-Clients choose English or Spanish UI independently of template content, verify
-access to their email using a one-time code, open the PDF, accept electronic-record
+Clients choose English or Spanish UI independently of template content, review
+the complete agreement directly on the signing page, accept electronic-record
 disclosures, affirm their intent to sign, and type their first and last names.
 The retained PDF contains the terms, pricing, signatures, timestamps, snapshot
-digest, and signing evidence. Email verification proves mailbox access, not
-government-ID identity. This is not notarization or a certificate-based digital
-signature.
+digest, and signing evidence. The emailed invitation link is the access credential;
+there is no separate verification code. Anyone with a forwarded link can access
+the agreement. Link access does not prove the signer's identity or independently
+verify mailbox ownership. This is not notarization or a certificate-based digital
+signature. The interface and audit history do not claim independent verification.
 
 ## Deployment
 
@@ -47,9 +49,12 @@ Existing AUTO_INIT_DB startup creates the additive tables. No existing client,
 invoice, lead, or payment data migration is needed. Do not send real invitations
 from local preview fixtures.
 
-Pending invitations expire after 30 days. Verification codes expire after ten
-minutes, have five attempts and a one-minute resend cooldown. Verified access
-lasts 30 minutes; clients can reverify to download an executed agreement later.
+Pending invitations expire after 30 days. A valid link permits reviewing and
+downloading the document without an email-code step. Signed links continue to
+permit retrieving the executed document unless the agreement is archived.
+Before signing, the client must load the agreement page in their current browser
+and affirm access, consent, and intent. An optional PDF download remains available.
+Legacy verification columns are retained for database compatibility but unused.
 Completion email failures appear in the agency-side evidence history.
 
 ## Legal And Operational Review
@@ -77,7 +82,7 @@ appropriate backup/retention policy.
 
 ## Verification
 
-Tests cover agency isolation, staff/owner permissions, CSRF, OTP expiration and
-attempt limits, required consent and PDF access, snapshot stability, discounts,
+Tests cover agency isolation, staff/owner permissions, CSRF, invitation expiration,
+invalid tokens, required consent and agreement-page access, snapshot stability, discounts,
 typed signatures, duplicate execution rejection, immutable PDF retrieval,
-declining, archiving, templates, and delivery failure.
+declining, archiving, templates, mandatory sender authorization, and delivery failure.

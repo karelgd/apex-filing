@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{{ t.title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='agreement_sign.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='agreement_sign.css', v='inline') }}">
 </head>
 <body>
   <main>
@@ -12,29 +12,38 @@
     {% for category, message in get_flashed_messages(with_categories=true) %}<p role="status">{{ message }}</p>{% endfor %}
     {% if expired %}
       <p>{{ t.expired }}</p>
-    {% elif not verified %}
-      <h2>{{ t.verify }}</h2>
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lang" value="{{ lang }}">
-        <button name="action" value="code">{{ t.request_code }}</button>
-      </form>
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lang" value="{{ lang }}">
-        <label for="code">{{ t.code }}</label><input name="code" id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
-        <button name="action" value="verify">{{ t.check }}</button>
-      </form>
     {% else %}
-      <h2>{{ agreement.name }}</h2>
-      <p>{{ snapshot.agency.name }} · {{ snapshot.client.name }}</p>
+      <article id="agreement-document" aria-label="{{ 'Agreement document' if lang == 'en' else 'Documento del acuerdo' }}">
+        <h2>{{ agreement.name }}</h2>
+        <h3>{{ 'Agency' if lang == 'en' else 'Empresa' }}</h3>
+        <p>{{ snapshot.agency.name }}<br>{{ snapshot.agency.address }}<br>{{ snapshot.agency.email }} · {{ snapshot.agency.phone }}</p>
+        <h3>{{ 'Client' if lang == 'en' else 'Cliente' }}</h3>
+        <p>{{ snapshot.client.name }}<br>{{ snapshot.client.address }}<br>{{ snapshot.client.email }} · {{ snapshot.client.phone }}<br>
+          {{ 'A-number' if lang == 'en' else 'Número de extranjero' }}: {{ snapshot.client.a_number or '—' }}</p>
+        <h3>{{ 'Services' if lang == 'en' else 'Servicios' }}</h3>
+        <div class="agreement-table">
+          <table><thead><tr>
+            <th>{{ 'Service' if lang == 'en' else 'Servicio' }}</th>
+            <th>{{ 'Price' if lang == 'en' else 'Precio' }}</th>
+            <th>{{ 'Discount' if lang == 'en' else 'Descuento' }}</th><th>Total</th>
+          </tr></thead><tbody>
+            {% for service in snapshot.services %}<tr><td>{{ service.name }}</td><td>${{ service.price }}</td><td>${{ service.discount }}</td><td>${{ service.total }}</td></tr>{% endfor %}
+          </tbody></table>
+        </div>
+        <p><strong>Total: ${{ snapshot.total }}</strong></p>
+        <div class="agreement-content">{{ snapshot.content }}</div>
+        <h3>{{ 'Company electronic signature' if lang == 'en' else 'Firma electrónica de la empresa' }}</h3>
+        <p>Karel Gonzalez · CEO<br>{{ snapshot.company_signed_at }} UTC</p>
+      </article>
       <p><a href="{{ url_for('agreement_public_pdf', token=request.view_args.token, lang=lang) }}" target="_blank" rel="noopener">{{ t.download }}</a></p>
       {% if agreement.status == 'Signed' %}
         <h2>{{ t.done }}</h2><p>{{ agreement.signature }} · {{ agreement.signed_at }} UTC</p>
       {% elif agreement.status == 'Declined' %}
         <p>{{ t.declined }}</p>
       {% else %}
-        <article><h2>{{ 'Electronic records consent' if lang == 'en' else 'Consentimiento para documentos electrónicos' }}</h2><p>{{ disclosure }}</p>
+        <details class="agreement-policies"><summary>{{ 'Electronic records and signature policy' if lang == 'en' else 'Política de documentos y firma electrónica' }}</summary><p>{{ disclosure }}</p>
           <p>{{ snapshot.agency.email }} · {{ snapshot.agency.phone }}</p>
-        </article>
+        </details>
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lang" value="{{ lang }}">
           <label for="first">{{ t.first }}</label><input id="first" name="first" maxlength="80" autocomplete="given-name" aria-describedby="first-hint" required>

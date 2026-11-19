@@ -1,4 +1,16 @@
 (() => {
+  const authorization = document.getElementById("authorize");
+  const warning = document.getElementById("authorization-warning");
+  if (authorization && warning) {
+    authorization.addEventListener("invalid", () => {
+      warning.hidden = false;
+      authorization.classList.add("is-invalid");
+    });
+    authorization.addEventListener("change", () => {
+      warning.hidden = authorization.checked;
+      authorization.classList.toggle("is-invalid", !authorization.checked);
+    });
+  }
   const dropdown = document.getElementById("agreement-services");
   if (!dropdown) return;
   const boxes = Array.from(dropdown.querySelectorAll('input[name="case_id"]'));

@@ -1,4 +1,4 @@
-"""Agency-scoped agreements with fixed snapshots and verified typed signatures."""
+"""Agency-scoped agreements with fixed snapshots and email-link typed signatures."""
 
 import hashlib
 import io
@@ -14,13 +14,12 @@ from urllib.parse import urlsplit
 from flask import abort, current_app, flash, redirect, render_template, request, send_file, session, url_for
 from flask_login import current_user
 from sqlalchemy import func, or_, update
-from werkzeug.security import check_password_hash, generate_password_hash
 
 from models import AgencyCaseManager, AgencyUser, Client, CrmCase, CrmInvoice, CrmInvoiceActivity, db
 
 
 CEO = "Karel Gonzalez"
-CONSENT_VERSION = "2026-11-18-v1"
+CONSENT_VERSION = "2026-11-18-v2-inline"
 DISCLOSURE = {
     "en": (
         "Electronic records and signature consent applies only to this agreement and its completion record. "
@@ -30,7 +29,7 @@ DISCLOSURE = {
         "Declining or withdrawing does not sign this agreement or incur an electronic-signing fee; "
         "the office will arrange a paper alternative. Withdrawal after signing does not undo an executed agreement. "
         "You need an internet-connected device, current browser, email access, and a PDF reader "
-        "with the ability to save or print PDFs. Open the agreement PDF before consenting to confirm you can access it. "
+        "with the ability to save or print PDFs. Review the agreement displayed on this page before consenting. "
         "Save a copy for your records. Contact the office if these requirements change or access fails."
     ),
     "es": (
@@ -41,36 +40,32 @@ DISCLOSURE = {
         "no firma este acuerdo ni genera cargos por firma electrónica; la oficina coordinará una alternativa en papel. "
         "Retirar el consentimiento después de firmar no anula un acuerdo ya firmado. "
         "Necesita un dispositivo con internet, navegador actualizado, acceso a su correo y un lector PDF "
-        "que permita guardar o imprimir archivos. Abra el PDF antes de consentir para confirmar que puede acceder. "
+        "que permita guardar o imprimir archivos. Revise el acuerdo mostrado en esta página antes de consentir. "
         "Guarde una copia. Contacte a la oficina si cambian estos requisitos o no puede acceder."
     ),
 }
 COPY = {
     "en": {
-        "title": "Agreement signature", "verify": "Verify your email", "code": "Verification code",
-        "request_code": "Email verification code", "check": "Verify", "download": "Open / download agreement PDF",
+        "title": "Agreement signature", "download": "Save / print agreement PDF",
         "first": "First name", "first_hint": "First name only. Do not include middle or last names.",
         "last": "Last name(s)", "last_hint": "Enter both last names if you have two.",
         "consent": "I consent to electronic records and electronic signatures for this agreement.",
-        "access": "I opened the PDF and confirm I can read, save, or print it.",
+        "access": "I can read the agreement displayed above and can save or print a copy.",
         "intent": "I have read this agreement, accept its terms, and intend my typed first and last names to be my binding electronic signature.",
         "sign": "Sign agreement", "decline": "Decline electronic signing", "done": "Agreement signed",
         "declined": "Electronic signing declined. Contact the office for a paper alternative.",
-        "sent": "A verification code was sent to the email on this agreement. It expires in 10 minutes.",
         "error": "Unable to complete this step. Check the information or contact the office.",
         "expired": "This signing invitation has expired. Contact the office.",
     },
     "es": {
-        "title": "Firma del acuerdo", "verify": "Verifique su correo", "code": "Código de verificación",
-        "request_code": "Enviar código por correo", "check": "Verificar", "download": "Abrir / descargar acuerdo PDF",
+        "title": "Firma del acuerdo", "download": "Guardar / imprimir acuerdo PDF",
         "first": "Nombre", "first_hint": "Solo su primer nombre. No incluya segundo nombre ni apellidos.",
         "last": "Apellidos", "last_hint": "Escriba ambos apellidos si tiene dos.",
         "consent": "Acepto usar documentos y firmas electrónicas para este acuerdo.",
-        "access": "Abrí el PDF y confirmo que puedo leerlo, guardarlo o imprimirlo.",
+        "access": "Puedo leer el acuerdo mostrado arriba y guardar o imprimir una copia.",
         "intent": "He leído este acuerdo, acepto sus términos y deseo que mi nombre y apellidos escritos constituyan mi firma electrónica vinculante.",
         "sign": "Firmar acuerdo", "decline": "Rechazar firma electrónica", "done": "Acuerdo firmado",
         "declined": "Firma electrónica rechazada. Contacte a la oficina para coordinar la firma en papel.",
-        "sent": "Se envió un código al correo de este acuerdo. Vence en 10 minutos.",
         "error": "No se pudo completar este paso. Revise la información o contacte a la oficina.",
         "expired": "Esta invitación ha vencido. Contacte a la oficina.",
     },
@@ -181,10 +176,15 @@ def agreement_pdf(agreement):
         for language in ("en", "es"):
             paragraph(snapshot["disclosures"][language])
     if agreement.status == "Signed":
-        paragraph(f"Electronic consent version: {snapshot['consent_version']} | Interface: {agreement.language}")
-        paragraph(snapshot["disclosures"][agreement.language])
+        signed_event = AgreementEvent.query.filter_by(agreement_id=agreement.id, action="Client signed").first()
+        try:
+            consent = json.loads(signed_event.details) if signed_event else {}
+        except (TypeError, ValueError):
+            consent = {}
+        paragraph(f"Electronic consent version: {consent.get('consent_version', snapshot['consent_version'])} | Interface: {agreement.language}")
+        paragraph(consent.get("disclosure", snapshot["disclosures"][agreement.language]))
         for action in ("consent", "access", "intent"):
-            paragraph(COPY[agreement.language][action])
+            paragraph(consent.get("affirmations", {}).get(action, COPY[agreement.language][action]))
     events = AgreementEvent.query.filter_by(agreement_id=agreement.id).order_by(AgreementEvent.id).all()
     for entry in events:
         paragraph(f"{entry.created_at.isoformat()} UTC | {entry.action} | {entry.actor}\n"
@@ -218,11 +218,6 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
 
     def public(token):
         return Agreement.query.filter_by(token_hash=digest(token), archived_at=None).first_or_404()
-
-    def verified(agreement):
-        proof = session.get(f"agreement:{agreement.id}", {})
-        return bool(proof.get("nonce") and proof.get("nonce") == agreement.verification_nonce
-                    and proof.get("until", 0) > now_utc().timestamp())
 
     @app.after_request
     def protect_agreement_responses(response):
@@ -285,7 +280,8 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
         cases = CrmCase.query.filter_by(client_id=client.id, agency_id=client.agency_id).order_by(CrmCase.title).all()
         if request.method == "POST":
             if request.form.get("authorize") != "yes":
-                abort(400)
+                return render_template("agreement_new.html", client=client, templates=templates, cases=cases,
+                                       authorization_error=True), 400
             template = AgreementTemplate.query.filter_by(
                 id=request.form.get("template_id", type=int), agency_id=client.agency_id).first_or_404()
             try:
@@ -394,41 +390,10 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
             db.session.execute(update(Agreement).where(Agreement.id == agreement.id).values(id=Agreement.id))
             db.session.refresh(agreement)
             action = request.form.get("action")
-            if (agreement.status not in ("Pending", "Signed", "Declined")
-                    or (agreement.status == "Pending" and agreement.expires_at < now_utc())):
+            if agreement.status != "Pending" or agreement.expires_at < now_utc():
                 abort(409)
-            if action == "code":
-                if agreement.code_at and now_utc() - agreement.code_at < timedelta(minutes=1):
-                    flash(text["error"], "warning")
-                else:
-                    code = f"{secrets.randbelow(1000000):06}"
-                    agreement.code_hash = generate_password_hash(code)
-                    agreement.code_at = now_utc()
-                    agreement.code_attempts = 0
-                    agreement.verification_nonce = secrets.token_urlsafe(24)
-                    email = json.loads(agreement.snapshot)["client"]["email"]
-                    ok, _ = send_email(email, "Agreement verification / Verificacion de acuerdo",
-                                       f"Code / Codigo: {code}\nValid for 10 minutes. / Valido por 10 minutos.")
-                    event(agreement, "Verification code requested", "Recipient")
-                    flash(text["sent"] if ok else text["error"], "info" if ok else "warning")
-            elif action == "verify":
-                if (agreement.code_hash and agreement.code_at and agreement.code_attempts < 5
-                        and now_utc() - agreement.code_at < timedelta(minutes=10)):
-                    agreement.code_attempts += 1
-                    if check_password_hash(agreement.code_hash, request.form.get("code", "")[:20]):
-                        session[f"agreement:{agreement.id}"] = {
-                            "nonce": agreement.verification_nonce, "until": (now_utc() + timedelta(minutes=30)).timestamp(),
-                        }
-                        agreement.code_hash = None
-                        event(agreement, "Email verified", "Recipient")
-                    else:
-                        flash(text["error"], "warning")
-                else:
-                    flash(text["error"], "warning")
-            elif action in ("sign", "decline"):
-                if agreement.status != "Pending":
-                    abort(409)
-                if not verified(agreement):
+            if action in ("sign", "decline"):
+                if session.get(f"agreement-view:{agreement.id}") != agreement.snapshot_hash:
                     abort(403)
                 if action == "decline":
                     agreement.status = "Declined"
@@ -438,15 +403,18 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
                     if (not 1 <= len(first) <= 80 or not 1 <= len(last) <= 150
                             or not any(char.isalpha() for char in first) or not any(char.isalpha() for char in last)
                             or any(not (char.isalpha() or char in " '-") for char in first + last)
-                            or any(request.form.get(key) != "yes" for key in ("consent", "access", "intent"))
-                            or session.get(f"agreement-pdf:{agreement.id}") != agreement.snapshot_hash):
+                            or any(request.form.get(key) != "yes" for key in ("consent", "access", "intent"))):
                         abort(400)
                     if digest(agreement.snapshot) != agreement.snapshot_hash:
                         abort(409)
                     agreement.signature = f"{first} {last}"
                     agreement.signed_at, agreement.language, agreement.status = now_utc(), lang, "Signed"
                     event(agreement, "Client signed", agreement.signature,
-                          f"Consent {CONSENT_VERSION}; language {lang}; PDF accessed; typed signature adopted; snapshot {agreement.snapshot_hash}")
+                          json.dumps({"consent_version": CONSENT_VERSION, "language": lang,
+                                      "disclosure": DISCLOSURE[lang], "snapshot_hash": agreement.snapshot_hash,
+                                      "access_method": "Email invitation link; no separate identity verification",
+                                      "affirmations": {key: COPY[lang][key] for key in ("consent", "access", "intent")}},
+                                     ensure_ascii=True))
                     db.session.flush()
                     agreement.pdf = agreement_pdf(agreement)
                     agreement.pdf_hash = digest(agreement.pdf)
@@ -463,17 +431,23 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
                     event(agreement, "Completion email sent" if ok else "Completion email failed", "System")
                 db.session.commit()
             return redirect(url_for("agreement_sign", token=token, lang=lang), code=303)
+        if agreement.status not in ("Pending", "Signed", "Declined"):
+            abort(410)
+        expired = agreement.status == "Pending" and agreement.expires_at < now_utc()
+        if not expired:
+            if session.get(f"agreement-view:{agreement.id}") != agreement.snapshot_hash:
+                event(agreement, "Agreement page accessed", "Invitation link holder",
+                      "Bearer-link access; no independent email or identity verification.")
+                db.session.commit()
+            session[f"agreement-view:{agreement.id}"] = agreement.snapshot_hash
         return render_template("agreement_sign.html", agreement=agreement, lang=lang, t=text,
-                               disclosure=json.loads(agreement.snapshot)["disclosures"][lang], verified=verified(agreement),
-                               expired=agreement.status not in ("Signed", "Declined") and agreement.expires_at < now_utc(),
-                               snapshot=json.loads(agreement.snapshot) if verified(agreement) else None)
+                               disclosure=DISCLOSURE[lang], expired=expired, snapshot=json.loads(agreement.snapshot))
 
     @app.get("/sign/agreements/<token>/pdf")
     def agreement_public_pdf(token):
         agreement = public(token)
-        if not verified(agreement):
-            abort(403)
+        if agreement.status not in ("Pending", "Signed", "Declined"):
+            abort(410)
         if agreement.status != "Signed" and agreement.expires_at < now_utc():
             abort(410)
-        session[f"agreement-pdf:{agreement.id}"] = agreement.snapshot_hash
         return serve_pdf(agreement)

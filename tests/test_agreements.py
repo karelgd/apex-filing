@@ -81,10 +81,13 @@ class AgreementTest(unittest.TestCase):
         self.login(None)
         return "/sign/agreements/" + token
 
-    def verify(self, url):
-        self.client.post(url, data={"action": "code"})
-        code = re.search(r"Code / Codigo: ([0-9]{6})", self.mail[-1][2])[1]
-        self.client.post(url, data={"action": "verify", "code": code})
+    def open_agreement(self, url):
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'id="agreement-document"', page.data)
+        self.assertNotIn(b'name="code"', page.data)
+        self.assertIn(b"English terms.", page.data)
+        return page
 
     def signing_data(self):
         return {"action": "sign", "lang": "es", "first": "Maria", "last": "Perez Lopez",
@@ -92,7 +95,8 @@ class AgreementTest(unittest.TestCase):
 
     def test_snapshot_typed_signature_and_fixed_pdf(self):
         url = self.send_agreement()
-        self.assertEqual(self.client.get(url + "/pdf").status_code, 403)
+        self.assertEqual(self.client.post(url, data=self.signing_data()).status_code, 403)
+        self.assertEqual(self.client.get(url + "/pdf").status_code, 200)
         with self.app.app_context():
             agreement = Agreement.query.one()
             snapshot = json.loads(agreement.snapshot)
@@ -102,8 +106,9 @@ class AgreementTest(unittest.TestCase):
             template = db.session.get(AgreementTemplate, 1)
             template.content = "Edited later"
             db.session.commit()
-        self.verify(url)
-        self.assertEqual(self.client.post(url, data=self.signing_data()).status_code, 400)
+        page = self.open_agreement(url)
+        self.assertLess(page.data.index(b"English terms."), page.data.index(b'id="first"'))
+        self.assertEqual(len(self.mail), 1)
         preview = self.client.get(url + "/pdf")
         self.assertEqual(preview.status_code, 200)
         data = self.signing_data()
@@ -121,10 +126,8 @@ class AgreementTest(unittest.TestCase):
             self.assertEqual(AgreementEvent.query.filter_by(action="Client signed").count(), 1)
             self.assertNotIn("Edited later", agreement.snapshot)
         self.assertEqual(first_pdf, self.client.get(url + "/pdf").data)
-        with self.app.app_context():
-            Agreement.query.one().code_at = now_utc() - timedelta(minutes=2)
-            db.session.commit()
-        self.verify(url)  # Signed clients can regain access after their first session ends.
+        self.open_agreement(url)
+        self.assertEqual(len(self.mail), 3)  # Invitation plus two completion notices; no verification email.
 
     def test_tenant_permissions_templates_and_archive(self):
         self.login("manager")
@@ -146,28 +149,24 @@ class AgreementTest(unittest.TestCase):
             self.assertEqual(Agreement.query.count(), 1)
             self.assertIsNotNone(Agreement.query.one().archived_at)
 
-    def test_verification_attempts_expiry_and_consent(self):
+    def test_link_expiry_and_invalid_tokens(self):
         url = self.send_agreement()
-        self.client.post(url, data={"action": "code"})
-        self.assertEqual(len(self.mail), 2)
-        self.client.post(url, data={"action": "code"})
-        self.assertEqual(len(self.mail), 2)  # Resend cooldown
-        for _ in range(6):
-            self.client.post(url, data={"action": "verify", "code": "bad"})
-        with self.app.app_context():
-            self.assertEqual(Agreement.query.one().code_attempts, 5)
-        self.assertEqual(self.client.get(url + "/pdf").status_code, 403)
+        self.assertEqual(self.client.get(url + "-wrong").status_code, 404)
+        self.open_agreement(url)
+        self.assertEqual(self.client.post(url, data={"action": "code"}).status_code, 400)
+        self.assertEqual(len(self.mail), 1)
         with self.app.app_context():
             Agreement.query.one().expires_at = now_utc() - timedelta(seconds=1)
             db.session.commit()
         self.assertIn(b"expired", self.client.get(url).data)
-        self.assertEqual(self.client.post(url, data={"action": "code"}).status_code, 409)
+        self.assertEqual(self.client.get(url + "/pdf").status_code, 410)
+        self.assertEqual(self.client.post(url, data=self.signing_data()).status_code, 409)
 
     def test_decline_and_csrf(self):
         url = self.send_agreement()
         with patch.dict(self.app.config, WTF_CSRF_ENABLED=True):
             self.assertEqual(self.client.post(url, data={"action": "code"}).status_code, 400)
-        self.verify(url)
+        self.open_agreement(url)
         self.assertEqual(self.client.post(url, data={"action": "decline"}).status_code, 303)
         self.assertEqual(self.client.post(url, data=self.signing_data()).status_code, 409)
         with self.app.app_context():
@@ -189,6 +188,19 @@ class AgreementTest(unittest.TestCase):
         self.assertEqual(self.client.post("/agency/crm/clients/1/agreements/new",
                                          data={"template_id": 2, "case_id": [1], "authorize": "yes"}).status_code, 404)
         self.assertEqual(self.mail, [])
+
+    def test_authorization_required_and_red_warning_preserves_selection(self):
+        self.login("manager")
+        response = self.client.post("/agency/crm/clients/1/agreements/new",
+                                    data={"template_id": 1, "case_id": [1]})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"You must confirm authorization before sending this agreement.", response.data)
+        self.assertIn(b'class="form-check-input is-invalid"', response.data)
+        self.assertIn(b'value="1" checked', response.data)
+        self.assertIn(b'value="1" selected', response.data)
+        self.assertEqual(self.mail, [])
+        with self.app.app_context():
+            self.assertEqual(Agreement.query.count(), 0)
 
     def test_failed_invitation_is_recorded_and_cannot_be_signed(self):
         self.login("manager")
@@ -218,10 +230,11 @@ class AgreementTest(unittest.TestCase):
             page = self.client.get(url, base_url=origin)
             self.assertEqual(page.headers["Referrer-Policy"], "same-origin")
             token = re.search(rb'name="csrf_token" value="([^"]+)"', page.data)[1].decode()
-            data = {"csrf_token": token, "action": "code"}
+            data = {"csrf_token": token, "action": "decline"}
             self.assertEqual(self.client.post(url, base_url=origin, data=data,
                                              headers={"Referer": origin + url}).status_code, 303)
-            self.assertIn("Code / Codigo", self.mail[-1][2])
+            with self.app.app_context():
+                self.assertEqual(Agreement.query.one().status, "Declined")
 
 
 if __name__ == "__main__":

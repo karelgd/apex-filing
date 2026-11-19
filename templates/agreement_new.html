@@ -8,7 +8,7 @@
     <label class="form-label" for="template">Agreement template</label>
     <select class="form-select mb-3" id="template" name="template_id" required>
       <option value="">Select a template</option>
-      {% for template in templates %}<option value="{{ template.id }}">{{ template.name }}</option>{% endfor %}
+      {% for template in templates %}<option value="{{ template.id }}" {% if request.form.get('template_id') == template.id|string %}selected{% endif %}>{{ template.name }}</option>{% endfor %}
     </select>
     <fieldset class="border-0 p-0 mb-3">
       <legend class="form-label fs-6 mb-2">Services</legend>
@@ -18,7 +18,7 @@
           {% for case in cases %}
             <label class="agreement-service-option" for="agreement-service-{{ case.id }}">
               <input class="form-check-input mt-0 flex-shrink-0" id="agreement-service-{{ case.id }}" type="checkbox"
-                     name="case_id" value="{{ case.id }}" {% if loop.first %}required{% endif %}>
+                     name="case_id" value="{{ case.id }}" {% if case.id|string in request.form.getlist('case_id') %}checked{% endif %} {% if loop.first %}required{% endif %}>
               <span>{{ case.title }} · {{ '$%.2f'|format(case.price) }}</span>
             </label>
           {% else %}<p class="p-3 mb-0">No services available.</p>{% endfor %}
@@ -26,8 +26,9 @@
       </details>
     </fieldset>
     <div class="form-check mb-3">
-      <input class="form-check-input" type="checkbox" id="authorize" name="authorize" value="yes" required>
+      <input class="form-check-input {{ 'is-invalid' if authorization_error else '' }}" type="checkbox" id="authorize" name="authorize" value="yes" required aria-describedby="authorization-warning">
       <label class="form-check-label" for="authorize">I am authorized to send this agreement and apply Karel Gonzalez's automatic electronic signature as company CEO.</label>
+      <p class="text-danger mt-2 mb-0" id="authorization-warning" role="alert" {% if not authorization_error %}hidden{% endif %}>You must confirm authorization before sending this agreement.</p>
     </div>
     <button class="btn btn-primary" {% if not templates or not cases %}disabled{% endif %}>Send for signature</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=client.id, tab='agreements') }}">Cancel</a>
@@ -37,5 +38,5 @@
 {% block scripts %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='agreement_services.css') }}">
-  <script src="{{ url_for('static', filename='agreement_services.js') }}"></script>
+  <script src="{{ url_for('static', filename='agreement_services.js', v='authorization') }}"></script>
 {% endblock %}
