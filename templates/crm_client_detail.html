@@ -59,6 +59,9 @@
       <button class="crm-folder-tab crm-tab-activity {{ 'active' if selected_tab == 'activity' else '' }}" type="button" data-crm-tab="activity">
         Activity Log <span>{{ activity_logs|length }}</span>
       </button>
+      <button class="crm-folder-tab crm-tab-documents {{ 'active' if selected_tab == 'agreements' else '' }}" type="button" data-crm-tab="agreements">
+        Agreements <span>{{ agreements|length }}</span>
+      </button>
       <button class="crm-folder-tab crm-tab-notes {{ 'active' if selected_tab == 'lead-notes' else '' }}" type="button" data-crm-tab="lead-notes">
         Lead Notes <span>{{ lead_notes|length }}</span>
       </button>
@@ -312,6 +315,18 @@
       </div>
     </section>
 
+    <section class="crm-folder-panel {{ 'active' if selected_tab == 'agreements' else '' }}" data-crm-panel="agreements" id="agreements">
+      <div class="crm-panel-head">
+        <h2>Agreements</h2>
+        <a class="btn btn-primary" href="{{ url_for('agreement_new', client_id=client.id) }}">Send agreement</a>
+      </div>
+      {% for agreement in agreements %}
+        <div class="crm-record">
+          <div><strong>{{ agreement.name }}</strong><div>{{ agreement.status }} · {{ agreement.created_at.strftime('%b %d, %Y') }}</div></div>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agreement_detail', agreement_id=agreement.id) }}">View agreement</a>
+        </div>
+      {% else %}<p>No agreements.</p>{% endfor %}
+    </section>
     <section class="crm-folder-panel {{ 'active' if selected_tab == 'lead-notes' else '' }}" data-crm-panel="lead-notes" id="lead-notes">
       <div class="crm-panel-head"><h2>Lead Notes</h2></div>
       {{ lead_note_history(lead_notes, lead_note_types, 'No lead notes.') }}

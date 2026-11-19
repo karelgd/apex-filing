@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <h1>Send agreement</h1>
+  <p>{{ client.full_name }} · {{ client.email }}</p>
+  <form method="post" class="crm-panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="form-label" for="template">Agreement template</label>
+    <select class="form-select mb-3" id="template" name="template_id" required>
+      <option value="">Select a template</option>
+      {% for template in templates %}<option value="{{ template.id }}">{{ template.name }}</option>{% endfor %}
+    </select>
+    <label class="form-label" for="services">Services</label>
+    <select class="form-select mb-3" id="services" name="case_id" multiple size="{{ [cases|length, 8]|min if cases else 2 }}" required>
+      {% for case in cases %}<option value="{{ case.id }}">{{ case.title }} · {{ '$%.2f'|format(case.price) }}</option>{% endfor %}
+    </select>
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" id="authorize" name="authorize" value="yes" required>
+      <label class="form-check-label" for="authorize">I am authorized to send this agreement and apply Karel Gonzalez's automatic electronic signature as company CEO.</label>
+    </div>
+    <button class="btn btn-primary" {% if not templates or not cases %}disabled{% endif %}>Send for signature</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('crm_client_detail', client_id=client.id, tab='agreements') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

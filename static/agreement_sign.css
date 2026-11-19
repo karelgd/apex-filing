@@ -1,0 +1,17 @@
+* { box-sizing: border-box; letter-spacing: 0; }
+body { margin: 0; background: #f3f5f6; color: #202b30; font: 16px/1.6 system-ui, sans-serif; }
+main { max-width: 800px; margin: 0 auto; padding: 32px 24px 64px; background: #fff; min-height: 100vh; overflow-wrap: anywhere; }
+nav { text-align: right; }
+h1 { font-size: 28px; line-height: 1.25; }
+h2 { font-size: 21px; }
+a { color: #126b68; }
+form { margin: 24px 0; }
+label { display: block; margin-top: 16px; font-weight: 600; }
+input:not([type=checkbox]) { width: 100%; padding: 12px; border: 1px solid #8b979f; border-radius: 4px; font: inherit; }
+small { display: block; color: #54646d; }
+.check { display: flex; gap: 12px; align-items: baseline; font-weight: 400; }
+.check input { flex: 0 0 auto; width: 20px; height: 20px; }
+button { background: #126b68; color: #fff; padding: 12px 20px; border: 1px solid #126b68; border-radius: 4px; font: inherit; cursor: pointer; margin-top: 12px; max-width: 100%; }
+button.secondary { background: white; color: #126b68; }
+article { border-block: 1px solid #dce1e4; padding-block: 16px; }
+:focus-visible { outline: 3px solid #b6770a; outline-offset: 3px; }

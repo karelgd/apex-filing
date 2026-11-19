@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <h1>Create agreement template</h1>
+  <form method="post" class="crm-panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="form-label" for="name">Agreement name / version</label>
+    <input class="form-control mb-3" id="name" name="name" maxlength="180" required>
+    <label class="form-label" for="content">Agreement content</label>
+    <textarea class="form-control mb-3" id="content" name="content" rows="20" maxlength="60000" required></textarea>
+    <button class="btn btn-primary">Create template</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('agreements') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

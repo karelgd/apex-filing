@@ -3762,10 +3762,13 @@ def agency_can_create_case_type(agency, case_type):
 
 
 def register_routes(app, csrf):
+    from agreements import Agreement, register_agreements
     from employee_payments import register_employee_payments
     from zelle_inbox import register_zelle_inbox
 
     register_employee_payments(app, can_use_crm, is_agency_owner)
+    register_agreements(app, can_use_crm=can_use_crm, is_owner=is_agency_owner,
+                        user_label=current_user_label, send_email=send_postmark_email, log_client=crm_client_log)
     register_zelle_inbox(
         app, eastern_datetime, can_use_crm=can_use_crm, current_user_label=current_user_label,
         recalc_invoice=recalc_crm_invoice, log_client=crm_client_log,
@@ -5565,7 +5568,7 @@ def register_routes(app, csrf):
         client = Client.query.filter_by(id=client_id, agency_id=current_user.agency_id).first() or abort(404)
         backfill_client_message_owner(client)
         active_tab = request.args.get("tab", "cases")
-        allowed_tabs = {"cases", "appointments", "invoices", "questionnaires", "documents", "messages", "notes", "activity", "lead-notes"}
+        allowed_tabs = {"cases", "appointments", "invoices", "questionnaires", "documents", "messages", "notes", "activity", "lead-notes", "agreements"}
         if active_tab not in allowed_tabs:
             active_tab = "cases"
         message_thread = client.message_thread
@@ -5642,6 +5645,9 @@ def register_routes(app, csrf):
         )
         return render_template(
             "crm_client_detail.html",
+            agreements=Agreement.query.filter_by(
+                client_id=client.id, agency_id=current_user.agency_id, archived_at=None
+            ).order_by(Agreement.created_at.desc()).all(),
             client=client,
             cases=CrmCase.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmCase.updated_at.desc()).all(),
             invoices=CrmInvoice.query.filter_by(client_id=client.id, agency_id=current_user.agency_id).order_by(CrmInvoice.updated_at.desc()).all(),

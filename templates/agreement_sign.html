@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ t.title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='agreement_sign.css') }}">
+</head>
+<body>
+  <main>
+    <nav aria-label="Language"><a href="{{ url_for('agreement_sign', token=request.view_args.token, lang='en') }}" lang="en">English</a> | <a href="{{ url_for('agreement_sign', token=request.view_args.token, lang='es') }}" lang="es">Español</a></nav>
+    <h1>{{ t.title }}</h1>
+    {% for category, message in get_flashed_messages(with_categories=true) %}<p role="status">{{ message }}</p>{% endfor %}
+    {% if expired %}
+      <p>{{ t.expired }}</p>
+    {% elif not verified %}
+      <h2>{{ t.verify }}</h2>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lang" value="{{ lang }}">
+        <button name="action" value="code">{{ t.request_code }}</button>
+      </form>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lang" value="{{ lang }}">
+        <label for="code">{{ t.code }}</label><input name="code" id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+        <button name="action" value="verify">{{ t.check }}</button>
+      </form>
+    {% else %}
+      <h2>{{ agreement.name }}</h2>
+      <p>{{ snapshot.agency.name }} · {{ snapshot.client.name }}</p>
+      <p><a href="{{ url_for('agreement_public_pdf', token=request.view_args.token, lang=lang) }}" target="_blank" rel="noopener">{{ t.download }}</a></p>
+      {% if agreement.status == 'Signed' %}
+        <h2>{{ t.done }}</h2><p>{{ agreement.signature }} · {{ agreement.signed_at }} UTC</p>
+      {% elif agreement.status == 'Declined' %}
+        <p>{{ t.declined }}</p>
+      {% else %}
+        <article><h2>{{ 'Electronic records consent' if lang == 'en' else 'Consentimiento para documentos electrónicos' }}</h2><p>{{ disclosure }}</p>
+          <p>{{ snapshot.agency.email }} · {{ snapshot.agency.phone }}</p>
+        </article>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lang" value="{{ lang }}">
+          <label for="first">{{ t.first }}</label><input id="first" name="first" maxlength="80" autocomplete="given-name" aria-describedby="first-hint" required>
+          <small id="first-hint">{{ t.first_hint }}</small>
+          <label for="last">{{ t.last }}</label><input id="last" name="last" maxlength="150" autocomplete="family-name" aria-describedby="last-hint" required>
+          <small id="last-hint">{{ t.last_hint }}</small>
+          {% for key in ['consent','access','intent'] %}
+            <label class="check"><input type="checkbox" name="{{ key }}" value="yes" required><span>{{ t[key] }}</span></label>
+          {% endfor %}
+          <button name="action" value="sign">{{ t.sign }}</button>
+        </form>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lang" value="{{ lang }}">
+          <button class="secondary" name="action" value="decline">{{ t.decline }}</button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </main>
+</body></html>

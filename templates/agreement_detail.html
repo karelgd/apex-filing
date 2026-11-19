@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <h1>{{ agreement.name }}</h1>
+  <p>{{ snapshot.client.name }} · {{ agreement.status }} · #{{ agreement.id }}</p>
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <a class="btn btn-primary" href="{{ url_for('agreement_staff_pdf', agreement_id=agreement.id) }}" target="_blank" rel="noopener">View PDF</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('agreement_staff_pdf', agreement_id=agreement.id, download=1) }}">Download PDF</a>
+    {% if is_agency_owner() and not agreement.archived_at %}
+      <form method="post" action="{{ url_for('agreement_delete', agreement_id=agreement.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-danger" type="submit">Archive agreement</button>
+      </form>
+    {% endif %}
+  </div>
+  <h2>Activity</h2>
+  <div class="table-responsive"><table class="table"><thead><tr><th>UTC</th><th>Action</th><th>By</th><th>Details</th></tr></thead>
+  <tbody>{% for event in events %}<tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.actor }}</td><td class="text-break">{{ event.details or '' }}</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

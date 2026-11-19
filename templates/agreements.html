@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-panel-head"><h1>Agreements</h1><a class="btn btn-primary" href="{{ url_for('agreement_template_new') }}">Create agreement template</a></div>
+  <form method="get" class="crm-report-filters mb-3">
+    <div><label class="form-label" for="q">Client name, A-number, phone, or email</label><input class="form-control" id="q" name="q" value="{{ request.args.get('q', '') }}"></div>
+    <div><label class="form-label" for="from">From (UTC)</label><input class="form-control" type="date" id="from" name="from" value="{{ request.args.get('from', '') }}"></div>
+    <div><label class="form-label" for="to">To (UTC)</label><input class="form-control" type="date" id="to" name="to" value="{{ request.args.get('to', '') }}"></div>
+    <button class="btn btn-primary align-self-end">Search</button>
+  </form>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th>Agreement</th><th>Client</th><th>Created (UTC)</th><th>Status</th><th></th></tr></thead>
+    <tbody>{% for agreement in rows.items %}<tr>
+      <td>{{ agreement.name }}</td><td>{{ agreement.client.full_name }}</td><td>{{ agreement.created_at.strftime('%Y-%m-%d') }}</td><td>{{ agreement.status }}</td>
+      <td><a href="{{ url_for('agreement_detail', agreement_id=agreement.id) }}">View</a></td>
+    </tr>{% else %}<tr><td colspan="5">No agreements match your search.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% for page in rows.iter_pages() %}
+    {% if page %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('agreements', page=page, q=request.args.get('q',''), **{'from':request.args.get('from',''), 'to':request.args.get('to','')}) }}">{{ page }}</a>{% else %}<span>...</span>{% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

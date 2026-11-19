@@ -105,6 +105,9 @@
           <a class="tool-link {{ 'active' if request.endpoint in ['client_list', 'client_create', 'client_edit'] else '' }}" href="{{ url_for('client_list') }}">Clients</a>
           {% endif %}
           {% if is_agency_owner() %}
+            {% if current_user.agency.has_tool('CRM') %}
+              <a class="tool-link {{ 'active' if request.endpoint == 'agreements' else '' }}" href="{{ url_for('agreements') }}">Agreements</a>
+            {% endif %}
             {% set staff_endpoints = ['translator_list', 'translator_edit', 'preparer_list', 'preparer_edit', 'crm_preparer_list', 'crm_preparer_edit', 'case_manager_list', 'case_manager_edit', 'lawyer_list', 'lawyer_edit', 'law_firm_list', 'law_firm_edit'] %}
             <details class="sidebar-group" {% if request.endpoint in staff_endpoints %}open{% endif %}>
               <summary class="tool-link sidebar-group-toggle {{ 'active' if request.endpoint in staff_endpoints else '' }}">Staff</summary>
