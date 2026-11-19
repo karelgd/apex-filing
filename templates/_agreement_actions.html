@@ -1,0 +1,12 @@
+{% macro agreement_actions(agreement, return_to='list') %}
+  {% if is_agency_owner() %}
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agreement_detail', agreement_id=agreement.id) }}">View agreement</a>
+  {% endif %}
+  {% if agreement.status == 'Pending' and not agreement.archived_at and (is_agency_owner() or current_user.staff_role == 'case_manager') %}
+    <form class="d-inline" method="post" action="{{ url_for('agreement_resend', agreement_id=agreement.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="return_to" value="{{ return_to }}">
+      <button class="btn btn-sm btn-outline-secondary" type="submit">Resend</button>
+    </form>
+  {% endif %}
+{% endmacro %}

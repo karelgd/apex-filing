@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_crm_lead_note_history.html" import lead_note_history %}
+{% from "_agreement_actions.html" import agreement_actions with context %}
 {% block content %}
 {% set selected_tab = active_tab or 'cases' %}
 <div class="crm-page">
@@ -318,12 +319,14 @@
     <section class="crm-folder-panel {{ 'active' if selected_tab == 'agreements' else '' }}" data-crm-panel="agreements" id="agreements">
       <div class="crm-panel-head">
         <h2>Agreements</h2>
-        <a class="btn btn-primary" href="{{ url_for('agreement_new', client_id=client.id) }}">Send agreement</a>
+        {% if is_agency_owner() or current_user.staff_role == 'case_manager' %}
+          <a class="btn btn-primary" href="{{ url_for('agreement_new', client_id=client.id) }}">Send agreement</a>
+        {% endif %}
       </div>
       {% for agreement in agreements %}
         <div class="crm-record">
           <div><strong>{{ agreement.name }}</strong><div>{{ agreement.status }} · {{ agreement.created_at.strftime('%b %d, %Y') }}</div></div>
-          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agreement_detail', agreement_id=agreement.id) }}">View agreement</a>
+          <div class="d-flex flex-wrap gap-2">{{ agreement_actions(agreement, 'client') }}</div>
         </div>
       {% else %}<p>No agreements.</p>{% endfor %}
     </section>

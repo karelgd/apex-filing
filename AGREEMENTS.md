@@ -9,6 +9,24 @@ invoice discounts are snapshotted. Later edits do not change that agreement.
 Only owners can archive agreements. Archiving hides them and revokes signing
 links; it does not destroy the completed PDF or evidence.
 
+Case managers can search the agency agreement list and see agreement names,
+clients, dates, and statuses in that list and client profiles. They cannot open
+agreement details, view/download PDFs, or manage templates. The server enforces
+these restrictions, including public signing links while logged in as a case
+manager. Agency owners retain document access.
+
+On signing, an unread Alert is created for the client's active assigned case
+manager. If there is no active assigned client manager, active managers of the
+selected service cases receive the Alert instead. A repeated signing submission
+cannot create duplicate execution or alerts.
+
+Owners and case managers can resend a Pending agreement from either list. Resend
+uses the snapshotted client email, not another manually entered recipient, and
+preserves the original terms and pricing. Successful delivery replaces the old
+signing token and renews the signing period to 30 days; failed delivery retains
+the old token and deadline. Resends have a one-minute cooldown and are logged.
+Signed, declined, or archived agreements cannot be resent.
+
 Karel Gonzalez is currently the fixed company signatory. Sending requires an
 affirmative confirmation of authority to apply that automatic signature. Do not
 enable this feature for an agency whose CEO or authorization differs.

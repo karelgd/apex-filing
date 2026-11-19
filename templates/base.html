@@ -126,7 +126,7 @@
               {% endif %}
             </a>
           {% endif %}
-          {% if is_agency_owner() and current_user.agency.has_tool('CRM') %}
+          {% if (is_agency_owner() or current_user.staff_role == 'case_manager') and current_user.agency.has_tool('CRM') %}
             <a class="tool-link {{ 'active' if request.endpoint in ['agreements', 'agreement_templates', 'agreement_template_new', 'agreement_template_edit', 'agreement_detail', 'agreement_new'] else '' }}" href="{{ url_for('agreements') }}">Agreements</a>
           {% endif %}
           {% if current_user.agency.has_tool('CRM') %}

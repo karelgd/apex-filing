@@ -15,7 +15,7 @@ from jinja2 import ChoiceLoader, DictLoader
 from pypdf import PdfReader
 
 from agreements import Agreement, AgreementEvent, AgreementTemplate, digest, now_utc, register_agreements
-from models import Agency, AgencyCaseManager, AgencyUser, Client, CrmCase, CrmInvoice, CrmInvoiceActivity, db
+from models import Agency, AgencyCaseManager, AgencyUser, Client, CrmCase, CrmInvoice, CrmInvoiceActivity, Notification, db
 
 
 class AgreementTest(unittest.TestCase):
@@ -132,7 +132,7 @@ class AgreementTest(unittest.TestCase):
 
     def test_tenant_permissions_templates_and_archive(self):
         self.login("manager")
-        self.assertEqual(self.client.get("/agency/agreements").status_code, 403)
+        self.assertEqual(self.client.get("/agency/agreements").status_code, 200)
         self.assertEqual(self.client.post("/agency/agreements/templates/new", data={"name": "X", "content": "X"}).status_code, 403)
         self.assertEqual(self.client.get("/agency/crm/clients/2/agreements/new").status_code, 404)
         url = self.send_agreement()
@@ -140,7 +140,9 @@ class AgreementTest(unittest.TestCase):
         self.assertEqual(self.client.get("/agency/agreements/1").status_code, 404)
         self.login("manager")
         self.assertEqual(self.client.post("/agency/agreements/1/delete").status_code, 403)
-        self.assertEqual(self.client.get("/agency/agreements/1/pdf").status_code, 200)
+        self.assertEqual(self.client.get("/agency/agreements/1").status_code, 403)
+        self.assertEqual(self.client.get("/agency/agreements/1/pdf").status_code, 403)
+        self.assertEqual(self.client.get("/agency/agreements/1/pdf?download=1").status_code, 403)
         self.login("owner")
         self.assertEqual(self.client.get("/agency/agreements").status_code, 200)
         self.assertEqual(self.client.get("/agency/agreements/1").status_code, 200)
@@ -149,6 +151,101 @@ class AgreementTest(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Agreement.query.count(), 1)
             self.assertIsNotNone(Agreement.query.one().archived_at)
+
+    def test_manager_list_search_and_no_document_access(self):
+        url = self.send_agreement()
+        self.login("manager")
+        page = self.client.get("/agency/agreements?q=Maria&from=2000-01-01&to=2099-01-01")
+        self.assertIn(b"Service Agreement v1", page.data)
+        self.assertIn(b"Pending", page.data)
+        self.assertIn(b"Resend", page.data)
+        self.assertNotIn(b"View agreement", page.data)
+        self.assertNotIn(b"Create agreement template", page.data)
+        self.assertNotIn(b"English terms.", page.data)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.get(url + "/pdf").status_code, 403)
+        self.assertNotIn(b"Service Agreement v1", self.client.get("/agency/agreements?q=Absent").data)
+        self.login("other")
+        self.assertNotIn(b"Service Agreement v1", self.client.get("/agency/agreements").data)
+        self.assertEqual(self.client.post("/agency/agreements/1/resend").status_code, 404)
+
+    def test_signed_alert_goes_to_assigned_manager_once(self):
+        url = self.send_agreement()
+        with self.app.app_context():
+            db.session.add(AgencyCaseManager(id=10, agency_id=1, full_name="Assigned manager", is_active=True))
+            db.session.add(AgencyCaseManager(id=20, agency_id=2, full_name="Other agency manager", is_active=True))
+            client = db.session.get(Client, 1)
+            client.assigned_to_role, client.assigned_to_id = "agency_case_manager", 10
+            db.session.commit()
+        self.open_agreement(url)
+        self.client.post(url, data=self.signing_data())
+        self.assertEqual(self.client.post(url, data=self.signing_data()).status_code, 409)
+        with self.app.app_context():
+            notification = Notification.query.one()
+            self.assertEqual((notification.agency_id, notification.recipient_role, notification.recipient_id),
+                             (1, "agency_case_manager", 10))
+            self.assertEqual(notification.notification_type, "agreement_signed")
+            self.assertEqual(notification.client_id, 1)
+            self.assertIsNone(notification.read_at)
+            self.assertIn("has been signed", notification.message)
+
+    def test_signed_alert_falls_back_to_service_case_manager(self):
+        url = self.send_agreement()
+        with self.app.app_context():
+            db.session.add(AgencyCaseManager(id=10, agency_id=1, full_name="Case manager", is_active=True))
+            db.session.get(CrmCase, 1).case_manager_id = 10
+            db.session.commit()
+        self.open_agreement(url)
+        self.client.post(url, data=self.signing_data())
+        with self.app.app_context():
+            self.assertEqual(Notification.query.one().recipient_id, 10)
+
+    def test_resend_rotates_link_preserves_terms_and_requires_pending_status(self):
+        old_url = self.send_agreement()
+        with self.app.app_context():
+            agreement = Agreement.query.one()
+            snapshot = agreement.snapshot
+            agreement.sent_at = now_utc() - timedelta(minutes=2)
+            agreement.expires_at = now_utc() - timedelta(days=1)
+            db.session.commit()
+        self.login("manager")
+        with patch.dict(self.app.config, WTF_CSRF_ENABLED=True):
+            self.assertEqual(self.client.post("/agency/agreements/1/resend").status_code, 400)
+        result = self.client.post("/agency/agreements/1/resend", data={"return_to": "client"})
+        self.assertEqual(result.status_code, 303)
+        self.assertEqual(result.location, "/clients/1?tab=agreements")
+        new_url = "/sign/agreements/" + re.search(r"/sign/agreements/([A-Za-z0-9_-]+)", self.mail[-1][2])[1]
+        self.assertNotEqual(new_url, old_url)
+        self.assertEqual(len(self.mail), 2)
+        self.client.post("/agency/agreements/1/resend")
+        self.assertEqual(len(self.mail), 2)  # Cooldown prevents accidental repeat sends.
+        with self.app.app_context():
+            agreement = Agreement.query.one()
+            self.assertEqual(agreement.snapshot, snapshot)
+            self.assertGreater(agreement.expires_at, now_utc() + timedelta(days=29))
+            self.assertEqual(AgreementEvent.query.filter_by(action="Invitation resent").count(), 1)
+        self.login(None)
+        self.assertEqual(self.client.get(old_url).status_code, 404)
+        self.open_agreement(new_url)
+        self.client.post(new_url, data=self.signing_data())
+        self.login("owner")
+        self.assertEqual(self.client.post("/agency/agreements/1/resend").status_code, 409)
+
+    def test_failed_resend_keeps_existing_link(self):
+        url = self.send_agreement()
+        with self.app.app_context():
+            agreement = Agreement.query.one()
+            agreement.sent_at = now_utc() - timedelta(minutes=2)
+            old_expiry = agreement.expires_at
+            db.session.commit()
+        self.login("owner")
+        with patch.dict(self.app.config, TEST_EMAIL_FAILURE=True):
+            self.assertEqual(self.client.post("/agency/agreements/1/resend").status_code, 303)
+        self.login(None)
+        self.open_agreement(url)
+        with self.app.app_context():
+            self.assertEqual(Agreement.query.one().expires_at, old_expiry)
+            self.assertEqual(Agreement.query.one().status, "Pending")
 
     def test_link_expiry_and_invalid_tokens(self):
         url = self.send_agreement()

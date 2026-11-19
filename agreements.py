@@ -15,7 +15,7 @@ from flask import abort, current_app, flash, redirect, render_template, request,
 from flask_login import current_user
 from sqlalchemy import func, or_, update
 
-from models import AgencyCaseManager, AgencyUser, Client, CrmCase, CrmInvoice, CrmInvoiceActivity, db
+from models import AgencyCaseManager, AgencyUser, Client, CrmCase, CrmInvoice, CrmInvoiceActivity, Notification, db
 
 
 CEO = "Karel Gonzalez"
@@ -131,6 +131,27 @@ def event(agreement, action, actor, details=""):
     ))
 
 
+def notify_agreement_signed(agreement):
+    client = agreement.client
+    managers = AgencyCaseManager.query.filter_by(agency_id=agreement.agency_id, is_active=True)
+    assigned = (managers.filter_by(id=client.assigned_to_id).first()
+                if client.assigned_to_role == "agency_case_manager" else None)
+    if assigned:
+        recipients = [assigned]
+    else:
+        case_ids = [service.get("case_id") for service in json.loads(agreement.snapshot)["services"]]
+        recipients = managers.join(CrmCase, CrmCase.case_manager_id == AgencyCaseManager.id).filter(
+            CrmCase.id.in_(case_ids), CrmCase.client_id == agreement.client_id,
+            CrmCase.agency_id == agreement.agency_id,
+        ).distinct().all()
+    for manager in recipients:
+        db.session.add(Notification(
+            agency_id=agreement.agency_id, recipient_role="agency_case_manager", recipient_id=manager.id,
+            sender_label="System", notification_type="agreement_signed", client_id=client.id,
+            message=f"Agreement {agreement.name} (#{agreement.id}) for client {client.full_name} has been signed.",
+        ))
+
+
 def agreement_pdf(agreement):
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet
@@ -217,7 +238,30 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
         return agreement
 
     def public(token):
+        if current_user.is_authenticated and isinstance(current_user, AgencyCaseManager):
+            abort(403)
         return Agreement.query.filter_by(token_hash=digest(token), archived_at=None).first_or_404()
+
+    def signing_base():
+        base = os.environ.get("AGREEMENT_PUBLIC_BASE_URL", "").rstrip("/")
+        if (not base or not urlsplit(base).netloc or urlsplit(base).scheme != "https"
+                or urlsplit(base).query or urlsplit(base).fragment
+                or current_app.secret_key in (None, "", "dev-change-me")
+                or (not current_app.testing and not current_app.config.get("SESSION_COOKIE_SECURE"))):
+            return None
+        return base
+
+    def send_invitation(agreement, link):
+        snapshot = json.loads(agreement.snapshot)
+        return send_email(
+            snapshot["client"]["email"], "Agreement signature requested / Solicitud de firma",
+            f"{snapshot['agency']['name']}\nHello / Hola {snapshot['client']['name']},\n"
+            f"Agreement / Acuerdo: {agreement.name}\nReview and sign / Revise y firme: {link}\n"
+            "Choose English or Spanish on the signing page. Elija ingles o espanol en la pagina.\n"
+            f"Sign by / Firme antes del: {agreement.expires_at.strftime('%Y-%m-%d')} UTC.",
+            html_body=render_template("agreement_email.html", agreement=agreement, agency=snapshot["agency"],
+                                      client=snapshot["client"], link=link, notice="invitation"),
+        )
 
     @app.after_request
     def protect_agreement_responses(response):
@@ -232,8 +276,6 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
     @app.get("/agency/agreements")
     @staff
     def agreements():
-        if not is_owner():
-            abort(403)
         rows = Agreement.query.join(Agreement.client).filter(
             Agreement.agency_id == current_user.agency_id, Agreement.archived_at.is_(None),
         )
@@ -354,24 +396,13 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
             db.session.add(agreement)
             db.session.flush()
             event(agreement, "Company signature authorized", user_label(), f"{CEO}; template #{template.id}")
-            base = os.environ.get("AGREEMENT_PUBLIC_BASE_URL", "").rstrip("/")
-            if (not base or not urlsplit(base).netloc or urlsplit(base).scheme != "https"
-                    or urlsplit(base).query or urlsplit(base).fragment
-                    or current_app.secret_key in (None, "", "dev-change-me")
-                    or (not current_app.testing and not current_app.config.get("SESSION_COOKIE_SECURE"))):
+            base = signing_base()
+            if not base:
                 db.session.rollback()
                 flash("Configure the HTTPS signing URL, a strong secret key, and secure session cookies before sending.", "warning")
                 return redirect(request.url)
             link = base + url_for("agreement_sign", token=token)
-            email_snapshot = json.loads(agreement.snapshot)
-            ok, _ = send_email(client.email, "Agreement signature requested / Solicitud de firma",
-                               f"{agency.agency_name}\nHello / Hola {client.full_name},\n"
-                               f"Agreement / Acuerdo: {agreement.name}\nReview and sign / Revise y firme: {link}\n"
-                               "Choose English or Spanish on the signing page. Elija ingles o espanol en la pagina.\n"
-                               "This invitation expires in 30 days. / Esta invitacion vence en 30 dias.",
-                               html_body=render_template("agreement_email.html", agreement=agreement,
-                                                         agency=email_snapshot["agency"], client=email_snapshot["client"],
-                                                         link=link, notice="invitation"))
+            ok, _ = send_invitation(agreement, link)
             agreement.status = "Pending" if ok else "Delivery failed"
             agreement.sent_at = now if ok else None
             event(agreement, "Invitation sent" if ok else "Delivery failed", user_label())
@@ -385,6 +416,8 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
     @app.get("/agency/agreements/<int:agreement_id>")
     @staff
     def agreement_detail(agreement_id):
+        if not is_owner():
+            abort(403)
         agreement = owned(agreement_id)
         return render_template("agreement_detail.html", agreement=agreement, snapshot=json.loads(agreement.snapshot),
                                events=AgreementEvent.query.filter_by(agreement_id=agreement.id).order_by(AgreementEvent.id).all())
@@ -404,7 +437,43 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
     @app.get("/agency/agreements/<int:agreement_id>/pdf")
     @staff
     def agreement_staff_pdf(agreement_id):
+        if not is_owner():
+            abort(403)
         return serve_pdf(owned(agreement_id))
+
+    @app.post("/agency/agreements/<int:agreement_id>/resend")
+    @staff
+    def agreement_resend(agreement_id):
+        agreement = owned(agreement_id)
+        db.session.execute(update(Agreement).where(Agreement.id == agreement.id).values(id=Agreement.id))
+        db.session.refresh(agreement)
+        if agreement.archived_at or agreement.status != "Pending":
+            abort(409)
+        back = (url_for("crm_client_detail", client_id=agreement.client_id, tab="agreements")
+                if request.form.get("return_to") == "client" else url_for("agreements"))
+        if agreement.sent_at and now_utc() - agreement.sent_at < timedelta(minutes=1):
+            flash("Please wait one minute before resending this agreement.", "warning")
+            return redirect(back, code=303)
+        base = signing_base()
+        if not base:
+            flash("The signing email configuration is not ready. Contact your administrator.", "warning")
+            return redirect(back, code=303)
+        token = secrets.token_urlsafe(32)
+        previous_expiry = agreement.expires_at
+        agreement.expires_at = now_utc() + timedelta(days=30)
+        ok, _ = send_invitation(agreement, base + url_for("agreement_sign", token=token))
+        if ok:
+            agreement.token_hash = digest(token)
+            agreement.sent_at = now_utc()
+            event(agreement, "Invitation resent", user_label(), "Previous signing link replaced; terms unchanged.")
+            log_client(agreement.client, "Agreement invitation resent", f"{agreement.name} (#{agreement.id})")
+        else:
+            agreement.expires_at = previous_expiry
+            event(agreement, "Invitation resend failed", user_label())
+        db.session.commit()
+        flash("Agreement email resent." if ok else "Email delivery failed. The previous link remains valid.",
+              "success" if ok else "warning")
+        return redirect(back, code=303)
 
     def serve_pdf(agreement):
         data = agreement.pdf if agreement.status == "Signed" else agreement_pdf(agreement)
@@ -422,6 +491,8 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
         if request.method == "POST":
             db.session.execute(update(Agreement).where(Agreement.id == agreement.id).values(id=Agreement.id))
             db.session.refresh(agreement)
+            if agreement.archived_at or agreement.token_hash != digest(token):
+                abort(404)
             action = request.form.get("action")
             if agreement.status != "Pending" or agreement.expires_at < now_utc():
                 abort(409)
@@ -448,6 +519,7 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
                                       "access_method": "Email invitation link; no separate identity verification",
                                       "affirmations": {key: COPY[lang][key] for key in ("consent", "access", "intent")}},
                                      ensure_ascii=True))
+                    notify_agreement_signed(agreement)
                     db.session.flush()
                     agreement.pdf = agreement_pdf(agreement)
                     agreement.pdf_hash = digest(agreement.pdf)
