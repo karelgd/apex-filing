@@ -127,7 +127,7 @@
             </a>
           {% endif %}
           {% if is_agency_owner() and current_user.agency.has_tool('CRM') %}
-            <a class="tool-link {{ 'active' if request.endpoint in ['agreements', 'agreement_template_new', 'agreement_detail', 'agreement_new'] else '' }}" href="{{ url_for('agreements') }}">Agreements</a>
+            <a class="tool-link {{ 'active' if request.endpoint in ['agreements', 'agreement_templates', 'agreement_template_new', 'agreement_template_edit', 'agreement_detail', 'agreement_new'] else '' }}" href="{{ url_for('agreements') }}">Agreements</a>
           {% endif %}
           {% if current_user.agency.has_tool('CRM') %}
             {% set crm_endpoints = ['agency_crm', 'crm_leads', 'crm_lead_detail', 'crm_client_detail', 'crm_case_create', 'crm_case_edit', 'crm_case_detail', 'crm_invoice_create', 'crm_invoice_edit', 'crm_invoice_detail', 'crm_invoice_activity_edit', 'crm_appointment_create', 'crm_appointment_edit', 'crm_appointment_detail', 'crm_calendar', 'crm_reports', 'crm_reports_download', 'crm_survey_detail', 'crm_survey_resend', 'crm_statistics', 'crm_case_types', 'crm_case_type_delete'] %}

@@ -257,6 +257,16 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
         return render_template("agreements.html", rows=rows.order_by(Agreement.created_at.desc()).paginate(
             page=page, per_page=30, error_out=False))
 
+    @app.get("/agency/agreements/templates")
+    @staff
+    def agreement_templates():
+        if not is_owner():
+            abort(403)
+        templates = AgreementTemplate.query.filter_by(agency_id=current_user.agency_id).order_by(
+            AgreementTemplate.created_at.desc(), AgreementTemplate.id.desc()
+        ).paginate(page=max(1, request.args.get("page", 1, type=int)), per_page=30, error_out=False)
+        return render_template("agreement_templates.html", templates=templates)
+
     @app.route("/agency/agreements/templates/new", methods=["GET", "POST"])
     @staff
     def agreement_template_new():
@@ -269,8 +279,26 @@ def register_agreements(app, *, can_use_crm, is_owner, user_label, send_email, l
             db.session.add(AgreementTemplate(agency_id=current_user.agency_id, name=name, content=content))
             db.session.commit()
             flash("Agreement template created.", "success")
-            return redirect(url_for("agreements"))
+            return redirect(url_for("agreement_templates"))
         return render_template("agreement_template.html")
+
+    @app.route("/agency/agreements/templates/<int:template_id>/edit", methods=["GET", "POST"])
+    @staff
+    def agreement_template_edit(template_id):
+        if not is_owner():
+            abort(403)
+        template = AgreementTemplate.query.filter_by(
+            id=template_id, agency_id=current_user.agency_id
+        ).first_or_404()
+        if request.method == "POST":
+            name, content = request.form.get("name", "").strip(), request.form.get("content", "").strip()
+            if not 1 <= len(name) <= 180 or not 1 <= len(content) <= 60000:
+                abort(400)
+            template.name, template.content = name, content
+            db.session.commit()
+            flash("Agreement template updated. Previously sent agreements are unchanged.", "success")
+            return redirect(url_for("agreement_templates"))
+        return render_template("agreement_template.html", template=template)
 
     @app.route("/agency/crm/clients/<int:client_id>/agreements/new", methods=["GET", "POST"])
     @staff

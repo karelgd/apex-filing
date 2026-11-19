@@ -202,6 +202,42 @@ class AgreementTest(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Agreement.query.count(), 0)
 
+    def test_template_list_and_edit_are_owner_only_and_preserve_sent_agreements(self):
+        url = self.send_agreement()
+        self.login("manager")
+        self.assertEqual(self.client.get("/agency/agreements/templates").status_code, 403)
+        self.assertEqual(self.client.get("/agency/agreements/templates/1/edit").status_code, 403)
+        self.assertEqual(self.client.post("/agency/agreements/templates/1/edit",
+                                         data={"name": "Denied", "content": "Denied"}).status_code, 403)
+        self.login("other")
+        self.assertEqual(self.client.get("/agency/agreements/templates/1/edit").status_code, 404)
+        self.assertEqual(self.client.post("/agency/agreements/templates/1/edit",
+                                         data={"name": "Denied", "content": "Denied"}).status_code, 404)
+        self.login("owner")
+        listing = self.client.get("/agency/agreements/templates")
+        self.assertIn(b"Service Agreement v1", listing.data)
+        self.assertNotIn(b"/templates/2/edit", listing.data)
+        page = self.client.get("/agency/agreements/templates/1/edit")
+        self.assertIn(b"English terms.", page.data)
+        self.assertIn(b'value="Service Agreement v1"', page.data)
+        with patch.dict(self.app.config, WTF_CSRF_ENABLED=True):
+            self.assertEqual(self.client.post("/agency/agreements/templates/1/edit",
+                                             data={"name": "v2", "content": "Changed"}).status_code, 400)
+        self.assertEqual(self.client.post("/agency/agreements/templates/1/edit",
+                                         data={"name": "", "content": "Changed"}).status_code, 400)
+        response = self.client.post("/agency/agreements/templates/1/edit",
+                                    data={"name": "Revised v2", "content": "Updated terms for future agreements."})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, "/agency/agreements/templates")
+        with self.app.app_context():
+            self.assertEqual(db.session.get(AgreementTemplate, 1).content, "Updated terms for future agreements.")
+            self.assertIn("English terms.", Agreement.query.one().snapshot)
+            self.assertNotIn("Updated terms", Agreement.query.one().snapshot)
+            self.assertEqual(Agreement.query.one().name, "Service Agreement v1")
+        self.login(None)
+        self.assertIn(b"English terms.", self.client.get(url).data)
+        self.assertNotIn(b"Updated terms", self.client.get(url).data)
+
     def test_failed_invitation_is_recorded_and_cannot_be_signed(self):
         self.login("manager")
         with patch.dict(self.app.config, TEST_EMAIL_FAILURE=True):

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page">
+  <div class="crm-panel-head"><h1>Agreement templates</h1><div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('agreements') }}">Agreements</a>
+    <a class="btn btn-primary" href="{{ url_for('agreement_template_new') }}">Create agreement template</a>
+  </div></div>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th>Name / version</th><th>Created (UTC)</th><th></th></tr></thead>
+    <tbody>
+      {% for template in templates.items %}
+        <tr><td class="text-break">{{ template.name }}</td><td>{{ template.created_at.strftime('%Y-%m-%d') }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('agreement_template_edit', template_id=template.id) }}" aria-label="Edit {{ template.name }}">Edit</a></td></tr>
+      {% else %}<tr><td colspan="3">No agreement templates.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if templates.has_prev or templates.has_next %}
+    <nav class="d-flex gap-2" aria-label="Template pages">
+      {% if templates.has_prev %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('agreement_templates', page=templates.prev_num) }}">Previous</a>{% endif %}
+      {% if templates.has_next %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('agreement_templates', page=templates.next_num) }}">Next</a>{% endif %}
+    </nav>
+  {% endif %}
+</div>
+{% endblock %}

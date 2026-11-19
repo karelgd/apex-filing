@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="crm-page">
-  <div class="crm-panel-head"><h1>Agreements</h1><a class="btn btn-primary" href="{{ url_for('agreement_template_new') }}">Create agreement template</a></div>
+  <div class="crm-panel-head"><h1>Agreements</h1><div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-primary" href="{{ url_for('agreement_templates') }}">Templates</a>
+    <a class="btn btn-primary" href="{{ url_for('agreement_template_new') }}">Create agreement template</a>
+  </div></div>
   <form method="get" class="crm-report-filters mb-3">
     <div><label class="form-label" for="q">Client name, A-number, phone, or email</label><input class="form-control" id="q" name="q" value="{{ request.args.get('q', '') }}"></div>
     <div><label class="form-label" for="from">From (UTC)</label><input class="form-control" type="date" id="from" name="from" value="{{ request.args.get('from', '') }}"></div>
