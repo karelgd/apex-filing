@@ -23,6 +23,14 @@ signature.
 
 ## Deployment
 
+For the existing Apex PythonAnywhere account, run
+`python tools/deploy_agreements.py` after pulling the latest code. It validates
+the existing secret/email setup, makes private SQLite/WSGI backups, creates the
+three agreement tables, and appends the canonical HTTPS/secure-cookie settings.
+It does not send invitations or reload the app. Reload only the Apex web app
+after the helper confirms success. A repeat invocation stops instead of
+appending duplicate WSGI settings.
+
 1. Back up the production database and deploy the code.
 2. Set AGREEMENT_PUBLIC_BASE_URL to the canonical HTTPS application origin,
    for example https://apexcomputenergy.pythonanywhere.com (no trailing path).
